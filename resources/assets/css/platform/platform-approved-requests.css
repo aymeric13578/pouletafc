@@ -1,0 +1,13 @@
+.collapse-inner {
+  margin-bottom: 18px;
+}
+
+.dataTables_info,
+.dataTables_length {
+  padding-left: 1.4rem !important;
+}
+
+.dataTables_paginate,
+.dataTables_filter {
+  padding-right: 1.2rem !important;
+}

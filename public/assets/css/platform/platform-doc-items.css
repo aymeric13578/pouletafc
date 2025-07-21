@@ -1,0 +1,14 @@
+.amazing-doc-wrapper .ad-witem {
+  margin-right: 1rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.amazing-doc-wrapper .ad-wcontent {
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+canvas {
+  box-sizing: border-box;
+}
+

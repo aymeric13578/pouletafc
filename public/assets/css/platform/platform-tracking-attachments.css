@@ -1,0 +1,15 @@
+#attachmentTable_wrapper .dataTables_length {
+  padding-left: 1.4rem !important;
+}
+
+#attachmentTable_wrapper .dataTables_filter {
+  padding-right: 1.4rem !important;
+}
+
+#attachmentTable_wrapper .dataTables_info {
+  padding-left: 1.4rem !important;
+}
+
+#attachmentTable_wrapper .dataTables_paginate {
+  padding-right: 1.4rem !important;
+}

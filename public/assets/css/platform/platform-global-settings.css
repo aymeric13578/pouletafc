@@ -1,0 +1,15 @@
+.collapse-inner {
+  margin-bottom: 18px;
+}
+
+@media (min-width: 770px) {
+  .dataTables_info,
+  .dataTables_length {
+    padding-left: 0.4rem !important;
+  }
+
+  .dataTables_paginate,
+  .dataTables_filter {
+    padding-right: 0.4rem !important;
+  }
+}

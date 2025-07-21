@@ -1,0 +1,25 @@
+.wrapper {
+  position: relative;
+  height: calc(100vh - 230px);
+  max-width: calc(100vw - 250px);
+}
+
+.board-items {
+  position: relative;
+  height: 100%;
+}
+
+.board-items div.board-item {
+  position: relative;
+  margin-left: 0.8rem;
+  min-width: 360px !important;
+  max-width: 380px !important;
+}
+
+.board-items div.board-item:first-child {
+  margin-left: 0;
+}
+
+.empty-page {
+  height: calc(100vh - 230px);
+}

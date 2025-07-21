@@ -1,0 +1,74 @@
+/** Blockquote */
+
+blockquote {
+  display: inline;
+}
+
+blockquote::before {
+  content: '\201C';
+}
+
+blockquote::after {
+  content: '\201D';
+}
+
+/** Toast */
+
+.toast-wrapper {
+  position: fixed !important;
+  bottom: 3rem !important;
+  right: 30px !important;
+  z-index: 3000 !important;
+}
+
+/** Label */
+
+label {
+  cursor: pointer;
+}
+
+/** Ql editor */
+
+.ql-snow .ql-editor {
+  min-height: 12rem !important;
+}
+
+.ql-snow.ql-toolbar, .ql-snow .ql-toolbar, .ql-bubble.ql-toolbar, .ql-bubble .ql-toolbar {
+  box-sizing: border-box;
+  padding: 0.5rem 0.8rem;
+}
+
+/* Table */
+
+th {
+  vertical-align: middle;
+}
+
+/** Custom */
+
+.comment-bubble-item {
+  border-top-right-radius: 20px;
+  border-top-left-radius: 5px;
+  border-bottom-right-radius: 20px;
+  border-bottom-left-radius: 20px;
+}
+
+/** Off canvas */
+
+.offcanvas-header {
+  height: 70px;
+}
+
+.offcanvas-body {
+  height: calc(100vh - 70px) !important;
+}
+
+/** Other */
+
+.instruction-wrapper p {
+  margin-bottom: 0;
+}
+
+.transmission-comment-wrapper p {
+  margin: 0;
+}

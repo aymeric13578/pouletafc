@@ -1,0 +1,106 @@
+@extends('admin.components.layout')
+
+@section('main')
+
+<h4 class="py-3 mb-4">
+  <span class="text-muted fw-light">eCommerce /</span> Product List
+</h4>
+
+<!-- Product List Widget -->
+
+<div class="card mb-4">
+  <div class="card-widget-separator-wrapper">
+    <div class="card-body card-widget-separator">
+      <div class="row gy-4 gy-sm-1">
+        <div class="col-sm-6 col-lg-3">
+          <div class="d-flex justify-content-between align-items-start card-widget-1 border-end pb-3 pb-sm-0">
+            <div>
+              <h6 class="mb-2">In-store Sales</h6>
+              <h4 class="mb-2">FCFA 0</h4>
+              <p class="mb-0"><span class="text-muted me-2">0 orders</span><span class="badge bg-label-success">+5.7%</span></p>
+            </div>
+            <span class="avatar me-sm-4">
+              <span class="avatar-initial bg-label-secondary rounded"><i class="ti-md ti ti-smart-home text-body"></i></span>
+            </span>
+          </div>
+          <hr class="d-none d-sm-block d-lg-none me-4">
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="d-flex justify-content-between align-items-start card-widget-2 border-end pb-3 pb-sm-0">
+            <div>
+              <h6 class="mb-2">Website Sales</h6>
+              <h4 class="mb-2">FCFA 0</h4>
+              <p class="mb-0"><span class="text-muted me-2">0 orders</span><span class="badge bg-label-success">+0%</span></p>
+            </div>
+            <span class="avatar p-2 me-lg-4">
+              <span class="avatar-initial bg-label-secondary rounded"><i class="ti-md ti ti-device-laptop text-body"></i></span>
+            </span>
+          </div>
+          <hr class="d-none d-sm-block d-lg-none">
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="d-flex justify-content-between align-items-start border-end pb-3 pb-sm-0 card-widget-3">
+            <div>
+              <h6 class="mb-2">Discount</h6>
+              <h4 class="mb-2">FCFA 0</h4>
+              <p class="mb-0 text-muted">0 orders</p>
+            </div>
+            <span class="avatar p-2 me-sm-4">
+              <span class="avatar-initial bg-label-secondary rounded"><i class="ti-md ti ti-gift text-body"></i></span>
+            </span>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="mb-2">Affiliate</h6>
+              <h4 class="mb-2">FCFA 0</h4>
+              <p class="mb-0"><span class="text-muted me-2">0 orders</span><span class="badge bg-label-danger">-0%</span></p>
+            </div>
+            <span class="avatar p-2">
+              <span class="avatar-initial bg-label-secondary rounded"><i class="ti-md ti ti-wallet text-body"></i></span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Product List Table -->
+<div class="card">
+  <div class="card-header">
+    <h5 class="card-title mb-0">Paramètres</h5>
+    <div class="d-flex justify-content-between align-items-center row py-3 gap-3 gap-md-0">
+      <div class="col-md-4 product_status"></div>
+      <div class="col-md-4 product_category"></div>
+      <div class="col-md-4 product_stock"></div>
+    </div>
+  </div>
+  <div class="card-datatable table-responsive">
+    <table class="datatables-products table">
+      <thead class="border-top">
+        <tr>
+          <th>id</th>
+          <th>Désignation</th>
+          <th>actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <@foreach ($settings as $item)
+            <tr>
+                <td>{{ $item->id }}</td>
+                <td>{{ $item->designation }}</td>
+                <td>
+                    <a href="#" class="btn btn-primary">Modifier</a>
+                    <a href="#" class="btn btn-warning">Supprimer</a>
+                </td>
+            </tr>
+          @endforeach>
+    </tbody>
+    </table>
+  </div>
+</div>
+          <!-- / Content -->
+
+@endsection

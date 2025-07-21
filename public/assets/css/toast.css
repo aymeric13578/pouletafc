@@ -1,0 +1,6 @@
+.toast-wrapper {
+  position: fixed !important;
+  bottom: 3rem !important;
+  left: 280px !important;
+  z-index: 3000 !important;
+}

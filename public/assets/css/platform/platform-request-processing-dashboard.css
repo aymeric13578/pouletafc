@@ -1,0 +1,44 @@
+body {
+  overflow: hidden;
+}
+
+.wrapper {
+  position: relative;
+  height: calc(100vh - 230px);
+  max-width: calc(100vw - 250px);
+}
+
+.board-items {
+  position: relative;
+  height: 100%;
+}
+
+.board-items div.board-item:first-child {
+  margin-left: 0;
+}
+
+.board-items div.board-item {
+  position: relative;
+  margin-left: 0.8rem;
+  min-width: 340px !important;
+  max-width: 400px !important;
+}
+
+.empty-page {
+  height: calc(100vh - 230px);
+}
+
+.empty-page-wrapper {
+}
+
+.toast-wrapper {
+  position: fixed !important;
+  bottom: 2rem !important;
+  left: 280px !important;
+  z-index: 3000 !important;
+}
+
+.btn-icon.btn-sm-custom {
+  width: calc(1.625rem + 2px) !important;
+  height: calc(1.625rem + 2px) !important;
+}

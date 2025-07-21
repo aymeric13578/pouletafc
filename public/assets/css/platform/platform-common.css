@@ -1,0 +1,11 @@
+div.textMaxLine {
+  line-height: 1.5em;
+  height: 3em;
+  overflow: hidden;
+}
+
+div.textMaxLine::before {
+  content: '...';
+  float: right;
+  margin-top: 1.5em;
+}

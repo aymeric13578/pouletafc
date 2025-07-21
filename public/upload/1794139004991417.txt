@@ -1,0 +1,32 @@
+Installation sous Debian 11
+
+PARAMETRES D'ACCES:
+L'adresse IPv4 du VPS est : 51.195.201.73
+
+Le nom du VPS est : vps-b005b385.vps.ovh.net
+
+Le compte administrateur suivant a été configuré sur le VPS :
+Nom d'utilisateur : debian
+Mot de passe :      gzXFrNPFxvVr
+
+//Nouveau mot de passe compte debian
+FaaG1PSHVO0695debian
+
+//Nouveau mot de passe compte root
+FaaG1PSHVO0695root
+
+//Nouvel utilisateur normal
+login: paupielio
+pass: FaaG1PSHVO0695
+
+Mot de passe root pour la connexion à la BD 
+F@G1C1€LVPS20233
+
+Mot de passe fagicel pour la connexion à la BD (Remote et Localhost)
+F@G1C1€LVPS20233
+
+Mot de passe remoteFagiciel pour la connexion remote à la BD
+FAG1C1ELVPS20233
+
+Mot de passe phpmyadmin pour la connexion à la BD 
+F@G1C1€LVPS20233

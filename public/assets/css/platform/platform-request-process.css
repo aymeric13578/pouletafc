@@ -1,0 +1,41 @@
+.d-item-wrapper .col-form-label {
+  padding-top: 11px;
+}
+
+.d-item {
+  min-width: 100%;
+  padding: 0.52rem 0.8rem;
+  font-weight: 500 !important;
+}
+
+.d-item-title {
+  margin-top: 0.5rem;
+}
+
+.d-item .edit-action{
+  position: absolute;
+  right: 0.8rem;
+}
+
+.toast-wrapper {
+  position: fixed !important;
+  bottom: 3rem !important;
+  right: 30px !important;
+  z-index: 3000 !important;
+}
+
+#attachmentTable_wrapper .dataTables_length {
+  padding-left: 1.4rem !important;
+}
+
+#attachmentTable_wrapper .dataTables_filter {
+  padding-right: 1.4rem !important;
+}
+
+#attachmentTable_wrapper .dataTables_info {
+  padding-left: 1.4rem !important;
+}
+
+#attachmentTable_wrapper .dataTables_paginate {
+  padding-right: 1.4rem !important;
+}
