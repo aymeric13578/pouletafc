@@ -2,13 +2,13 @@
 
 namespace App\Models;
 
-use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -21,7 +21,7 @@ class Product extends Model
         'description',
         'created_at',
         'updated_at',
-        'delete_at',
+        'deleted_at',
         'sale_at',
         'img',
         'slug',
@@ -46,25 +46,27 @@ class Product extends Model
         'id_merchand',
     ];
 
+    // protected $dates = ['deleted_at'];
 
-    //Relations
-    public function category(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    // Relations
+    public function category()
     {
         return $this->belongsTo(Category::class, 'id_category');
     }
-    public function subCategory(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+
+    public function subCategory()
     {
-        return $this->belongsTo(SubCategory::class, 'id_category');
+        return $this->belongsTo(SubCategory::class, 'id_sub_category');
     }
-    public function shop(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+
+    public function shop()
     {
         return $this->belongsTo(Shop::class, 'id_shop');
     }
 
-    //Functions
-    public function updateService(array $data): Model|Builder
+    public function merchand()
     {
-        return tap($this)->update($data);
+        return $this->belongsTo(Merchand::class, 'id_merchand');
     }
 
     public function cartItems()
@@ -72,8 +74,9 @@ class Product extends Model
         return $this->hasMany(CartItem::class);
     }
 
-    public function merchand()
+    // Fonction pour mettre à jour le produit
+    public function updateService(array $data)
     {
-        return $this->belongsTo(Merchand::class,'id_merchand');
+        return tap($this)->update($data);
     }
 }

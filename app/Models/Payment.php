@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class Payment extends Model
 {
     use HasFactory;
-    
+
      protected $fillable = [
         'amount',
         'id_order_details',
@@ -22,6 +22,16 @@ class Payment extends Model
         'id_agent',
         'amount',
         'num_transaction'
-       
+
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'id_user');
+    }
+
+    public function orderDetail()
+    {
+        return $this->belongsTo(order_detail::class, 'id_order_details');
+    }
 }
