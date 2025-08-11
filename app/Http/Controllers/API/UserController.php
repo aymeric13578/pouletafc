@@ -227,8 +227,14 @@ class UserController extends Controller
             $content = "Votre code de confirmation POULET AFC est " . $confirmation_code;
             $title = "NOUVEAU COMPTE POULET AFC";
             $object = 'NOUVEAU COMPTE POULET AFC';
+            
+                            
             Mail::to($data['email'])
                 ->send(new NotificationMail($object, $content, $title));
+                
+                         
+         $function  = new Fonction();
+         $function->sendSms("Votre code de confirmation AFC :".$confirmation_code,$data['phone']);
     
            return response()->json([
                 "response"=>200,
