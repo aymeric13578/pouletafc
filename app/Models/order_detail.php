@@ -42,7 +42,8 @@ class order_detail extends Model
         'lonShop',
         'shop_name',
         'delivery_code',
-        'commission_agent'
+        'commission_agent',
+        'status_paiement'
     ];
 
     public function carts()
