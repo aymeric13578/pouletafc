@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Deposit;
+use App\Models\order_detail;
 use App\Models\Payment;
 use App\Fonction\Fonction;
 use DB;
@@ -489,14 +490,14 @@ public function testfunction()
         if($rep['data']['status'] =="SUCCESSFULL" )
         {
 
- $deposit = Payment::where('id',$request->id)->update([
-     
-     
+      Payment::where('id',$request->id)->update([
      'status'=>'Success'
-     
-     
      ]);
      
+     
+     $order = order_detail::where('id',$deposit->id_order_details)->update([
+     'status_paiement'=>'Success'
+     ]);
      
                  return response()->json([
                         'response'=> 200,
