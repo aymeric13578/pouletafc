@@ -28,7 +28,7 @@ use App\Http\Controllers\Admin\
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-
+use App\Http\Controllers\AgentAfcOrderController;
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -54,6 +54,9 @@ use Inertia\Inertia;
 // Route::get('/deleteuseraccount', function () {
 //     return view('welcome');
 // })->name('welcome');
+
+Route::get('/check-new-order', [AgentAfcOrderController::class, 'checkNewOrder'])->name('check.new.order');
+Route::get('/get-new-order', [AgentAfcOrderController::class, 'getNewOrder'])->name('get.new.order');
 
 Route::get('/', function () {
     return redirect()->route('login');
