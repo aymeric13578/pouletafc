@@ -130,7 +130,7 @@
     @volt
         <div x-data="commandesPage()" x-init="init()">
             <!-- Navigation -->
-       
+
             <!-- Modal pour activer les notifications sonores -->
             <div class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 hidden" id="enableSoundModal" tabindex="-1" aria-hidden="true">
                 <div class="bg-white rounded-lg p-6 w-full max-w-md">
@@ -211,8 +211,7 @@
                     <table class="w-full text-left">
                         <thead>
                             <tr class="border-b">
-                                <th class="py-3 px-4 text-gray-800">ID</th>
-                                <th class="py-3 px-4 text-gray-800">Acknowledgment</th>
+
                                 <th class="py-3 px-4 text-gray-800">Adresse</th>
                                 <th class="py-3 px-4 text-gray-800">Client</th>
                                 <th class="py-3 px-4 text-gray-800">Contact</th>
@@ -223,10 +222,7 @@
                         <tbody>
                             @foreach ($this->orders as $order)
                                 <tr class="border-b hover:bg-gray-50" data-order-id="{{ $order->id }}">
-                                    <td class="py-3 px-4">{{ $order->id }}</td>
-                                    <td class="py-3 px-4">
-                                        <button class="acknowledge-btn badge bg-blue-600 text-white text-xs px-2 py-1 rounded-full" @click="acknowledgeOrder({{ $order->id }})">J'ai vu</button>
-                                    </td>
+                                  
                                     <td class="py-3 px-4">{{ $order->address ?? 'N/A' }}</td>
                                     <td class="py-3 px-4">{{ $order->user ? $order->user->name : 'N/A' }}</td>
                                     <td class="py-3 px-4">{{ $order->user ? $order->user->phone : 'N/A' }}</td>
