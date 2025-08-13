@@ -18,6 +18,11 @@ class Cart extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    public function cart_items()
+{
+    return $this->hasMany(CartItem::class, 'cart_id');
+}
+
     // Relation avec les éléments du panier
     public function cartItems()
     {
@@ -37,6 +42,12 @@ class Cart extends Model
     {
         $this->cartItems()->delete();
     }
+
+public function product()
+{
+    return $this->belongsTo(Product::class, 'product_id');
+}
+
     public function orderDetails()
 {
     return $this->hasMany(order_detail::class,'id_cart');
