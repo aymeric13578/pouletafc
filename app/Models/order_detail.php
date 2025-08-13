@@ -43,7 +43,9 @@ class order_detail extends Model
         'shop_name',
         'delivery_code',
         'commission_agent',
-        'status_paiement'
+        'status_paiement',
+        'delivery_fees',
+        'panier_price'
     ];
 
     public function carts()

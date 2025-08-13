@@ -78,14 +78,16 @@ class OrderController extends Controller
                 'id_user' => $request->user_id,
                 'id_cart' => $request->cart_id,
                 'qty' =>  $quantity, 
-                'price' =>$totalamount,
+                'price' =>$totalamount + $request->delivery_fees,
+                'panier_price'=>$totalamount,
                 'ref'=>$ref,
                 'status'=>'pending',
                 'latitude'=> $lat,
                 'longitude'=> $lon,
                 'delivery_code'=>rand(0, 10000),
                 'address'=>$request->delivery_address,
-                'commission_agent'=>$commission_agent
+                'commission_agent'=>$commission_agent,
+                'delivery_fees'=>$request->delivery_fees,
             ]);
             
             
