@@ -350,7 +350,16 @@
                                             Panier vide
                                         @endif
                                     </td>
-                                    <td class="py-3 px-4">{{ number_format($order->price, 2, ',', ' ') }} FCFA</td>
+                                    <td class="py-3 px-4">{{ number_format($order->price, 2, ',', ' ') }} FCFA
+
+                                        <br>
+
+                                        @if($order->status_paiement == 'Success') <p class="text-green-600 dark:text-sky-400">payé</p> @endif
+                                        @if($order->status_paiement == 'pending') <p class="text-red-600 dark:text-sky-400">non payé</p>@endif
+
+
+
+                                    </td>
                                     <td class="py-3 px-4">{{ number_format($order->delivery_fees ?? 0, 2, ',', ' ') }}
                                         FCFA</td>
                                     <td class="py-3 px-4">{{ $order->address ?? 'N/A' }}</td>
