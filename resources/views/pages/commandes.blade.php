@@ -32,6 +32,9 @@
         public $order_details = null;
         public $agent_details = null;
         public $cart_details = null;
+        public $showNotification = false;
+        public $notificationMessage = '';
+        public $notificationType = '';
 
         public function refreshTick()
         {
@@ -44,7 +47,7 @@
                 $q->where('ref', 'like', '%' . $this->search . '%')->orWhere('address', 'like', '%' . $this->search . '%');
             })
                 ->orderBy('id', 'desc')
-                ->with(['user', 'agent.user', 'carts.cart_items.product']) // Charger la relation user avec agent
+                ->with(['user', 'agent.user', 'carts.cart_items.product'])
                 ->paginate(10);
         }
 
@@ -79,7 +82,7 @@
 
         public function openAgentModal($id)
         {
-            $order = order_detail::with('agent.user')->findOrFail($id); // Charger la relation user avec agent
+            $order = order_detail::with('agent.user')->findOrFail($id);
             $this->agent_details = $order->agent;
             $this->showAgentModal = true;
         }
@@ -125,8 +128,12 @@
             $order = order_detail::findOrFail($this->orderId);
             $order->status = $this->status;
             $order->save();
-
-            $this->dispatch('notify', ['message' => 'Statut de la commande modifié avec succès !', 'type' => 'success']);
+             $this->showNotification = true;
+            $this->notificationMessage = 'Statut de la commande modifié avec succès !';
+            $this->notificationType = 'success';
+            // Auto-hide après 3 secondes
+          $this->dispatch('auto-hide-notification');
+            // $this->dispatch('show-notification', ['message' => 'Statut de la commande modifié avec succès !', 'type' => 'success']);
             $this->closeModal();
         }
 
@@ -135,8 +142,12 @@
             $order = order_detail::findOrFail($id);
             $order->status = 'process';
             $order->save();
-
-            $this->dispatch('notify', ['message' => 'Commande marquée comme prête !', 'type' => 'success']);
+            $this->showNotification = true;
+            $this->notificationMessage = 'Commande marquée comme prête !';
+            $this->notificationType = 'success';
+            // Auto-hide après 3 secondes
+          $this->dispatch('auto-hide-notification');
+            // $this->dispatch('show-notification', ['message' => 'Commande marquée comme prête !', 'type' => 'success']);
         }
 
         public function deleteOrder($id)
@@ -144,7 +155,12 @@
             $order = order_detail::findOrFail($id);
             $order->delete();
 
-            $this->dispatch('notify', ['message' => 'Commande supprimée avec succès !', 'type' => 'success']);
+            $this->showNotification = true;
+            $this->notificationMessage = 'Commande supprimée avec succès !';
+            $this->notificationType = 'success';
+            // Auto-hide après 3 secondes
+          $this->dispatch('auto-hide-notification');
+            // $this->dispatch('show-notification', ['message' => 'Commande supprimée avec succès !', 'type' => 'success']);
         }
 
         public function deactivateOrder($id)
@@ -152,20 +168,61 @@
             $order = order_detail::findOrFail($id);
             $order->status = 'failed';
             $order->save();
-
-            $this->dispatch('notify', ['message' => 'Commande désactivée avec succès !', 'type' => 'success']);
+            $this->showNotification = true;
+            $this->notificationMessage = 'Commande désactivée avec succès !';
+            $this->notificationType = 'success';
+            // Auto-hide après 3 secondes
+          $this->dispatch('auto-hide-notification');
+            // $this->dispatch('show-notification', ['message' => 'Commande désactivée avec succès !', 'type' => 'success']);
+        }
+        public function hideNotification()
+        {
+            $this->showNotification = false;
         }
     };
     ?>
     @volt
-        <div x-data="commandesPage()" x-init="init()">
+        <div id="app-container">
+
+
+            @if ($showNotification)
+                <div class="fixed top-4 right-4 z-50 transition-all duration-300 ease-in-out">
+                    <div
+                        class="border-l-4 p-4 rounded shadow-lg {{ $notificationType === 'success' ? 'bg-green-100 border-green-400 text-green-700' : 'bg-red-100 border-red-400 text-red-700' }}">
+                        <div class="flex justify-between items-center">
+                            <p class="font-medium">{{ $notificationMessage }}</p>
+                            <button wire:click="hideNotification" class="ml-4 text-gray-400 hover:text-gray-600">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M6 18L18 6M6 6l12 12">
+                                    </path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            @endif
+
+
+            <script>
+                // Auto-hide notification après 3 secondes
+                document.addEventListener('livewire:init', () => {
+                    Livewire.on('auto-hide-notification', () => {
+                        setTimeout(() => {
+                            @this.hideNotification();
+                        }, 3000);
+                    });
+                });
+            </script>
+
             <!-- Modal pour activer les notifications sonores -->
             <div class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 hidden"
                 id="enableSoundModal" tabindex="-1" aria-hidden="true">
                 <div class="bg-white rounded-lg p-6 w-full max-w-md">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-semibold text-gray-900">Activer les notifications sonores</h3>
-                        <button type="button" @click="closeSoundModal" class="text-gray-400 hover:text-gray-900">
+                        <h3 class="text-lg font-semibold text-gray-800">Activer les notifications sonores</h3>
+                        <button type="button" onclick="window.NotificationManager?.closeSoundModal()"
+                            class="text-gray-400 hover:text-gray-900">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M6 18L18 6M6 6l12 12" />
@@ -175,49 +232,43 @@
                     <p class="text-sm text-gray-600 mb-4">Cliquez sur "Activer" pour permettre la lecture des sons de
                         notification pour les nouvelles commandes.</p>
                     <div class="flex justify-end">
-                        <button type="button" @click="enableSound"
+                        <button type="button" onclick="window.NotificationManager?.enableSound()"
                             class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700">Activer</button>
                     </div>
                 </div>
             </div>
 
             <!-- Conteneur pour les notifications -->
-            <div id="notificationContainer" class="fixed top-4 right-4 z-50 w-80">
-                <template x-for="notification in notifications" :key="notification.id">
-                    <div
-                        class="alert bg-green-600 text-white font-bold rounded-lg p-4 mt-4 shadow-lg transform transition-all duration-500 slideIn flex items-start space-x-2">
-                        <svg class="w-5 h-5 text-white mt-0.5 flex-shrink-0" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
-                        </svg>
-                        <span x-text="notification.message"></span>
-                        <button type="button" @click="notifications = notifications.filter(n => n.id !== notification.id)"
-                            class="ml-auto text-white hover:text-gray-200">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </div>
-                </template>
-            </div>
+            <div id="notificationContainer" class="fixed top-4 right-4 z-50 w-80"></div>
 
             <div class="container mx-auto px-4 mt-6">
                 <div class="flex justify-center mb-6">
                     <img src="{{ asset('images/logo.png') }}" class="h-40" alt="Flowbite Logo" />
                 </div>
+
+                <!-- Bouton pour activer le son manuellement -->
+                <div class="flex justify-center mb-4">
+                    <button id="enableSoundBtn" onclick="window.NotificationManager?.enableSound()"
+                        class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 hidden">
+                        Activer les notifications sonores
+                    </button>
+                </div>
+
+                <!-- Bouton pour tester le son -->
+                {{-- <div class="flex justify-center mb-4">
+                    <button onclick="window.NotificationManager?.testSound()"
+                        class="bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700">
+                        Tester le son de notification
+                    </button>
+                </div> --}}
+
                 <!-- Rafraîchissement Livewire toutes les 5s -->
                 <span wire:poll.5s="refreshTick" class="hidden" aria-hidden="true"></span>
-                <!-- Notifications Toastr -->
-                <div x-data x-on:notify.window="toastr[event.detail.type](event.detail.message)"></div>
 
                 <!-- Barre de recherche -->
                 <form class="flex items-center max-w-lg mx-auto mb-6">
-
                     <label for="search" class="sr-only">Rechercher</label>
                     <div class="relative w-full">
-
                         <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                             <svg class="w-4 h-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
                                 fill="none" viewBox="0 0 20 20">
@@ -351,14 +402,13 @@
                                         @endif
                                     </td>
                                     <td class="py-3 px-4">{{ number_format($order->price, 2, ',', ' ') }} FCFA
-
                                         <br>
-
-                                        @if($order->status_paiement == 'Success') <p class="text-green-600 dark:text-sky-400">payé</p> @endif
-                                        @if($order->status_paiement == 'pending') <p class="text-red-600 dark:text-sky-400">non payé</p>@endif
-
-
-
+                                        @if ($order->status_paiement == 'Success')
+                                            <p class="text-green-600 dark:text-sky-400">Payé</p>
+                                        @endif
+                                        @if ($order->status_paiement == 'pending')
+                                            <p class="text-red-600 dark:text-sky-400">Non payé</p>
+                                        @endif
                                     </td>
                                     <td class="py-3 px-4">{{ number_format($order->delivery_fees ?? 0, 2, ',', ' ') }}
                                         FCFA</td>
@@ -660,182 +710,549 @@
                 </div>
 
                 <!-- Audio pour notification -->
-                <audio id="notificationSound" src="{{ asset('sounds/notification.mp3') }}" preload="auto"></audio>
+                <audio id="notificationSound" preload="auto">
+                    <source src="{{ asset('sounds/notification.mp3') }}" type="audio/mpeg">
+                    <source src="{{ asset('sounds/notification.wav') }}" type="audio/wav">
+                    <source src="{{ asset('sounds/notification.ogg') }}" type="audio/ogg">
+                    <!-- Fallback: son généré par Web Audio API -->
+                </audio>
             </div>
 
             <!-- Scripts -->
             <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
             <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"></script>
+            <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+
             <script>
-                function commandesPage() {
-                    return {
-                        isSoundEnabled: localStorage.getItem('soundEnabled') === 'true',
-                        desktopNotify: (typeof Notification !== 'undefined' && NotificationPlanetarium.permission === 'granted'),
-                        lastOrderId: @if ($this->orders->count() > 0)
-                            {{ $this->orders->first()->id }}
-                        @else
-                            0
-                        @endif ,
-                        isProcessingNotification: false,
-                        notifications: [],
-                        originalTitle: document.title,
-                        titleFlashIntervalId: null,
-                        init() {
-                            toastr.options = {
-                                closeButton: true,
-                                progressBar: true,
-                                positionClass: 'toast-top-right',
-                                timeOut: 3000
-                            };
-                            this.requestDesktopNotificationPermission();
-                            const unlock = () => this.enableSound();
-                            window.addEventListener('pointerdown', unlock, {
-                                once: true
-                            });
-                            window.addEventListener('keydown', unlock, {
-                                once: true
-                            });
-                            if (!this.isSoundEnabled) {
-                                const modal = document.getElementById('enableSoundModal');
-                                if (modal) modal.classList.remove('hidden');
-                            }
-                            this.checkNewOrders();
-                        },
-                        requestDesktopNotificationPermission() {
-                            if (typeof Notification === 'undefined') return;
-                            if (Notification.permission === 'default') {
-                                Notification.requestPermission().then(result => {
-                                    this.desktopNotify = (result === 'granted');
-                                });
-                            } else {
-                                this.desktopNotify = (Notification.permission === 'granted');
-                            }
-                        },
-                        enableSound() {
-                            let audio = document.getElementById('notificationSound');
-                            if (!audio) return;
-                            audio.play().then(() => {
-                                this.isSoundEnabled = true;
-                                localStorage.setItem('soundEnabled', 'true');
-                                const modal = document.getElementById('enableSoundModal');
-                                if (modal) modal.classList.add('hidden');
-                                console.log('Son activé avec succès');
-                            }).catch(error => {
-                                console.error('Erreur lors de l\'activation du son:', error);
-                                toastr.error(
-                                    'Le navigateur bloque l\'audio. Cliquez sur "Activer" ou interagissez avec la page.'
-                                    );
-                            });
-                        },
-                        closeSoundModal() {
-                            const modal = document.getElementById('enableSoundModal');
-                            if (modal) modal.classList.add('hidden');
-                            this.isSoundEnabled = false;
-                            localStorage.removeItem('soundEnabled');
-                            console.log('Modal son fermé, son désactivé');
-                        },
-                        playNotificationSound() {
-                            if (!this.isSoundEnabled) {
-                                console.warn('Son désactivé.');
-                                return;
-                            }
-                            let audio = document.getElementById('notificationSound');
-                            if (audio) {
-                                try {
-                                    audio.currentTime = 0;
-                                } catch (e) {}
-                                audio.play().catch(error => {
-                                    console.error('Erreur lors de la lecture du son:', error);
-                                    if (error.name === 'NotAllowedError') {
-                                        this.isSoundEnabled = false;
-                                        localStorage.removeItem('soundEnabled');
-                                        const modal = document.getElementById('enableSoundModal');
-                                        if (modal) modal.classList.remove('hidden');
-                                    }
-                                });
-                            }
-                        },
-                        showNotification(message) {
-                            this.notifications.push({
-                                id: Date.now(),
-                                message
-                            });
-                            setTimeout(() => {
-                                this.notifications.shift();
-                            }, 5000);
-                        },
-                        notifyDesktop(message) {
-                            if (!this.desktopNotify || typeof Notification === 'undefined') return;
-                            try {
-                                new Notification('Nouvelle commande', {
-                                    body: message,
-                                    icon: '{{ asset('images/logo.png') }}'
-                                });
-                            } catch (e) {}
-                        },
-                        startTitleFlash() {
-                            if (this.titleFlashIntervalId) return;
-                            let toggle = false;
-                            this.titleFlashIntervalId = setInterval(() => {
-                                document.title = toggle ? '⚠️ Nouvelle commande !' : this.originalTitle;
-                                toggle = !toggle;
-                            }, 800);
-                        },
-                        stopTitleFlash() {
-                            if (this.titleFlashIntervalId) {
-                                clearInterval(this.titleFlashIntervalId);
-                                this.titleFlashIntervalId = null;
-                                document.title = this.originalTitle;
-                            }
-                        },
-                        async checkNewOrders() {
-                            if (this.isProcessingNotification) return;
-                            this.isProcessingNotification = true;
-                            try {
-                                const url = new URL('{{ route('check.new.order') }}', window.location.origin);
-                                url.searchParams.set('lastOrderId', this.lastOrderId);
-                                url.searchParams.set('_ts', Date.now().toString());
-                                let response = await fetch(url.toString(), {
-                                    cache: 'no-store',
-                                    credentials: 'same-origin'
-                                });
-                                let data = await response.json();
-                                if (data.hasNewOrder) {
-                                    this.lastOrderId = data.newOrderId;
-                                    this.playNotificationSound();
-                                    this.showNotification('Nouvelle commande disponible !');
-                                    this.notifyDesktop('Une nouvelle commande vient d\'arriver.');
-                                    this.startTitleFlash();
-                                    if (this.$wire && typeof this.$wire.$refresh === 'function') {
-                                        this.$wire.$refresh();
-                                        setTimeout(() => {
-                                            const row = document.querySelector(
-                                                `tr[data-order-id='${this.lastOrderId}']`);
-                                            if (row) row.classList.add('blink');
-                                        }, 250);
-                                    } else {
-                                        window.location.reload();
-                                    }
-                                    setTimeout(() => this.stopTitleFlash(), 20000);
-                                }
-                            } catch (error) {
-                                console.error('Erreur lors de la vérification des nouvelles commandes:', error);
-                            }
-                            this.isProcessingNotification = false;
-                            setTimeout(() => this.checkNewOrders(), 5000);
-                        },
-                        acknowledgeOrder(orderId) {
-                            let row = document.querySelector(`tr[data-order-id='${orderId}']`);
-                            if (row) {
-                                row.classList.remove('blink');
-                                let btn = row.querySelector('.acknowledge-btn');
-                                if (btn) btn.remove();
-                                console.log('Animation et bouton supprimés pour la commande:', orderId);
-                            }
+                // Configuration Toastr avant le chargement du NotificationManager
+                if (typeof toastr !== 'undefined') {
+                    toastr.options = {
+                        closeButton: true,
+                        progressBar: true,
+                        positionClass: 'toast-top-right',
+                        timeOut: 5000,
+                        extendedTimeOut: 2000,
+                        showMethod: 'fadeIn',
+                        hideMethod: 'fadeOut'
+                    };
+                }
+
+                // Gestionnaire de notifications amélioré
+                class NotificationManager {
+                    constructor() {
+                        this.isSoundEnabled = localStorage.getItem('soundEnabled') === 'true';
+                        this.desktopNotify = false;
+                        this.lastOrderId = Number(localStorage.getItem('lastOrderId')) || 0;
+                        this.isProcessingNotification = false;
+                        this.originalTitle = document.title;
+                        this.titleFlashIntervalId = null;
+                        this.audioElement = null;
+                        this.audioContext = null;
+
+                        this.init();
+                    }
+
+                    init() {
+                        console.log('[NotificationManager] Initialisation...');
+
+                        // Initialisation de l'audio
+                        this.initAudio();
+
+                        // Demande de permission pour les notifications desktop
+                        this.requestDesktopNotificationPermission();
+
+                        // Écoute des événements Livewire
+                        this.setupLivewireListeners();
+
+                        // Gestion de l'interaction utilisateur pour débloquer l'audio
+                        this.setupUserInteractionHandlers();
+
+                        // Affichage du modal si son désactivé
+                        if (!this.isSoundEnabled) {
+                            this.showSoundModal();
+                        }
+
+                        // Démarrage du polling pour les nouvelles commandes
+                        this.startOrderPolling();
+
+                        console.log('[NotificationManager] Initialisé avec succès');
+                    }
+
+                    initAudio() {
+                        this.audioElement = document.getElementById('notificationSound');
+
+                        if (!this.audioElement) {
+                            console.warn('[NotificationManager] Élément audio non trouvé, création d\'un audio dynamique');
+                            this.createFallbackAudio();
+                        } else {
+                            // Forcer le chargement du fichier audio
+                            this.audioElement.load();
+                            console.log('[NotificationManager] Audio element trouvé:', this.audioElement.src);
+                        }
+
+                        // Initialisation du contexte audio pour les navigateurs modernes
+                        try {
+                            this.audioContext = new(window.AudioContext || window.webkitAudioContext)();
+                        } catch (error) {
+                            console.warn('[NotificationManager] Web Audio API non supportée:', error);
                         }
                     }
+
+                    createFallbackAudio() {
+                        // Création d'un élément audio avec le fichier notification
+                        this.audioElement = document.createElement('audio');
+                        this.audioElement.id = 'notificationSoundFallback';
+                        this.audioElement.preload = 'auto';
+
+                        // Ajout des sources
+                        const source1 = document.createElement('source');
+                        source1.src = '/sounds/notification.mp3';
+                        source1.type = 'audio/mpeg';
+                        this.audioElement.appendChild(source1);
+
+                        const source2 = document.createElement('source');
+                        source2.src = '/sounds/notification.wav';
+                        source2.type = 'audio/wav';
+                        this.audioElement.appendChild(source2);
+
+                        document.body.appendChild(this.audioElement);
+                        this.audioElement.load();
+
+                        console.log('[NotificationManager] Audio fallback créé');
+                    }
+
+                    generateNotificationSound() {
+                        if (!this.audioContext) return Promise.reject('Web Audio API non disponible');
+
+                        return new Promise((resolve, reject) => {
+                            try {
+                                // Reprise du contexte audio si suspendu
+                                if (this.audioContext.state === 'suspended') {
+                                    this.audioContext.resume();
+                                }
+
+                                const oscillator = this.audioContext.createOscillator();
+                                const gainNode = this.audioContext.createGain();
+
+                                oscillator.connect(gainNode);
+                                gainNode.connect(this.audioContext.destination);
+
+                                // Son de notification double bip
+                                oscillator.frequency.setValueAtTime(800, this.audioContext.currentTime);
+                                oscillator.frequency.setValueAtTime(600, this.audioContext.currentTime + 0.1);
+                                oscillator.frequency.setValueAtTime(800, this.audioContext.currentTime + 0.2);
+
+                                gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime);
+                                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.4);
+
+                                oscillator.start(this.audioContext.currentTime);
+                                oscillator.stop(this.audioContext.currentTime + 0.4);
+
+                                oscillator.onended = () => resolve();
+
+                            } catch (error) {
+                                reject(error);
+                            }
+                        });
+                    }
+
+                    setupLivewireListeners() {
+                        // Écoute des événements Livewire pour les notifications
+                        document.addEventListener('livewire:init', () => {
+                            Livewire.on('show-notification', (data) => {
+                                this.showToast(data[0].message, data[0].type);
+                            });
+                        });
+
+                        // Fallback pour les événements window
+                        window.addEventListener('show-notification', (event) => {
+                            if (event.detail) {
+                                this.showToast(event.detail.message, event.detail.type);
+                            }
+                        });
+                    }
+
+                    setupUserInteractionHandlers() {
+                        // Gestionnaires pour débloquer l'audio
+                        const unlockAudio = () => {
+                            if (this.audioContext && this.audioContext.state === 'suspended') {
+                                this.audioContext.resume();
+                            }
+                            // Tenter de charger l'audio si pas encore fait
+                            if (this.audioElement && !this.audioElement.readyState) {
+                                this.audioElement.load();
+                            }
+                        };
+
+                        document.addEventListener('click', unlockAudio, {
+                            once: true
+                        });
+                        document.addEventListener('touchstart', unlockAudio, {
+                            once: true
+                        });
+                        document.addEventListener('keydown', unlockAudio, {
+                            once: true
+                        });
+                    }
+
+                    requestDesktopNotificationPermission() {
+                        if (typeof Notification === 'undefined') return;
+
+                        if (Notification.permission === 'default') {
+                            Notification.requestPermission().then(result => {
+                                this.desktopNotify = result === 'granted';
+                                if (result === 'granted') {
+                                    this.showToast('Notifications desktop activées', 'success');
+                                }
+                            });
+                        } else {
+                            this.desktopNotify = Notification.permission === 'granted';
+                        }
+                    }
+
+                    showSoundModal() {
+                        const modal = document.getElementById('enableSoundModal');
+                        const btn = document.getElementById('enableSoundBtn');
+
+                        if (modal) {
+                            modal.classList.remove('hidden');
+                        }
+                        if (btn) {
+                            btn.classList.remove('hidden');
+                        }
+                    }
+
+                    enableSound() {
+                        console.log('[NotificationManager] Tentative d\'activation du son...');
+
+                        // Test avec l'audio element d'abord
+                        if (this.audioElement) {
+                            this.audioElement.load();
+
+                            // Fonction pour tester le son
+                            const testAudio = () => {
+                                this.audioElement.currentTime = 0;
+                                const playPromise = this.audioElement.play();
+
+                                if (playPromise !== undefined) {
+                                    playPromise.then(() => {
+                                        this.isSoundEnabled = true;
+                                        localStorage.setItem('soundEnabled', 'true');
+                                        this.hideSoundModal();
+                                        this.showToast('Notifications sonores activées !', 'success');
+                                        console.log(
+                                            '[NotificationManager] Son activé avec succès via audio element');
+                                    }).catch(error => {
+                                        console.warn(
+                                            '[NotificationManager] Échec audio element, essai Web Audio API:',
+                                            error);
+                                        this.tryWebAudioFallback();
+                                    });
+                                }
+                            };
+
+                            // Si l'audio n'est pas prêt, attendre qu'il se charge
+                            if (this.audioElement.readyState >= 2) {
+                                testAudio();
+                            } else {
+                                this.audioElement.addEventListener('canplay', testAudio, {
+                                    once: true
+                                });
+                                this.audioElement.addEventListener('error', () => {
+                                    console.warn(
+                                        '[NotificationManager] Erreur de chargement audio, essai Web Audio API');
+                                    this.tryWebAudioFallback();
+                                }, {
+                                    once: true
+                                });
+                            }
+                        } else {
+                            // Utilisation directe de Web Audio API
+                            this.tryWebAudioFallback();
+                        }
+                    }
+
+                    tryWebAudioFallback() {
+                        if (this.audioContext) {
+                            this.generateNotificationSound().then(() => {
+                                this.isSoundEnabled = true;
+                                localStorage.setItem('soundEnabled', 'true');
+                                this.hideSoundModal();
+                                this.showToast('Notifications sonores activées (Web Audio) !', 'success');
+                                console.log('[NotificationManager] Son activé avec Web Audio API');
+                            }).catch(error => {
+                                console.error('[NotificationManager] Échec Web Audio API:', error);
+                                this.showToast('Impossible d\'activer le son. Vérifiez les paramètres du navigateur.',
+                                    'error');
+                            });
+                        } else {
+                            this.showToast('Audio non supporté par ce navigateur', 'warning');
+                        }
+                    }
+
+                    closeSoundModal() {
+                        this.hideSoundModal();
+                        this.isSoundEnabled = false;
+                        localStorage.removeItem('soundEnabled');
+                    }
+
+                    hideSoundModal() {
+                        const modal = document.getElementById('enableSoundModal');
+                        const btn = document.getElementById('enableSoundBtn');
+
+                        if (modal) {
+                            modal.classList.add('hidden');
+                        }
+                        if (btn) {
+                            btn.classList.add('hidden');
+                        }
+                    }
+
+                    testSound() {
+                        console.log('[NotificationManager] Test du son...');
+
+                        // Forcer l'activation si pas encore fait
+                        if (!this.isSoundEnabled) {
+                            this.enableSound();
+                            return;
+                        }
+
+                        this.playNotificationSound();
+                        this.showToast('Test de notification sonore', 'info');
+                    }
+
+                    playNotificationSound() {
+                        if (!this.isSoundEnabled) {
+                            console.warn('[NotificationManager] Son désactivé');
+                            this.showSoundModal();
+                            return;
+                        }
+
+                        console.log('[NotificationManager] Lecture du son...');
+
+                        // Essai avec l'audio element d'abord
+                        if (this.audioElement && this.audioElement.src) {
+                            try {
+                                console.log('[NotificationManager] Tentative avec audio element:', this.audioElement.src);
+                                this.audioElement.currentTime = 0;
+
+                                const playPromise = this.audioElement.play();
+
+                                if (playPromise !== undefined) {
+                                    playPromise.then(() => {
+                                        console.log('[NotificationManager] Son joué avec succès via audio element');
+                                    }).catch(error => {
+                                        console.warn(
+                                            '[NotificationManager] Échec audio element, utilisation Web Audio:',
+                                            error);
+                                        this.generateNotificationSound().catch(err => {
+                                            console.error('[NotificationManager] Échec complet du son:', err);
+                                        });
+                                    });
+                                }
+                            } catch (error) {
+                                console.error('[NotificationManager] Erreur lors de la lecture audio:', error);
+                                // Fallback vers Web Audio
+                                this.generateNotificationSound().catch(err => {
+                                    console.error('[NotificationManager] Échec Web Audio API:', err);
+                                });
+                            }
+                        } else {
+                            // Utilisation de Web Audio API
+                            console.log('[NotificationManager] Utilisation de Web Audio API');
+                            this.generateNotificationSound().catch(error => {
+                                console.error('[NotificationManager] Erreur Web Audio API:', error);
+                            });
+                        }
+                    }
+
+                    showToast(message, type = 'info') {
+                        console.log('[NotificationManager] Affichage toast:', message, type);
+
+                        if (typeof toastr !== 'undefined' && toastr[type]) {
+                            try {
+                                toastr[type](message);
+                            } catch (error) {
+                                console.error('[NotificationManager] Erreur Toastr:', error);
+                                // Fallback: notification custom
+                                this.showCustomNotification(message, type);
+                            }
+                        } else {
+                            // Fallback: notification custom
+                            this.showCustomNotification(message, type);
+                        }
+                    }
+
+                    showCustomNotification(message, type) {
+                        const container = document.getElementById('notificationContainer');
+                        if (!container) return;
+
+                        const notification = document.createElement('div');
+                        notification.className =
+                            `alert bg-${this.getColorClass(type)} text-white font-bold rounded-lg p-4 mt-4 shadow-lg transform transition-all duration-500 slideIn flex items-start space-x-2`;
+
+                        notification.innerHTML = `
+                            <svg class="w-5 h-5 text-white mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
+                            </svg>
+                            <span>${message}</span>
+                            <button type="button" onclick="this.parentElement.remove()" class="ml-auto text-white hover:text-gray-200">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        `;
+
+                        container.appendChild(notification);
+
+                        // Auto-suppression après 5 secondes
+                        setTimeout(() => {
+                            if (notification.parentElement) {
+                                notification.remove();
+                            }
+                        }, 5000);
+                    }
+
+                    getColorClass(type) {
+                        const colors = {
+                            success: 'green-600',
+                            error: 'red-600',
+                            warning: 'yellow-600',
+                            info: 'blue-600'
+                        };
+                        return colors[type] || 'blue-600';
+                    }
+
+                    showDesktopNotification(title, message) {
+                        if (!this.desktopNotify || typeof Notification === 'undefined') return;
+
+                        try {
+                            new Notification(title, {
+                                body: message,
+                                icon: '/images/logo.png', // Assurez-vous que ce chemin est correct
+                                badge: '/images/logo.png'
+                            });
+                        } catch (error) {
+                            console.error('[NotificationManager] Erreur notification desktop:', error);
+                        }
+                    }
+
+                    startTitleFlash() {
+                        if (this.titleFlashIntervalId) return;
+
+                        let toggle = false;
+                        this.titleFlashIntervalId = setInterval(() => {
+                            document.title = toggle ? '🔔 Nouvelle commande !' : this.originalTitle;
+                            toggle = !toggle;
+                        }, 1000);
+
+                        // Arrêt automatique après 30 secondes
+                        setTimeout(() => this.stopTitleFlash(), 30000);
+                    }
+
+                    stopTitleFlash() {
+                        if (this.titleFlashIntervalId) {
+                            clearInterval(this.titleFlashIntervalId);
+                            this.titleFlashIntervalId = null;
+                            document.title = this.originalTitle;
+                        }
+                    }
+
+                    async startOrderPolling() {
+                        console.log('[NotificationManager] Démarrage du polling des commandes...');
+
+                        // Récupération de l'ID de la dernière commande au chargement
+                        const firstOrderElement = document.querySelector('tr[data-order-id]');
+                        if (firstOrderElement && this.lastOrderId === 0) {
+                            this.lastOrderId = parseInt(firstOrderElement.getAttribute('data-order-id'));
+                            localStorage.setItem('lastOrderId', String(this.lastOrderId));
+                            console.log('[NotificationManager] lastOrderId initialisé à:', this.lastOrderId);
+                        }
+
+                        this.checkForNewOrders();
+                    }
+
+                    async checkForNewOrders() {
+                        if (this.isProcessingNotification) return;
+
+                        this.isProcessingNotification = true;
+
+                        try {
+                            // Simulation d'une vérification de nouvelles commandes
+                            // Remplacez cette URL par votre endpoint réel
+                            const response = await fetch(`/check-new-orders?lastOrderId=${this.lastOrderId}&_t=${Date.now()}`, {
+                                method: 'GET',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                },
+                                credentials: 'same-origin'
+                            });
+
+                            if (response.ok) {
+                                const data = await response.json();
+
+                                if (data.hasNewOrder && data.newOrderId > this.lastOrderId) {
+                                    this.handleNewOrder(data.newOrderId);
+                                }
+                            }
+                        } catch (error) {
+                            console.error('[NotificationManager] Erreur lors de la vérification des commandes:', error);
+                        } finally {
+                            this.isProcessingNotification = false;
+
+                            // Prochain polling dans 5 secondes
+                            setTimeout(() => this.checkForNewOrders(), 5000);
+                        }
+                    }
+
+                    handleNewOrder(newOrderId) {
+                        console.log('[NotificationManager] Nouvelle commande détectée:', newOrderId);
+
+                        this.lastOrderId = newOrderId;
+                        localStorage.setItem('lastOrderId', String(newOrderId));
+
+                        // Notifications
+                        this.playNotificationSound();
+                        this.showToast('🎉 Nouvelle commande reçue !', 'success');
+                        this.showDesktopNotification('Nouvelle Commande', `Commande #${newOrderId} vient d'arriver`);
+                        this.startTitleFlash();
+
+                        // Rafraîchissement de la page si Livewire est disponible
+                        if (typeof Livewire !== 'undefined') {
+                            Livewire.emit('refreshComponent');
+                        } else {
+                            // Rechargement de la page en dernier recours
+                            setTimeout(() => window.location.reload(), 2000);
+                        }
+
+                        // Mise en surbrillance de la nouvelle commande
+                        setTimeout(() => {
+                            const newRow = document.querySelector(`tr[data-order-id="${newOrderId}"]`);
+                            if (newRow) {
+                                newRow.classList.add('blink');
+                                setTimeout(() => newRow.classList.remove('blink'), 5000);
+                            }
+                        }, 1000);
+                    }
+                }
+
+                // Initialisation du gestionnaire de notifications
+                let notificationManagerInstance;
+
+                // Attendre que le DOM soit chargé
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', () => {
+                        notificationManagerInstance = new NotificationManager();
+                        window.NotificationManager = notificationManagerInstance;
+                    });
+                } else {
+                    notificationManagerInstance = new NotificationManager();
+                    window.NotificationManager = notificationManagerInstance;
                 }
             </script>
+
             <style>
                 table {
                     width: 100% !important;
@@ -960,24 +1377,181 @@
 
                 @keyframes slideIn {
                     from {
-                        transform: translateY(-100%);
+                        transform: translateX(100%);
                         opacity: 0;
                     }
 
                     to {
-                        transform: translateY(0);
+                        transform: translateX(0);
                         opacity: 1;
                     }
                 }
 
                 .blink {
                     animation: blink-animation 1s steps(5, start) infinite;
-                    background-color: #fefcbf !important;
+                    background-color: #fef3c7 !important;
                 }
 
                 @keyframes blink-animation {
+                    0% {
+                        background-color: #fef3c7 !important;
+                    }
+
+                    50% {
+                        background-color: #fde68a !important;
+                    }
+
+                    100% {
+                        background-color: #fef3c7 !important;
+                    }
+                }
+
+                /* Amélioration visuelle des notifications */
+                .toast-top-right {
+                    top: 20px;
+                    right: 20px;
+                }
+
+                /* Style pour les boutons de notification */
+                .notification-button {
+                    position: relative;
+                    overflow: hidden;
+                }
+
+                .notification-button::after {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: -100%;
+                    width: 100%;
+                    height: 100%;
+                    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+                    transition: left 0.5s;
+                }
+
+                .notification-button:hover::after {
+                    left: 100%;
+                }
+
+                /* Animation pour les nouvelles commandes */
+                .new-order-highlight {
+                    background: linear-gradient(45deg, #fef3c7, #fde68a, #fef3c7);
+                    background-size: 400% 400%;
+                    animation: gradientShift 2s ease infinite;
+                }
+
+                @keyframes gradientShift {
+                    0% {
+                        background-position: 0% 50%;
+                    }
+
+                    50% {
+                        background-position: 100% 50%;
+                    }
+
+                    100% {
+                        background-position: 0% 50%;
+                    }
+                }
+
+                /* Styles pour les modals */
+                .modal-backdrop {
+                    backdrop-filter: blur(4px);
+                    background-color: rgba(0, 0, 0, 0.6);
+                }
+
+                .modal-content {
+                    animation: modalSlideIn 0.3s ease-out;
+                }
+
+                @keyframes modalSlideIn {
+                    from {
+                        opacity: 0;
+                        transform: translateY(-30px) scale(0.95);
+                    }
+
                     to {
-                        background-color: #fff7ed !important;
+                        opacity: 1;
+                        transform: translateY(0) scale(1);
+                    }
+                }
+
+                /* Indicateur de chargement */
+                .loading-spinner {
+                    border: 2px solid #f3f3f3;
+                    border-top: 2px solid #3498db;
+                    border-radius: 50%;
+                    width: 20px;
+                    height: 20px;
+                    animation: spin 1s linear infinite;
+                    display: inline-block;
+                    margin-right: 10px;
+                }
+
+                @keyframes spin {
+                    0% {
+                        transform: rotate(0deg);
+                    }
+
+                    100% {
+                        transform: rotate(360deg);
+                    }
+                }
+
+                /* Style pour les badges de statut */
+                .status-badge {
+                    position: relative;
+                    display: inline-flex;
+                    align-items: center;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                }
+
+                .status-badge::before {
+                    content: '';
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 50%;
+                    margin-right: 6px;
+                    display: inline-block;
+                }
+
+                .status-badge.status-success::before {
+                    background-color: #10b981;
+                    box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+                }
+
+                .status-badge.status-pending::before {
+                    background-color: #f59e0b;
+                    box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+                }
+
+                .status-badge.status-failed::before {
+                    background-color: #ef4444;
+                    box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+                }
+
+                .status-badge.status-processing::before {
+                    background-color: #3b82f6;
+                    box-shadow: 0 0 6px rgba(59, 130, 246, 0.5);
+                    animation: pulse 2s infinite;
+                }
+
+                @keyframes pulse {
+                    0% {
+                        transform: scale(1);
+                        opacity: 1;
+                    }
+
+                    50% {
+                        transform: scale(1.2);
+                        opacity: 0.7;
+                    }
+
+                    100% {
+                        transform: scale(1);
+                        opacity: 1;
                     }
                 }
             </style>

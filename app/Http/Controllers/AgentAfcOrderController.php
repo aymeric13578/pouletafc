@@ -7,7 +7,7 @@ use App\Models\order_detail;
 
 class AgentAfcOrderController extends Controller
 {
-    public function checkNewOrder(Request $request)
+    public function checkNewOrders(Request $request)
     {
         $lastOrderId = $request->query('lastOrderId', 0);
         $latestOrder = order_detail::orderBy('id', 'desc')->first();
