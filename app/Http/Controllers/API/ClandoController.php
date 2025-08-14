@@ -235,7 +235,7 @@ class ClandoController extends Controller
     {
          $order = Clando::where('status',"want")->where('id_agent',null)->first();
          
-         $order_detail = order_detail::where('status',"want")->where('id_agent',null)->first();
+         $order_detail = order_detail::where('status',"want")->where('id_agent',null)->orderBy('id','desc')->first();
          
          
          
@@ -243,17 +243,21 @@ class ClandoController extends Controller
          
          $agent = Agent::where('id_user',$request->id_user)->first();
       
-         
-          if($agent->freeStatus == 0)
+      
+          if($agent->freeStatus == 0  || $agent->in_activity == 0)
              
              {
                  return response()->json(['response' => 400 ]);
              }
              
+           
+             
          
          if($order ||  $order_detail)
          {
-             
+               
+  
+         
              
                if($order && !isset($order_detail))
          {
@@ -286,16 +290,7 @@ class ClandoController extends Controller
             
          }  
         
-            $status_in_activity = DB::table('users')->where('id',$request->id_user)->first();
-            
-           
-            
-            if($status_in_activity->in_activity==0)
-             
-             {
-                 return response()->json(['response' => 400 ]);
-             }
-            
+          
              
              
              
