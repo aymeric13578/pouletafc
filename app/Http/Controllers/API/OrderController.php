@@ -19,10 +19,13 @@ class OrderController extends Controller
 {
     public function CreateOrder(Request $request)
     {
+        
+          
+          
            do {
             $ref = 'REF_' . (new Fonction())->genUniqueID('10');
             $find_ref = \DB::select('select * from order_details where ref="' . $ref . '"');
-        } while (!empty($find_ref));
+               } while (!empty($find_ref));
         
         
          $cartItems = CartItem::where('cart_id', $request->cart_id)
@@ -92,7 +95,10 @@ class OrderController extends Controller
             
             
             $agent = User::Where('id',$request->user_id)->first();
-            $content = "Vous venez de passer une commande N° ".$ref.". La direction POULET AFC vous contactera dans quelques instants .... Merci de patienter";
+            
+            $content = "Votre commande N° ".$ref.". a été reçu .Le service client poulet AFC vous contacteras d'ici quelques instants .... Merci de patienter.
+Contact service client : 697 526 980";
+            //$content = "Vous venez de passer une commande N° ".$ref.". La direction POULET AFC vous contactera dans quelques instants .... Merci de patienter";
             $title = "POULET AFC COMMAND";
             $object = 'POULET AFC COMMAND';
             Mail::to($agent->email)
@@ -100,7 +106,8 @@ class OrderController extends Controller
                 
                 
          $function  = new Fonction();
-         $function->sendSms("Vous venez de passer une commande N° ".$ref.". La direction POULET AFC vous contactera dans quelques instants .... Merci de patienter",$user->phone);
+         $function->sendSms("Votre commande N° ".$ref.". a été reçu .Le service client poulet AFC vous contacteras d'ici quelques instants .... Merci de patienter.
+Contact service client : 697 526 980",$user->phone);
                 
      }
      else
@@ -126,10 +133,12 @@ class OrderController extends Controller
          
         
          $order = order_detail::where('ref', $request->ref)->with('carts')->first();
-
-
-
-    $verified = Clando::where('id_user',$order->id_user)->where('status',"want")->first();
+         
+         
+         
+          
+          
+         $verified = Clando::where('id_user',$order->id_user)->where('status',"want")->first();
         
         if(isset($verified))
         {
@@ -164,24 +173,11 @@ class OrderController extends Controller
           if($order) return response()->json(['response' => 200, 'data'=>  $clando ]);
         else return response()->json(['response' => 404]);
         
-        
-        
-        
     }
     
-    
-    
-    
-    
-    
-    
-    
 
-    
-    
-    
      public function getOrder(Request $request)
-    {
+         {
         
              $code="";
              $codeLiveur = "en attente";
@@ -199,32 +195,22 @@ class OrderController extends Controller
              if($order) return response()->json(['response' => 200, 'data'=> $order  , 'code_agent'=>$codeLiveur, 'info_agent'=>$code]);
              else return response()->json(['response' => 404]);
         
-    }
+         }
     
       public function declinOrderCommand(Request $request)
-    {
+        {
         
          $order = DB::table('declin_command')->insert([
              'id_user' => $request->id_user, 
              'id_order'=>$request->id_order
              ]);
-             
-             
-         
          if($order)
          {
              return response()->json(['response' => 200]);
          }
           return response()->json(['response' => 400 ]);
             
-    }
-    
-    
-    
-    
-    
-    
-    
+        }
     
      public function takeOrderCommand(Request $request)
     {
@@ -304,11 +290,6 @@ class OrderController extends Controller
         
              
              $order = order_detail::where('status', "pending")->with('carts')->with('user')->get();
-             
-             
-            
-
-            
              if($order) return response()->json(['response' => 200, 'data'=> $order ]);
              else return response()->json(['response' => 404]);
         
@@ -467,7 +448,7 @@ class OrderController extends Controller
         
         
             
-             $order = order_detail::where('id_user', $request->id_user)->with('carts.cartItems.product')->orderBy('id','desc')->get();
+             $order = order_detail::where('id_user', $request->id_user)->with('carts.cartItems.product')->with('agent')->orderBy('id','desc')->get();
 
             
              if($order) return response()->json(['response' => 200, 'data'=> $order]);
@@ -576,6 +557,14 @@ class OrderController extends Controller
         
     }
     
+    
+      public function getCommandAgent(Request $request)
+        {
+            $order = order_detail::where('id_agent',$request->id_user)->where('status',"!=","Success")->get();
+            
+        if($order) return response()->json(['response' => 200, 'data'=>  $order ]);
+        else return response()->json(['response' => 404]);
+        }
     
     
     

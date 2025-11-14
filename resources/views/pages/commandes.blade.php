@@ -128,12 +128,10 @@
             $order = order_detail::findOrFail($this->orderId);
             $order->status = $this->status;
             $order->save();
-             $this->showNotification = true;
+            $this->showNotification = true;
             $this->notificationMessage = 'Statut de la commande modifié avec succès !';
             $this->notificationType = 'success';
-            // Auto-hide après 3 secondes
-          $this->dispatch('auto-hide-notification');
-            // $this->dispatch('show-notification', ['message' => 'Statut de la commande modifié avec succès !', 'type' => 'success']);
+            $this->dispatch('auto-hide-notification');
             $this->closeModal();
         }
 
@@ -145,9 +143,7 @@
             $this->showNotification = true;
             $this->notificationMessage = 'Commande marquée comme prête !';
             $this->notificationType = 'success';
-            // Auto-hide après 3 secondes
-          $this->dispatch('auto-hide-notification');
-            // $this->dispatch('show-notification', ['message' => 'Commande marquée comme prête !', 'type' => 'success']);
+            $this->dispatch('auto-hide-notification');
         }
 
         public function deleteOrder($id)
@@ -158,9 +154,7 @@
             $this->showNotification = true;
             $this->notificationMessage = 'Commande supprimée avec succès !';
             $this->notificationType = 'success';
-            // Auto-hide après 3 secondes
-          $this->dispatch('auto-hide-notification');
-            // $this->dispatch('show-notification', ['message' => 'Commande supprimée avec succès !', 'type' => 'success']);
+            $this->dispatch('auto-hide-notification');
         }
 
         public function deactivateOrder($id)
@@ -171,10 +165,9 @@
             $this->showNotification = true;
             $this->notificationMessage = 'Commande désactivée avec succès !';
             $this->notificationType = 'success';
-            // Auto-hide après 3 secondes
-          $this->dispatch('auto-hide-notification');
-            // $this->dispatch('show-notification', ['message' => 'Commande désactivée avec succès !', 'type' => 'success']);
+            $this->dispatch('auto-hide-notification');
         }
+
         public function hideNotification()
         {
             $this->showNotification = false;
@@ -183,8 +176,6 @@
     ?>
     @volt
         <div id="app-container">
-
-
             @if ($showNotification)
                 <div class="fixed top-4 right-4 z-50 transition-all duration-300 ease-in-out">
                     <div
@@ -203,9 +194,7 @@
                 </div>
             @endif
 
-
             <script>
-                // Auto-hide notification après 3 secondes
                 document.addEventListener('livewire:init', () => {
                     Livewire.on('auto-hide-notification', () => {
                         setTimeout(() => {
@@ -231,7 +220,9 @@
                     </div>
                     <p class="text-sm text-gray-600 mb-4">Cliquez sur "Activer" pour permettre la lecture des sons de
                         notification pour les nouvelles commandes.</p>
-                    <div class="flex justify-end">
+                    <div class="flex justify-end space-x-2">
+                        <button type="button" onclick="window.NotificationManager?.closeSoundModal()"
+                            class="bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600">Annuler</button>
                         <button type="button" onclick="window.NotificationManager?.enableSound()"
                             class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700">Activer</button>
                     </div>
@@ -246,6 +237,7 @@
                     <img src="{{ asset('images/logo.png') }}" class="h-40" alt="Flowbite Logo" />
                 </div>
 
+
                 <!-- Bouton pour activer le son manuellement -->
                 <div class="flex justify-center mb-4">
                     <button id="enableSoundBtn" onclick="window.NotificationManager?.enableSound()"
@@ -254,19 +246,14 @@
                     </button>
                 </div>
 
-                <!-- Bouton pour tester le son -->
-                {{-- <div class="flex justify-center mb-4">
-                    <button onclick="window.NotificationManager?.testSound()"
-                        class="bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700">
-                        Tester le son de notification
-                    </button>
-                </div> --}}
-
                 <!-- Rafraîchissement Livewire toutes les 5s -->
                 <span wire:poll.5s="refreshTick" class="hidden" aria-hidden="true"></span>
 
                 <!-- Barre de recherche -->
-                <form class="flex items-center max-w-lg mx-auto mb-6">
+                <form class="flex items-center max-w-2xl mx-auto mb-6">
+                    <button type="button" onclick="window.NotificationManager?.enableSound()"
+                        class="bg-blue-600 text-white py-2 gap-2 mr-2 px-4 rounded-lg no-wrap hover:bg-blue-700">Activer le
+                        son</button>
                     <label for="search" class="sr-only">Rechercher</label>
                     <div class="relative w-full">
                         <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
@@ -328,7 +315,8 @@
                         </thead>
                         <tbody>
                             @foreach ($this->orders as $order)
-                                <tr class="border-b hover:bg-gray-50" data-order-id="{{ $order->id }}">
+                                <tr class="border-b hover:bg-gray-50 {{ $order->status === 'pending' ? 'bg-yellow-100' : '' }} {{ $order->status === 'Success' ? 'bg-green-100' : '' }}"
+                                    data-order-id="{{ $order->id }}">
                                     <td class="py-3 px-4">
                                         <button wire:click="openDetailsModal({{ $order->id }})"
                                             class="text-blue-600 hover:text-blue-800 mr-2" title="Voir les détails">
@@ -714,7 +702,6 @@
                     <source src="{{ asset('sounds/notification.mp3') }}" type="audio/mpeg">
                     <source src="{{ asset('sounds/notification.wav') }}" type="audio/wav">
                     <source src="{{ asset('sounds/notification.ogg') }}" type="audio/ogg">
-                    <!-- Fallback: son généré par Web Audio API -->
                 </audio>
             </div>
 
@@ -723,9 +710,7 @@
             <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"></script>
             <script src="https://unpkg.com/htmx.org@1.9.10"></script>
 
-
             <script>
-                // Configuration Toastr avant le chargement du NotificationManager
                 if (typeof toastr !== 'undefined') {
                     toastr.options = {
                         closeButton: true,
@@ -738,7 +723,6 @@
                     };
                 }
 
-                // Gestionnaire de notifications amélioré
                 class NotificationManager {
                     constructor() {
                         this.isSoundEnabled = localStorage.getItem('soundEnabled') === 'true';
@@ -755,43 +739,27 @@
 
                     init() {
                         console.log('[NotificationManager] Initialisation...');
-
-                        // Initialisation de l'audio
                         this.initAudio();
-
-                        // Demande de permission pour les notifications desktop
                         this.requestDesktopNotificationPermission();
-
-                        // Écoute des événements Livewire
                         this.setupLivewireListeners();
-
-                        // Gestion de l'interaction utilisateur pour débloquer l'audio
                         this.setupUserInteractionHandlers();
-
-                        // Affichage du modal si son désactivé
                         if (!this.isSoundEnabled) {
                             this.showSoundModal();
                         }
-
-                        // Démarrage du polling pour les nouvelles commandes
                         this.startOrderPolling();
-
                         console.log('[NotificationManager] Initialisé avec succès');
                     }
 
                     initAudio() {
                         this.audioElement = document.getElementById('notificationSound');
-
                         if (!this.audioElement) {
                             console.warn('[NotificationManager] Élément audio non trouvé, création d\'un audio dynamique');
                             this.createFallbackAudio();
                         } else {
-                            // Forcer le chargement du fichier audio
                             this.audioElement.load();
                             console.log('[NotificationManager] Audio element trouvé:', this.audioElement.src);
                         }
 
-                        // Initialisation du contexte audio pour les navigateurs modernes
                         try {
                             this.audioContext = new(window.AudioContext || window.webkitAudioContext)();
                         } catch (error) {
@@ -800,57 +768,41 @@
                     }
 
                     createFallbackAudio() {
-                        // Création d'un élément audio avec le fichier notification
                         this.audioElement = document.createElement('audio');
                         this.audioElement.id = 'notificationSoundFallback';
                         this.audioElement.preload = 'auto';
-
-                        // Ajout des sources
                         const source1 = document.createElement('source');
                         source1.src = '/sounds/notification.mp3';
                         source1.type = 'audio/mpeg';
                         this.audioElement.appendChild(source1);
-
                         const source2 = document.createElement('source');
                         source2.src = '/sounds/notification.wav';
                         source2.type = 'audio/wav';
                         this.audioElement.appendChild(source2);
-
                         document.body.appendChild(this.audioElement);
                         this.audioElement.load();
-
                         console.log('[NotificationManager] Audio fallback créé');
                     }
 
                     generateNotificationSound() {
                         if (!this.audioContext) return Promise.reject('Web Audio API non disponible');
-
                         return new Promise((resolve, reject) => {
                             try {
-                                // Reprise du contexte audio si suspendu
                                 if (this.audioContext.state === 'suspended') {
                                     this.audioContext.resume();
                                 }
-
                                 const oscillator = this.audioContext.createOscillator();
                                 const gainNode = this.audioContext.createGain();
-
                                 oscillator.connect(gainNode);
                                 gainNode.connect(this.audioContext.destination);
-
-                                // Son de notification double bip
                                 oscillator.frequency.setValueAtTime(800, this.audioContext.currentTime);
                                 oscillator.frequency.setValueAtTime(600, this.audioContext.currentTime + 0.1);
                                 oscillator.frequency.setValueAtTime(800, this.audioContext.currentTime + 0.2);
-
                                 gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime);
                                 gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.4);
-
                                 oscillator.start(this.audioContext.currentTime);
                                 oscillator.stop(this.audioContext.currentTime + 0.4);
-
                                 oscillator.onended = () => resolve();
-
                             } catch (error) {
                                 reject(error);
                             }
@@ -858,14 +810,11 @@
                     }
 
                     setupLivewireListeners() {
-                        // Écoute des événements Livewire pour les notifications
                         document.addEventListener('livewire:init', () => {
                             Livewire.on('show-notification', (data) => {
                                 this.showToast(data[0].message, data[0].type);
                             });
                         });
-
-                        // Fallback pour les événements window
                         window.addEventListener('show-notification', (event) => {
                             if (event.detail) {
                                 this.showToast(event.detail.message, event.detail.type);
@@ -874,17 +823,14 @@
                     }
 
                     setupUserInteractionHandlers() {
-                        // Gestionnaires pour débloquer l'audio
                         const unlockAudio = () => {
                             if (this.audioContext && this.audioContext.state === 'suspended') {
                                 this.audioContext.resume();
                             }
-                            // Tenter de charger l'audio si pas encore fait
                             if (this.audioElement && !this.audioElement.readyState) {
                                 this.audioElement.load();
                             }
                         };
-
                         document.addEventListener('click', unlockAudio, {
                             once: true
                         });
@@ -898,7 +844,6 @@
 
                     requestDesktopNotificationPermission() {
                         if (typeof Notification === 'undefined') return;
-
                         if (Notification.permission === 'default') {
                             Notification.requestPermission().then(result => {
                                 this.desktopNotify = result === 'granted';
@@ -914,9 +859,9 @@
                     showSoundModal() {
                         const modal = document.getElementById('enableSoundModal');
                         const btn = document.getElementById('enableSoundBtn');
-
                         if (modal) {
                             modal.classList.remove('hidden');
+                            console.log('[NotificationManager] Modal affiché');
                         }
                         if (btn) {
                             btn.classList.remove('hidden');
@@ -925,38 +870,13 @@
 
                     enableSound() {
                         console.log('[NotificationManager] Tentative d\'activation du son...');
-
-                        // Test avec l'audio element d'abord
                         if (this.audioElement) {
-                            this.audioElement.load();
-
-                            // Fonction pour tester le son
-                            const testAudio = () => {
-                                this.audioElement.currentTime = 0;
-                                const playPromise = this.audioElement.play();
-
-                                if (playPromise !== undefined) {
-                                    playPromise.then(() => {
-                                        this.isSoundEnabled = true;
-                                        localStorage.setItem('soundEnabled', 'true');
-                                        this.hideSoundModal();
-                                        this.showToast('Notifications sonores activées !', 'success');
-                                        console.log(
-                                            '[NotificationManager] Son activé avec succès via audio element');
-                                    }).catch(error => {
-                                        console.warn(
-                                            '[NotificationManager] Échec audio element, essai Web Audio API:',
-                                            error);
-                                        this.tryWebAudioFallback();
-                                    });
-                                }
-                            };
-
-                            // Si l'audio n'est pas prêt, attendre qu'il se charge
-                            if (this.audioElement.readyState >= 2) {
-                                testAudio();
-                            } else {
-                                this.audioElement.addEventListener('canplay', testAudio, {
+                            if (this.audioElement.readyState < 2) {
+                                console.log('[NotificationManager] Audio non prêt, chargement en cours...');
+                                this.audioElement.load();
+                                this.audioElement.addEventListener('canplay', () => {
+                                    this.playAudioElement();
+                                }, {
                                     once: true
                                 });
                                 this.audioElement.addEventListener('error', () => {
@@ -966,20 +886,42 @@
                                 }, {
                                     once: true
                                 });
+                            } else {
+                                this.playAudioElement();
                             }
                         } else {
-                            // Utilisation directe de Web Audio API
+                            console.warn('[NotificationManager] Aucun élément audio, essai Web Audio API');
                             this.tryWebAudioFallback();
+                        }
+                    }
+
+                    playAudioElement() {
+                        console.log('[NotificationManager] Tentative de lecture de l\'élément audio...');
+                        this.audioElement.currentTime = 0;
+                        const playPromise = this.audioElement.play();
+                        if (playPromise !== undefined) {
+                            playPromise.then(() => {
+                                this.isSoundEnabled = true;
+                                localStorage.setItem('soundEnabled', 'true');
+                                this.showToast('Notifications sonores activées !', 'success');
+                                this.hideSoundModal();
+                                console.log('[NotificationManager] Son activé avec succès via audio element');
+                            }).catch(error => {
+                                console.warn('[NotificationManager] Échec de lecture audio element:', error);
+                                this.showToast('Échec de l\'activation du son. Veuillez réessayer.', 'error');
+                                this.tryWebAudioFallback();
+                            });
                         }
                     }
 
                     tryWebAudioFallback() {
                         if (this.audioContext) {
+                            console.log('[NotificationManager] Tentative avec Web Audio API...');
                             this.generateNotificationSound().then(() => {
                                 this.isSoundEnabled = true;
                                 localStorage.setItem('soundEnabled', 'true');
-                                this.hideSoundModal();
                                 this.showToast('Notifications sonores activées (Web Audio) !', 'success');
+                                this.hideSoundModal();
                                 console.log('[NotificationManager] Son activé avec Web Audio API');
                             }).catch(error => {
                                 console.error('[NotificationManager] Échec Web Audio API:', error);
@@ -987,22 +929,24 @@
                                     'error');
                             });
                         } else {
-                            this.showToast('Audio non supporté par ce navigateur', 'warning');
+                            console.warn('[NotificationManager] Web Audio API non disponible');
+                            this.showToast('Audio non supporté par ce navigateur.', 'warning');
                         }
                     }
 
                     closeSoundModal() {
-                        this.hideSoundModal();
                         this.isSoundEnabled = false;
                         localStorage.removeItem('soundEnabled');
+                        this.hideSoundModal();
+                        console.log('[NotificationManager] Modal fermé manuellement');
                     }
 
                     hideSoundModal() {
                         const modal = document.getElementById('enableSoundModal');
                         const btn = document.getElementById('enableSoundBtn');
-
                         if (modal) {
                             modal.classList.add('hidden');
+                            console.log('[NotificationManager] Modal caché');
                         }
                         if (btn) {
                             btn.classList.add('hidden');
@@ -1011,13 +955,11 @@
 
                     testSound() {
                         console.log('[NotificationManager] Test du son...');
-
-                        // Forcer l'activation si pas encore fait
                         if (!this.isSoundEnabled) {
-                            this.enableSound();
+                            this.showSoundModal();
+                            this.showToast('Veuillez activer le son d\'abord.', 'warning');
                             return;
                         }
-
                         this.playNotificationSound();
                         this.showToast('Test de notification sonore', 'info');
                     }
@@ -1028,17 +970,12 @@
                             this.showSoundModal();
                             return;
                         }
-
                         console.log('[NotificationManager] Lecture du son...');
-
-                        // Essai avec l'audio element d'abord
                         if (this.audioElement && this.audioElement.src) {
                             try {
                                 console.log('[NotificationManager] Tentative avec audio element:', this.audioElement.src);
                                 this.audioElement.currentTime = 0;
-
                                 const playPromise = this.audioElement.play();
-
                                 if (playPromise !== undefined) {
                                     playPromise.then(() => {
                                         console.log('[NotificationManager] Son joué avec succès via audio element');
@@ -1047,19 +984,17 @@
                                             '[NotificationManager] Échec audio element, utilisation Web Audio:',
                                             error);
                                         this.generateNotificationSound().catch(err => {
-                                            console.error('[NotificationManager] Échec complet du son:', err);
+                                            console.error('[NotificationManager] Échec Web Audio API:', err);
                                         });
                                     });
                                 }
                             } catch (error) {
                                 console.error('[NotificationManager] Erreur lors de la lecture audio:', error);
-                                // Fallback vers Web Audio
                                 this.generateNotificationSound().catch(err => {
                                     console.error('[NotificationManager] Échec Web Audio API:', err);
                                 });
                             }
                         } else {
-                            // Utilisation de Web Audio API
                             console.log('[NotificationManager] Utilisation de Web Audio API');
                             this.generateNotificationSound().catch(error => {
                                 console.error('[NotificationManager] Erreur Web Audio API:', error);
@@ -1069,17 +1004,14 @@
 
                     showToast(message, type = 'info') {
                         console.log('[NotificationManager] Affichage toast:', message, type);
-
                         if (typeof toastr !== 'undefined' && toastr[type]) {
                             try {
                                 toastr[type](message);
                             } catch (error) {
                                 console.error('[NotificationManager] Erreur Toastr:', error);
-                                // Fallback: notification custom
                                 this.showCustomNotification(message, type);
                             }
                         } else {
-                            // Fallback: notification custom
                             this.showCustomNotification(message, type);
                         }
                     }
@@ -1087,11 +1019,9 @@
                     showCustomNotification(message, type) {
                         const container = document.getElementById('notificationContainer');
                         if (!container) return;
-
                         const notification = document.createElement('div');
                         notification.className =
                             `alert bg-${this.getColorClass(type)} text-white font-bold rounded-lg p-4 mt-4 shadow-lg transform transition-all duration-500 slideIn flex items-start space-x-2`;
-
                         notification.innerHTML = `
                             <svg class="w-5 h-5 text-white mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
@@ -1103,10 +1033,7 @@
                                 </svg>
                             </button>
                         `;
-
                         container.appendChild(notification);
-
-                        // Auto-suppression après 5 secondes
                         setTimeout(() => {
                             if (notification.parentElement) {
                                 notification.remove();
@@ -1126,11 +1053,10 @@
 
                     showDesktopNotification(title, message) {
                         if (!this.desktopNotify || typeof Notification === 'undefined') return;
-
                         try {
                             new Notification(title, {
                                 body: message,
-                                icon: '/images/logo.png', // Assurez-vous que ce chemin est correct
+                                icon: '/images/logo.png',
                                 badge: '/images/logo.png'
                             });
                         } catch (error) {
@@ -1140,14 +1066,11 @@
 
                     startTitleFlash() {
                         if (this.titleFlashIntervalId) return;
-
                         let toggle = false;
                         this.titleFlashIntervalId = setInterval(() => {
                             document.title = toggle ? '🔔 Nouvelle commande !' : this.originalTitle;
                             toggle = !toggle;
                         }, 1000);
-
-                        // Arrêt automatique après 30 secondes
                         setTimeout(() => this.stopTitleFlash(), 30000);
                     }
 
@@ -1161,26 +1084,19 @@
 
                     async startOrderPolling() {
                         console.log('[NotificationManager] Démarrage du polling des commandes...');
-
-                        // Récupération de l'ID de la dernière commande au chargement
                         const firstOrderElement = document.querySelector('tr[data-order-id]');
                         if (firstOrderElement && this.lastOrderId === 0) {
                             this.lastOrderId = parseInt(firstOrderElement.getAttribute('data-order-id'));
                             localStorage.setItem('lastOrderId', String(this.lastOrderId));
                             console.log('[NotificationManager] lastOrderId initialisé à:', this.lastOrderId);
                         }
-
                         this.checkForNewOrders();
                     }
 
                     async checkForNewOrders() {
                         if (this.isProcessingNotification) return;
-
                         this.isProcessingNotification = true;
-
                         try {
-                            // Simulation d'une vérification de nouvelles commandes
-                            // Remplacez cette URL par votre endpoint réel
                             const response = await fetch(`/check-new-orders?lastOrderId=${this.lastOrderId}&_t=${Date.now()}`, {
                                 method: 'GET',
                                 headers: {
@@ -1189,10 +1105,8 @@
                                 },
                                 credentials: 'same-origin'
                             });
-
                             if (response.ok) {
                                 const data = await response.json();
-
                                 if (data.hasNewOrder && data.newOrderId > this.lastOrderId) {
                                     this.handleNewOrder(data.newOrderId);
                                 }
@@ -1201,33 +1115,23 @@
                             console.error('[NotificationManager] Erreur lors de la vérification des commandes:', error);
                         } finally {
                             this.isProcessingNotification = false;
-
-                            // Prochain polling dans 5 secondes
                             setTimeout(() => this.checkForNewOrders(), 5000);
                         }
                     }
 
                     handleNewOrder(newOrderId) {
                         console.log('[NotificationManager] Nouvelle commande détectée:', newOrderId);
-
                         this.lastOrderId = newOrderId;
                         localStorage.setItem('lastOrderId', String(newOrderId));
-
-                        // Notifications
-                        this.playNotificationSound();
+                        this.enableSound();
                         this.showToast('🎉 Nouvelle commande reçue !', 'success');
                         this.showDesktopNotification('Nouvelle Commande', `Commande #${newOrderId} vient d'arriver`);
                         this.startTitleFlash();
-
-                        // Rafraîchissement de la page si Livewire est disponible
                         if (typeof Livewire !== 'undefined') {
                             Livewire.emit('refreshComponent');
                         } else {
-                            // Rechargement de la page en dernier recours
                             setTimeout(() => window.location.reload(), 2000);
                         }
-
-                        // Mise en surbrillance de la nouvelle commande
                         setTimeout(() => {
                             const newRow = document.querySelector(`tr[data-order-id="${newOrderId}"]`);
                             if (newRow) {
@@ -1238,10 +1142,7 @@
                     }
                 }
 
-                // Initialisation du gestionnaire de notifications
                 let notificationManagerInstance;
-
-                // Attendre que le DOM soit chargé
                 if (document.readyState === 'loading') {
                     document.addEventListener('DOMContentLoaded', () => {
                         notificationManagerInstance = new NotificationManager();
@@ -1257,6 +1158,10 @@
                 table {
                     width: 100% !important;
                     table-layout: auto;
+                }
+
+                .no-wrap {
+                    white-space: nowrap;
                 }
 
                 table th,
@@ -1406,13 +1311,11 @@
                     }
                 }
 
-                /* Amélioration visuelle des notifications */
                 .toast-top-right {
                     top: 20px;
                     right: 20px;
                 }
 
-                /* Style pour les boutons de notification */
                 .notification-button {
                     position: relative;
                     overflow: hidden;
@@ -1433,7 +1336,6 @@
                     left: 100%;
                 }
 
-                /* Animation pour les nouvelles commandes */
                 .new-order-highlight {
                     background: linear-gradient(45deg, #fef3c7, #fde68a, #fef3c7);
                     background-size: 400% 400%;
@@ -1454,7 +1356,6 @@
                     }
                 }
 
-                /* Styles pour les modals */
                 .modal-backdrop {
                     backdrop-filter: blur(4px);
                     background-color: rgba(0, 0, 0, 0.6);
@@ -1476,7 +1377,6 @@
                     }
                 }
 
-                /* Indicateur de chargement */
                 .loading-spinner {
                     border: 2px solid #f3f3f3;
                     border-top: 2px solid #3498db;
@@ -1498,7 +1398,6 @@
                     }
                 }
 
-                /* Style pour les badges de statut */
                 .status-badge {
                     position: relative;
                     display: inline-flex;

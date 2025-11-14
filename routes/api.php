@@ -94,6 +94,9 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
       
       //note
       
+            Route::get('getAgentNote', 'NoteController@getAgentNote');
+            Route::post('getAgentNote', 'NoteController@getAgentNote');
+      
       Route::get('makeNote', 'NoteController@makeNote');
        Route::post('makeNote', 'NoteController@makeNote');
        
@@ -108,6 +111,24 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
       
     
     //clando
+    
+     Route::get('getClandoHistoryResearch', 'ClandoController@getClandoHistoryResearch');
+     Route::post('getClandoHistoryResearch', 'ClandoController@getClandoHistoryResearch');
+    
+    Route::get('storeHistory', 'ClandoController@storeHistory');
+    Route::post('storeHistory', 'ClandoController@storeHistory');
+ 
+ 
+ Route::get('takePosition', 'ClandoController@takePosition');
+  Route::post('takePosition', 'ClandoController@takePosition');
+ 
+   Route::get('historiqueClandoUser', 'ClandoController@historiqueClandoUser');
+    Route::post('historiqueClandoUser', 'ClandoController@historiqueClandoUser');
+ 
+ 
+ 
+ 
+ 
  
  
   Route::get('updateClandoStatus', 'ClandoController@updateClandoStatus');
@@ -271,8 +292,10 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
  Route::post('updateOrderStatus', 'OrderController@updateOrderStatus');
  
  
- 
- 
+  Route::get('getCommandAgent', 'OrderController@getCommandAgent');
+   Route::post('getCommandAgent', 'OrderController@getCommandAgent');
+   
+   
  
           Route::get('declinCommandAfterTakeOrder', 'OrderController@declinCommandAfterTakeOrder');
           Route::post('declinCommandAfterTakeOrder', 'OrderController@declinCommandAfterTakeOrder');

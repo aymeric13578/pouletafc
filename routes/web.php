@@ -51,21 +51,23 @@ use App\Http\Controllers\AgentAfcOrderController;
 
 
 
-// Route::get('/deleteuseraccount', function () {
-//     return view('welcome');
-// })->name('welcome');
+Route::get('/deleteuseraccount', function () {    return view('welcome');
+ })->name('welcome');
 
 Route::get('/check-new-orders', [AgentAfcOrderController::class, 'checkNewOrders'])->name('check.new.order');
 Route::get('/get-new-order', [AgentAfcOrderController::class, 'getNewOrder'])->name('get.new.order');
 
 Route::get('/', function () {
-    return redirect()->route('login');
+        return view('index');
+
 });
 
 
 Route::get('/privacy', function () {
     return view('privacy');
 })->name('privacy');
+
+
 
 Route::get('validate/compte', 'App\Http\Controllers\Auth\ValidateCompte@index')->name('compte.validate');
 Route::post('validate/compte', 'App\Http\Controllers\Auth\ValidateCompte@index')->name('compte.validate');

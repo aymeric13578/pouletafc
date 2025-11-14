@@ -163,14 +163,18 @@ new class extends Component {
             'parameter2' => 'nullable|string|max:255',
         ]);
 
+        $category_name = Category::where('id', $this->id_category)->value('name');
+        $ref = sprintf('POULET-%s%s%s', now()->format('Y'), now()->format('m'), now()->format('d'));
+
         $data = [
             'name' => $this->name,
-            'id_category' => $this->id_category,
-            'id_shop' => $this->id_shop,
-            'price' => $this->price,
-            'stock_init' => $this->stock_init,
             'description' => $this->description,
             'locality' => $this->locality,
+            'stock_init' => $this->stock_init,
+            'price' => $this->price,
+            'category' => $category_name,
+            'id_category' => $this->id_category,
+            'id_shop' => $this->id_shop,
             'bar_code' => $this->bar_code,
             'commission' => $this->commission,
             'product_length' => $this->product_length,
@@ -181,27 +185,57 @@ new class extends Component {
             'product_weight' => $this->product_weight,
             'parameter1' => $this->parameter1,
             'parameter2' => $this->parameter2,
-            'ref' => sprintf('POULET-%s%s%s', now()->format('Y'), now()->format('m'), now()->format('d')),
+            'quantity' => $this->stock_init,
+            'slug' => strtolower(str_replace(' ', '-', $this->name)),
+            'ref' => $ref,
             'status' => 'pending',
-            'slug' => Str::slug($this->name),
         ];
 
         if ($this->product_image1) {
-            $path = $this->product_image1->store('upload', 'public');
-            $data['product_image1'] = Storage::url($path);
+            $img_name1 = hexdec(uniqid()) . '.' . $this->product_image1->getClientOriginalExtension();
+            $img_path1 = $this->product_image1->storeAs('upload', $img_name1, 'public');
+            //$this->product_image1->move(public_path('upload'), $img_name1);
+            $img_url1 = 'upload/' . $img_name1;
+            $data['product_image1'] = 'https://pouletafc.2gether-network.com/' . $img_url1;
         }
 
         if ($this->product_image2) {
-            $path = $this->product_image2->store('upload', 'public');
-            $data['product_image2'] = Storage::url($path);
+            $img_name2 = hexdec(uniqid()) . '.' . $this->product_image2->getClientOriginalExtension();
+              $img_path2 = $this->product_image2->storeAs('upload', $img_name2, 'public');
+            //$this->product_image2->move(public_path('upload'), $img_name2);
+            $img_url2 = 'upload/' . $img_name2;
+            $data['product_image2'] = 'https://pouletafc.2gether-network.com/' . $img_url2;
         }
 
         if ($this->editMode) {
+            
+            
+             if ($this->product_image1) {
+            $img_name1 = hexdec(uniqid()) . '1.' . $this->product_image1->getClientOriginalExtension();
+            $img_path1 = $this->product_image1->storeAs('upload', $img_name1, 'public');
+            //$this->product_image1->move(public_path('upload'), $img_name1);
+            $img_url1 = 'upload/' . $img_name1;
+            $data['product_image1'] = 'https://pouletafc.2gether-network.com/' . $img_url1;
+        }
+
+        if ($this->product_image2) {
+            $img_name2 = hexdec(uniqid()) . '2.' . $this->product_image2->getClientOriginalExtension();
+              $img_path2 = $this->product_image2->storeAs('upload', $img_name2, 'public');
+            //$this->product_image2->move(public_path('upload'), $img_name2);
+            $img_url2 = 'upload/' . $img_name2;
+            $data['product_image2'] = 'https://pouletafc.2gether-network.com/' . $img_url2;
+        }
+            
+            
+            
+            
+            
             $product = Product::findOrFail($this->productId);
             $product->update($data);
             $this->dispatch('notify', ['message' => 'Produit modifié avec succès !', 'type' => 'success']);
         } else {
             $product = Product::create($data);
+            $product->update(['ref' => $ref]);
             Category::where('id', $this->id_category)->increment('product_count', 1);
             Shop::where('id', $this->id_shop)->increment('product_count', 1);
             $this->dispatch('notify', ['message' => 'Produit ajouté avec succès !', 'type' => 'success']);
@@ -223,12 +257,18 @@ new class extends Component {
     {
         $product = Product::findOrFail($productId);
         if ($product->product_image1) {
-            Storage::disk('public')->delete(str_replace(Storage::url(''), '', $product->product_image1));
+            $imagePath1 = str_replace('https://pouletafc.2gether-network.com/', '', $product->product_image1);
+            if (file_exists(public_path($imagePath1))) {
+                unlink(public_path($imagePath1));
+            }
         }
         if ($product->product_image2) {
-            Storage::disk('public')->delete(str_replace(Storage::url(''), '', $product->product_image2));
+            $imagePath2 = str_replace('https://pouletafc.2gether-network.com/', '', $product->product_image2);
+            if (file_exists(public_path($imagePath2))) {
+                unlink(public_path($imagePath2));
+            }
         }
-        $product->update(['status' => 'failed']);
+        $product->delete();
         Category::where('id', $product->id_category)->decrement('product_count', 1);
         Shop::where('id', $product->id_shop)->decrement('product_count', 1);
         $this->dispatch('notify', ['message' => 'Produit supprimé avec succès !', 'type' => 'success']);

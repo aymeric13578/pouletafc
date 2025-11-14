@@ -10,6 +10,7 @@ use App\Fonction\Fonction;
 use App\Models\begin_agent_days;
 use App\Models\order_detail;
 use App\Models\Parameter;
+use App\Models\User;
 use DB;
 
 class ClandoController extends Controller
@@ -20,6 +21,15 @@ class ClandoController extends Controller
         
         
         $verified = Clando::where('id_user',$request->id_user)->where('status',"want")->first();
+        
+         $user = User::where('id',$request->id_user)->first();
+          
+          if($user->status != 'Success')
+          {
+              return response()->json(['response' => 404]);
+          }
+          
+          
         
         if(isset($verified))
         {
@@ -93,6 +103,7 @@ class ClandoController extends Controller
         
           $order = Clando::where('ref',$request->ref)->with('users')->get();
           $AgentCoordonate= '';
+          $agent = '';
           
          
           
@@ -100,8 +111,12 @@ class ClandoController extends Controller
           {
               $AgentCoordonate = DB::table('begin_agent_days')->where('id_user',$order[0]->users->id)->get();
           }
+           if($order[0]->id_agent != null )
+          {
+              $agent = DB::table('users')->where('id',$order[0]->id_agent)->get();
+          }
             
-          if($order) return response()->json(['response' => 200, 'data'=>  $order , 'agentCoordonate'=>  $AgentCoordonate  ]);
+          if($order) return response()->json(['response' => 200, 'data'=>  $order , 'agentCoordonate'=>  $AgentCoordonate ,'agent'=> $agent   ]);
         else return response()->json(['response' => 404]);
         
         
@@ -421,5 +436,81 @@ class ClandoController extends Controller
          }
           return response()->json(['response' => 400 ]);
     }
+    
+    
+    
+    
+    
+        
+    public function historiqueClandoUser(Request $request)
+    {
+        $clando = Clando::where('id_user',$request->id_user)->get();
+
+        if($clando) return response()->json(['response' => 200, 'data'=> $clando]);
+        else return response()->json(['response' => 200, 'data'=> null]);
+    }
+    
+    public function storeHistory(Request $request)
+    {
+        $insert = DB::table('historyClando')
+        ->insert([
+            
+            'name' => $request->name,
+            'longitude' => $request->longitude,
+             'latitude' => $request->latitude,
+              'id_user' => $request->id_user,
+            
+            ]);
+        
+    }
+    
+      public function getClandoHistoryResearch(Request $request)
+    {
+        $clando = DB::table('historyClando')
+        ->where('id_user',$request->id_user)->get();
+        
+        
+          if($clando) return response()->json(['response' => 200, 'data'=> $clando]);
+        else return response()->json(['response' => 200, 'data'=> null]);
+        
+    }
+    
+    
+      public function takePosition(Request $request)
+    {
+        $insert = DB::table('lieux')
+        ->insert([
+            
+            'name' => $request->name,
+            'longitude' => $request->longitude,
+             'latitude' => $request->latitude,
+              'id_agent' => $request->id_agent,
+            
+            ]);
+            
+               if($insert)
+         {
+             return response()->json(['response' => 200]);
+         }
+          return response()->json(['response' => 400 ]);
+        
+    }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
 }

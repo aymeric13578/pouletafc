@@ -71,6 +71,7 @@ class NoteController extends Controller
 
         // Initialiser les compteurs pour chaque type de note
         $result = [
+              'verybad' => 0,
             'bad' => 0,
             'average' => 0,
             'good' => 0,
@@ -87,10 +88,11 @@ class NoteController extends Controller
 
         // Calculer le total des notes
         $result['total'] = array_sum([
-            $result['bad'],
+            -2*$result['verybad'],
+            -1*$result['bad'],
             $result['average'],
-            $result['good'],
-            $result['excellent'],
+            1.5*$result['good'],
+            2*$result['excellent'],
         ]);
 
         // Vérifier si l'agent a des notes
