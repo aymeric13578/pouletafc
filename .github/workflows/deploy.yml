@@ -105,6 +105,9 @@ jobs:
           username: ${{ env.DEPLOY_USER }}
           password: ${{ secrets.DEPLOY_SSH_PASSWORD }}
           envs: DEPLOY_PATH,BACKUP_PATH,WEBROOT_PATH,ARCHIVE_NAME
+          # Le disque de cet hébergement mutualisé est lent avec beaucoup de petits fichiers
+          # (rsync de ~5500 fichiers vers public_html) : le timeout par défaut de 10m est trop court.
+          command_timeout: 30m
           script: |
             set -euo pipefail
             ARCHIVE="$HOME/${ARCHIVE_NAME}"
