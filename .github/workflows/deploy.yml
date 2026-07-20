@@ -170,7 +170,8 @@ jobs:
             cd "$DEPLOY_PATH"
             php artisan migrate --force
             php artisan config:cache
-            php artisan route:cache
+            # route:cache désactivé : routes/web.php contient des noms de route dupliqués
+            # (dashboard, home, status.change, ...) qui font échouer la compilation du cache.
             php artisan view:cache
             php artisan queue:restart || true
 

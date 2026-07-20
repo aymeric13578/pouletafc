@@ -24,25 +24,25 @@ Route::group(['namespace' => 'App\Http\Controllers\API','prefix'=>'v1.0'], funct
     //orange 
     Route::get('testfunction','PaymentController@testfunction')->name('testfunction');
     //orange 
-Route::get('operator/orange/OrangePhase1','PaymentController@OrangePhase1')->name('OrangePhase1');
-Route::post('operator/orange/OrangePhase1','PaymentController@OrangePhase1')->name('OrangePhase1');
+Route::get('operator/orange/OrangePhase1','PaymentController@OrangePhase1')->name('OrangePhase1.get');
+Route::post('operator/orange/OrangePhase1','PaymentController@OrangePhase1')->name('OrangePhase1.post');
 
 
 
-Route::post('operator/orange/OrangePhaseUser','PaymentController@OrangePhaseUser')->name('OrangePhaseUser');
-Route::get('operator/orange/OrangePhaseUser','PaymentController@OrangePhaseUser')->name('OrangePhaseUser');
+Route::post('operator/orange/OrangePhaseUser','PaymentController@OrangePhaseUser')->name('OrangePhaseUser.post');
+Route::get('operator/orange/OrangePhaseUser','PaymentController@OrangePhaseUser')->name('OrangePhaseUser.get');
 
 
-Route::get('operator/orange/OrangePhase2','PaymentController@OrangePhase2')->name('OrangePhase2');
-Route::post('operator/orange/OrangePhase2','PaymentController@OrangePhase2')->name('OrangePhase2');
+Route::get('operator/orange/OrangePhase2','PaymentController@OrangePhase2')->name('OrangePhase2.get');
+Route::post('operator/orange/OrangePhase2','PaymentController@OrangePhase2')->name('OrangePhase2.post');
 
-Route::get('operator/orange/OrangePhase3/{ref}','PaymentController@OrangePhase3')->name('OrangePhase3');
-Route::post('operator/orange/OrangePhase3/{ref}','PaymentController@OrangePhase3')->name('OrangePhase3');
+Route::get('operator/orange/OrangePhase3/{ref}','PaymentController@OrangePhase3')->name('OrangePhase3.get');
+Route::post('operator/orange/OrangePhase3/{ref}','PaymentController@OrangePhase3')->name('OrangePhase3.post');
 
 
     //statut du paiement
-Route::get('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePaymentStatus')->name('verifiedOrangePaymentStatus');
-Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePaymentStatus')->name('verifiedOrangePaymentStatus');
+Route::get('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePaymentStatus')->name('verifiedOrangePaymentStatus.get');
+Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePaymentStatus')->name('verifiedOrangePaymentStatus.post');
 
 
     
