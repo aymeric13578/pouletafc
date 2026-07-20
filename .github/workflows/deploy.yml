@@ -1,0 +1,174 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  DEPLOY_HOST: 209.16.158.105
+  DEPLOY_PORT: 5022
+  DEPLOY_USER: mnnvvrcp
+  DEPLOY_PATH: /home/mnnvvrcp/pouletafc
+  BACKUP_PATH: /home/mnnvvrcp/pouletafc_old
+  # public_html n'est pas un symlink vers pouletafc/public sur ce serveur : c'est une copie
+  # séparée servie directement par le webserver, il faut donc la resynchroniser à chaque déploiement.
+  WEBROOT_PATH: /home/mnnvvrcp/public_html
+  ARCHIVE_NAME: release-${{ github.sha }}.tar.gz
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer
+          coverage: none
+
+      - name: Install PHP dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+      - name: Prepare local env for build (needed by artisan/wayfinder during vite build)
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction
+          mkdir -p database
+          touch database/database.sqlite
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build frontend assets
+        run: npm run build
+
+      - name: Package release archive
+        run: |
+          # L'archive doit être écrite hors de "." : sinon tar détecte que le dossier
+          # source change pendant qu'il le lit (le fichier archive apparaît/grossit).
+          tar -czf "/tmp/${{ env.ARCHIVE_NAME }}" \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.github' \
+            --exclude='tests' \
+            --exclude='.env' \
+            --exclude='database/database.sqlite' \
+            .
+          mv "/tmp/${{ env.ARCHIVE_NAME }}" "${{ env.ARCHIVE_NAME }}"
+
+      - name: Add server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          # Le serveur peut ignorer/laisser tomber le tout premier paquet d'une IP jamais vue
+          # (protection anti-scan côté hébergeur) : on retente plutôt que d'échouer direct.
+          for i in 1 2 3 4 5; do
+            if ssh-keyscan -T 10 -p "${{ env.DEPLOY_PORT }}" -H "${{ env.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/tmp/keyscan_err; then
+              echo "ssh-keyscan OK (tentative $i)"
+              break
+            fi
+            echo "ssh-keyscan tentative $i échouée :"
+            cat /tmp/keyscan_err
+            if [ "$i" -eq 5 ]; then
+              echo "ssh-keyscan a échoué après 5 tentatives" >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Upload release archive
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ env.DEPLOY_HOST }}
+          port: ${{ env.DEPLOY_PORT }}
+          username: ${{ env.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+          source: ${{ env.ARCHIVE_NAME }}
+          target: /home/${{ env.DEPLOY_USER }}
+
+      - name: Release on server (backup + swap + finalize)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.DEPLOY_HOST }}
+          port: ${{ env.DEPLOY_PORT }}
+          username: ${{ env.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+          envs: DEPLOY_PATH,BACKUP_PATH,WEBROOT_PATH,ARCHIVE_NAME
+          script: |
+            set -euo pipefail
+            ARCHIVE="$HOME/${ARCHIVE_NAME}"
+
+            # 1. Sauvegarde la release actuelle si elle existe (le backup précédent est remplacé)
+            if [ -d "$DEPLOY_PATH" ]; then
+              echo "Sauvegarde de la release existante vers $BACKUP_PATH"
+              rm -rf "$BACKUP_PATH"
+              mv "$DEPLOY_PATH" "$BACKUP_PATH"
+            else
+              echo "Aucune release existante, pas de sauvegarde nécessaire"
+            fi
+
+            # 2. Crée le dossier de release seulement s'il n'existe pas déjà
+            mkdir -p "$DEPLOY_PATH"
+
+            # 3. Extrait la nouvelle release
+            tar -xzf "$ARCHIVE" -C "$DEPLOY_PATH"
+            rm -f "$ARCHIVE"
+
+            # 4. Restaure le .env depuis la sauvegarde (jamais écrasé/regénéré par le pipeline)
+            if [ -f "$BACKUP_PATH/.env" ]; then
+              cp "$BACKUP_PATH/.env" "$DEPLOY_PATH/.env"
+            elif [ ! -f "$DEPLOY_PATH/.env" ]; then
+              echo "ERREUR: aucun fichier .env trouvé (ni sauvegarde, ni existant)." >&2
+              echo "Configure-le manuellement sur le serveur avant de redéployer." >&2
+              exit 1
+            fi
+
+            # 5. Restaure les fichiers persistants (uploads utilisateurs, logs) depuis la sauvegarde
+            if [ -d "$BACKUP_PATH/storage/app" ]; then
+              rsync -a "$BACKUP_PATH/storage/app/" "$DEPLOY_PATH/storage/app/"
+            fi
+            if [ -d "$BACKUP_PATH/storage/logs" ]; then
+              rsync -a "$BACKUP_PATH/storage/logs/" "$DEPLOY_PATH/storage/logs/"
+            fi
+
+            # 6. Synchronise les assets buildés vers le webroot réel (public_html n'est pas un
+            #    symlink vers erpndazoa/public sur ce serveur, donc il faut copier le build à
+            #    chaque déploiement, sinon le site sert d'anciens fichiers JS/CSS -> page cassée).
+            #    On préserve l'index.php spécifique du webroot (chemins ../erpndazoa/...) et
+            #    .well-known.
+            mkdir -p "$WEBROOT_PATH"
+            rsync -a --delete \
+              --exclude='index.php' \
+              --exclude='.well-known' \
+              --exclude='storage' \
+              "$DEPLOY_PATH/public/" "$WEBROOT_PATH/"
+
+            # 7. Lien storage accessible publiquement : recréé s'il est absent ou s'il ne pointe
+            #    pas vers le bon chemin (ne touche pas à un lien déjà valide).
+            if [ "$(readlink "$WEBROOT_PATH/storage" 2>/dev/null || true)" != "$DEPLOY_PATH/storage/app/public" ]; then
+              ln -sfn "$DEPLOY_PATH/storage/app/public" "$WEBROOT_PATH/storage"
+            fi
+
+            # 8. Permissions
+            chmod -R ug+rwx "$DEPLOY_PATH/storage" "$DEPLOY_PATH/bootstrap/cache"
+
+            # 9. Tâches de release Laravel
+            cd "$DEPLOY_PATH"
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            php artisan queue:restart || true
+
+            echo "Déploiement terminé. Sauvegarde disponible dans $BACKUP_PATH en cas de problème."
