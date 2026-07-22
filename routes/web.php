@@ -68,6 +68,10 @@ Route::post('validate/compte', 'App\Http\Controllers\Auth\ValidateCompte@index')
 Route::get('validate/compte/create', 'App\Http\Controllers\Auth\ValidateCompte@create')->name('compte.validate.create');
 Route::post('validate/compte/create', 'App\Http\Controllers\Auth\ValidateCompte@create')->name('compte.validate.create');
 
+// Login unique du site (page Blade classique, style PouletAFC)
+Route::get('login', [App\Http\Controllers\Auth\LoginController::class, 'showLoginForm'])->name('login');
+Route::post('login', [App\Http\Controllers\Auth\LoginController::class, 'login']);
+
 require __DIR__.'/auth.php';
 
 Route::middleware('auth')->group(function () {
@@ -177,6 +181,7 @@ Route::delete('/parameters/{id}', 'ParametersController@destroy')->name('paramet
 
     Route::get('dashboard', 'IndexController@index')->name('dashboard');
     Route::get('logoutUser', 'IndexController@logoutUser')->name('logoutUser');
+    Route::get('merchand-dashboard', [App\Http\Controllers\Merchand\IndexController::class, 'index'])->name('merchanddashboard');
 //     Route::get('register', 'RegisterController@registerform')->name('register');
     Route::get('/list_products', [App\Http\Controllers\Admin\ProductController::class, 'listProduct'])->name('listProduct');
     Route::get('/add_products', [App\Http\Controllers\Admin\ProductController::class, 'addProduct'])->name('addProduct');

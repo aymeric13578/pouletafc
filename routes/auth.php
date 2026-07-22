@@ -17,11 +17,7 @@ Route::middleware('guest')->group(function () {
 
     Route::post('register', [RegisteredUserController::class, 'store']);
 
-    Route::get('login', [AuthenticatedSessionController::class, 'create'])
-                ->name('login');
-
-    Route::post('login', [AuthenticatedSessionController::class, 'store']);
-
+    // 'login' is handled by the classic LoginController in web.php (styled PouletAFC page)
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
                 ->name('password.request');
 

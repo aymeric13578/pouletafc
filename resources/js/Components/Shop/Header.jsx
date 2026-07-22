@@ -127,12 +127,12 @@ export default function Header() {
                                 </Dropdown.Content>
                             </Dropdown>
                         ) : (
-                            <Link
+                            <a
                                 href={route('login')}
                                 className="hidden shrink-0 items-center rounded-full bg-brand-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-brand-700 hover:shadow-md active:scale-95 sm:flex"
                             >
                                 Connexion
-                            </Link>
+                            </a>
                         )}
 
                         <button
@@ -170,12 +170,12 @@ export default function Header() {
                                 </Link>
                             ))}
                             {!auth?.user && (
-                                <Link
+                                <a
                                     href={route('login')}
                                     className="mt-2 rounded-full bg-brand-600 px-3 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:bg-brand-700 active:scale-95 sm:hidden"
                                 >
                                     Connexion
-                                </Link>
+                                </a>
                             )}
                         </div>
                     </div>
