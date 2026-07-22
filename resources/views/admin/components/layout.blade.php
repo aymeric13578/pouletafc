@@ -237,11 +237,6 @@
                         </a>
                     </li>
                     <li class="menu-item active">
-                        <a href="{{ route('merchanddashboard') }}" class="menu-link">
-                            <div data-i18n="Espace marchand">Espace marchand</div>
-                        </a>
-                    </li>
-                    <li class="menu-item active">
                         <a href="{{ route('logoutUser') }}" class="menu-link">
                             <div data-i18n="Deconnexion">Deconnexion</div>
                         </a>

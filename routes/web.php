@@ -152,102 +152,102 @@ require __DIR__.'/shop.php';
 
 
 
-// Route::group(['namespace' => 'App\Http\Controllers\Admin'], function () {
+Route::middleware('auth')->group(function () {
 
-//     Route::post('dashboard', 'IndexController@index')->name('dashboard');
+Route::group(['namespace' => 'App\Http\Controllers\Admin'], function () {
 
-//     Route::get('parameters','ParametersController@index')->name('parameters.index');
+    Route::post('dashboard', 'IndexController@index')->name('dashboard');
 
-//     Route::get('storeparameters','ParametersController@StoreParameters')->name('parameters.store');
-//     Route::post('storeparameters','ParametersController@StoreParameters')->name('parameters.store');
+    Route::get('parameters','ParametersController@index')->name('parameters.index');
 
-// Route::post('/parameters/{id}/validate', 'ParametersController@validateParameter')->name('parameters.validate');
-// Route::delete('/parameters/{id}', 'ParametersController@destroy')->name('parameters.destroy');
+    Route::get('storeparameters','ParametersController@StoreParameters')->name('parameters.store');
+    Route::post('storeparameters','ParametersController@StoreParameters')->name('parameters.store');
 
-
-//     Route::get('changeStatus', 'StatusController@changeStatus')->name('status.change');
-//     Route::post('changeStatus', 'StatusController@changeStatus')->name('status.change');
-
-//     Route::get('changeRole', 'StatusController@changeRole')->name('role.change');
-//     Route::post('changeRole', 'StatusController@changeRole')->name('role.change');
+Route::post('/parameters/{id}/validate', 'ParametersController@validateParameter')->name('parameters.validate');
+Route::delete('/parameters/{id}', 'ParametersController@destroy')->name('parameters.destroy');
 
 
+    Route::get('changeStatus', 'StatusController@changeStatus')->name('status.change');
+    Route::post('changeStatus', 'StatusController@changeStatus')->name('status.change');
 
-//     Route::get('dashboard', 'IndexController@index')->name('dashboard');
-//     Route::get('logoutUser', 'IndexController@logoutUser')->name('logoutUser');
+    Route::get('changeRole', 'StatusController@changeRole')->name('role.change');
+    Route::post('changeRole', 'StatusController@changeRole')->name('role.change');
+
+
+
+    Route::get('dashboard', 'IndexController@index')->name('dashboard');
+    Route::get('logoutUser', 'IndexController@logoutUser')->name('logoutUser');
 //     Route::get('register', 'RegisterController@registerform')->name('register');
-//     Route::get('/list_products', [App\Http\Controllers\Admin\ProductController::class, 'listProduct'])->name('listProduct');
-//     Route::get('/add_products', [App\Http\Controllers\Admin\ProductController::class, 'addProduct'])->name('addProduct');
-//     Route::post('/admin/store-product', [App\Http\Controllers\Admin\ProductController::class, 'storeProduct'])->name('storeproduct');
-//     Route::get('/category_products', [App\Http\Controllers\Admin\ProductController::class, 'cathegoryProduct'])->name('cathegoryProduct');
-//     Route::get('/edit-product-img/{id}', [App\Http\Controllers\Admin\ProductController::class, 'editProductImg'])->name('editproductimg');
-//     Route::post('/update-product-img', [App\Http\Controllers\Admin\ProductController::class, 'updateProductImg'])->name('updateproductimg');
-//     Route::get('/edit-product/{id}', [App\Http\Controllers\Admin\ProductController::class, 'editProduct'])->name('editproduct');
-//     Route::post('/edition-product', [App\Http\Controllers\Admin\ProductController::class, 'productEdit'])->name('productedition');
-//     Route::post('/deletion-product', [App\Http\Controllers\Admin\ProductController::class, 'productdelete'])->name('productdeletion');
-//     Route::get('/customers_all', [App\Http\Controllers\Admin\CustomerController::class, 'allCustomers'])->name('allCustomers');
-//     Route::get('/customers_details', [App\Http\Controllers\Admin\CustomerController::class, 'customerDetail'])->name('customerDetail');
-//     Route::get('/user_list', [App\Http\Controllers\Admin\UserController::class, 'listUser'])->name('listUser');
-// })->middleware('auth');
-// Route::controller(CategoryController::class)->group(function () {
-//     Route::get('/category-list', 'categoryList')->name("categorylist");
-//     Route::get('/add-category', 'addCategory')->name("addcategory");
-//     Route::post('/store-category', 'storeCategory')->name('storecategory');
-//     Route::get('/edit-category/{id}', 'editCategory')->name('editcategory');
-//     Route::post('/update-category', 'updateCategory')->name('updatecategory');
-//     Route::get('/delete-category/{id}', 'deleteCategory')->name('deletecategory');
-//     Route::post('/edition', 'editCat')->name('catedition');
-//     Route::post('/deletion', 'deleteCat')->name('catdeletion');
-// })->middleware('auth');
-// Route::controller(ShopController::class)->group(function () {
-//     Route::get('/shop-list', 'shopList')->name("shoplist");
-//     Route::get('/add-shop', 'addshop')->name("addshop");
-//     Route::post('/store-shop', 'storeShop')->name('storeshop');
-//     Route::post('/edition-shop', 'editShop')->name('shopedition');
-//     Route::post('/deletion-shop', 'deleteShop')->name('shopdeletion');
-// })->middleware('auth');
-// Route::controller(SubCategoryController::class)->group(function () {
-//     Route::get('/sub-category-list', 'subCategoryList')->name("subcategorylist");
-//     Route::get('/add-sub-category', 'addSubCategory')->name("addsubcategory");
-//     Route::post('/store-sub-category', 'storeSubCategory')->name('storesubcategory');
-//     Route::post('/edition-sub-category', 'editSubCat')->name('subcatedition');
-//     Route::post('/deletion-sub-category', 'deleteSubCat')->name('subcatdeletion');
-// })->middleware('auth');
+    Route::get('/list_products', [App\Http\Controllers\Admin\ProductController::class, 'listProduct'])->name('listProduct');
+    Route::get('/add_products', [App\Http\Controllers\Admin\ProductController::class, 'addProduct'])->name('addProduct');
+    Route::post('/admin/store-product', [App\Http\Controllers\Admin\ProductController::class, 'storeProduct'])->name('storeproduct');
+    Route::get('/category_products', [App\Http\Controllers\Admin\ProductController::class, 'cathegoryProduct'])->name('cathegoryProduct');
+    Route::get('/edit-product-img/{id}', [App\Http\Controllers\Admin\ProductController::class, 'editProductImg'])->name('editproductimg');
+    Route::post('/update-product-img', [App\Http\Controllers\Admin\ProductController::class, 'updateProductImg'])->name('updateproductimg');
+    Route::get('/edit-product/{id}', [App\Http\Controllers\Admin\ProductController::class, 'editProduct'])->name('editproduct');
+    Route::post('/edition-product', [App\Http\Controllers\Admin\ProductController::class, 'productEdit'])->name('productedition');
+    Route::post('/deletion-product', [App\Http\Controllers\Admin\ProductController::class, 'productdelete'])->name('productdeletion');
+    Route::get('/customers_all', [App\Http\Controllers\Admin\CustomerController::class, 'allCustomers'])->name('allCustomers');
+    Route::get('/customers_details', [App\Http\Controllers\Admin\CustomerController::class, 'customerDetail'])->name('customerDetail');
+    Route::get('/user_list', [App\Http\Controllers\Admin\UserController::class, 'listUser'])->name('listUser');
+})->middleware('auth');
+Route::controller(CategoryController::class)->group(function () {
+    Route::get('/category-list', 'categoryList')->name("categorylist");
+    Route::get('/add-category', 'addCategory')->name("addcategory");
+    Route::post('/store-category', 'storeCategory')->name('storecategory');
+    Route::get('/edit-category/{id}', 'editCategory')->name('editcategory');
+    Route::post('/update-category', 'updateCategory')->name('updatecategory');
+    Route::get('/delete-category/{id}', 'deleteCategory')->name('deletecategory');
+    Route::post('/edition', 'editCat')->name('catedition');
+    Route::post('/deletion', 'deleteCat')->name('catdeletion');
+})->middleware('auth');
+Route::controller(ShopController::class)->group(function () {
+    Route::get('/shop-list', 'shopList')->name("shoplist");
+    Route::get('/add-shop', 'addshop')->name("addshop");
+    Route::post('/store-shop', 'storeShop')->name('storeshop');
+    Route::post('/edition-shop', 'editShop')->name('shopedition');
+    Route::post('/deletion-shop', 'deleteShop')->name('shopdeletion');
+})->middleware('auth');
+Route::controller(SubCategoryController::class)->group(function () {
+    Route::get('/sub-category-list', 'subCategoryList')->name("subcategorylist");
+    Route::get('/add-sub-category', 'addSubCategory')->name("addsubcategory");
+    Route::post('/store-sub-category', 'storeSubCategory')->name('storesubcategory');
+    Route::post('/edition-sub-category', 'editSubCat')->name('subcatedition');
+    Route::post('/deletion-sub-category', 'deleteSubCat')->name('subcatdeletion');
+})->middleware('auth');
 
-// Route::controller(SellerController::class)->group(function () {
-//     Route::get('/seller-list', 'sellerList')->name("sellerlist");
-//     Route::get('/add-seller', 'addSeller')->name("addseller");
-//     Route::post('/store-seller', 'storeSeller')->name('storeseller');
-//     Route::post('/edition-seller', 'editSeller')->name('selleredition');
-//     Route::post('/deletion-seller', 'deleteSeller')->name('sellerdeletion');
-// })->middleware('auth');
-// Route::controller(AgentController::class)->group(function () {
-//     Route::get('/agent-list', 'agentList')->name("agentlist");
-//     Route::get('/agent-caution', 'agentCaution')->name("agentcaution");
-//     Route::get('/add-agent', 'addAgent')->name("addagent");
-//     Route::post('/store-agent', 'storeAgent')->name('storeagent');
-//     Route::post('/edition-agent', 'editAgent')->name('agentedition');
-//     Route::post('/deletion-agent', 'deleteAgent')->name('agentdeletion');
-//     Route::get('/caution-list', 'cautionList')->name("cautionlist");
-
-
-
-//     Route::post('/agents/credit', 'creditAgent')->name('agent.credit');
-//    Route::get('/agents/credit-history/{id_user}', 'creditHistory')->name('agent.credit.history');
-
-// })->middleware('auth');
+Route::controller(SellerController::class)->group(function () {
+    Route::get('/seller-list', 'sellerList')->name("sellerlist");
+    Route::get('/add-seller', 'addSeller')->name("addseller");
+    Route::post('/store-seller', 'storeSeller')->name('storeseller');
+    Route::post('/edition-seller', 'editSeller')->name('selleredition');
+    Route::post('/deletion-seller', 'deleteSeller')->name('sellerdeletion');
+})->middleware('auth');
+Route::controller(AgentController::class)->group(function () {
+    Route::get('/agent-list', 'agentList')->name("agentlist");
+    Route::get('/agent-caution', 'agentCaution')->name("agentcaution");
+    Route::get('/add-agent', 'addAgent')->name("addagent");
+    Route::post('/store-agent', 'storeAgent')->name('storeagent');
+    Route::post('/edition-agent', 'editAgent')->name('agentedition');
+    Route::post('/deletion-agent', 'deleteAgent')->name('agentdeletion');
+    Route::get('/caution-list', 'cautionList')->name("cautionlist");
 
 
 
-// Route::controller(ClandoController::class)->group(function () {
-//     Route::get('/clando-list', 'clandoList')->name('clandolist');
+    Route::post('/agents/credit', 'creditAgent')->name('agent.credit');
+   Route::get('/agents/credit-history/{id_user}', 'creditHistory')->name('agent.credit.history');
 
-// Route::get('/clando/status/change/{id}/{status}',  'changeStatus')->name('clando.status.change');
-
-
-// })->middleware('auth');
+})->middleware('auth');
 
 
+
+Route::controller(ClandoController::class)->group(function () {
+    Route::get('/clando-list', 'clandoList')->name('clandolist');
+
+Route::get('/clando/status/change/{id}/{status}',  'changeStatus')->name('clando.status.change');
+
+
+})->middleware('auth');
 
 
 
@@ -260,18 +260,22 @@ require __DIR__.'/shop.php';
 
 
 
-// Route::controller(ArticleController::class)->group(function () {
-
-//     Route::get('/add-article', 'addArticle')->name("addArticle");
-//     Route::post('/store-article', 'storeArticle')->name('storeArticle');
-//     Route::get('/article-list', 'articleList')->name("listArticle");
 
 
-// })->middleware('auth');
+Route::controller(ArticleController::class)->group(function () {
 
-// Route::controller(FinanceController::class)->group(function () {
-//     Route::get('/finance-list', 'financeList')->name("financelist");
-// })->middleware('auth');
+    Route::get('/add-article', 'addArticle')->name("addArticle");
+    Route::post('/store-article', 'storeArticle')->name('storeArticle');
+    Route::get('/article-list', 'articleList')->name("listArticle");
+
+
+})->middleware('auth');
+
+Route::controller(FinanceController::class)->group(function () {
+    Route::get('/finance-list', 'financeList')->name("financelist");
+})->middleware('auth');
+
+}); // end auth middleware group for admin routes
 
 
 //Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
