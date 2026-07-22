@@ -57,12 +57,6 @@ Route::get('/deleteuseraccount', function () {    return view('welcome');
 Route::get('/check-new-orders', [AgentAfcOrderController::class, 'checkNewOrders'])->name('check.new.order');
 Route::get('/get-new-order', [AgentAfcOrderController::class, 'getNewOrder'])->name('get.new.order');
 
-Route::get('/', function () {
-        return view('index');
-
-});
-
-
 Route::get('/privacy', function () {
     return view('privacy');
 })->name('privacy');
@@ -73,7 +67,16 @@ Route::get('validate/compte', 'App\Http\Controllers\Auth\ValidateCompte@index')-
 Route::post('validate/compte', 'App\Http\Controllers\Auth\ValidateCompte@index')->name('compte.validate');
 Route::get('validate/compte/create', 'App\Http\Controllers\Auth\ValidateCompte@create')->name('compte.validate.create');
 Route::post('validate/compte/create', 'App\Http\Controllers\Auth\ValidateCompte@create')->name('compte.validate.create');
-Auth::routes();
+
+require __DIR__.'/auth.php';
+
+Route::middleware('auth')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
+
+require __DIR__.'/shop.php';
 
 //Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
 
@@ -271,7 +274,6 @@ Auth::routes();
 // })->middleware('auth');
 
 
-Auth::routes();
 //Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
 
 

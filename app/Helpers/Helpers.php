@@ -9,3 +9,18 @@ if (!function_exists('api_response')) {
         ]);
     }
 }
+
+if (!function_exists('product_image_url')) {
+    function product_image_url(?string $path): string
+    {
+        if (empty($path)) {
+            return asset('images/logo.png');
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        return asset(ltrim($path, '/'));
+    }
+}
