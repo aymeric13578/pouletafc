@@ -6,7 +6,7 @@ import CartDrawer from '@/Components/Shop/CartDrawer';
 const NAV_LINKS = [
     { label: 'Accueil', href: '/' },
     { label: 'Boutique', href: route('shop.catalog.index') },
-    { label: 'Actualités', href: route('shop.articles.index') },
+    { label: 'Blog', href: route('shop.articles.index') },
     { label: 'Contact', href: route('shop.pages.contact') },
 ];
 

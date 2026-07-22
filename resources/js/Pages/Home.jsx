@@ -168,6 +168,91 @@ export default function Home({ categories, products, articles }) {
                 </section>
             )}
 
+            <section className="bg-gray-50 px-4 pb-14 sm:px-6 lg:px-8">
+                <div className="relative mx-auto max-w-7xl animate-fade-in-up overflow-hidden rounded-3xl bg-gradient-to-br from-brand-700 to-brand-900 shadow-2xl">
+                    <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/5 blur-3xl" />
+                    <div className="pointer-events-none absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-accent-500/10 blur-3xl" />
+
+                    <div className="relative grid gap-10 px-6 py-14 sm:px-10 sm:py-16 lg:grid-cols-2 lg:items-center lg:px-16">
+                        <div>
+                            <span className="text-xs font-bold uppercase tracking-wider text-accent-300">Bientôt disponible</span>
+                            <h2 className="mt-2 text-3xl font-extrabold text-white sm:text-4xl">Notre application mobile</h2>
+                            <p className="mt-4 max-w-md text-white/70">
+                                Commandez votre poulet frais en quelques clics et suivez votre livraison en temps réel,
+                                directement depuis votre téléphone.
+                            </p>
+
+                            <ul className="mt-8 space-y-5">
+                                {[
+                                    { title: 'Interface intuitive', desc: 'Design moderne et facile à utiliser pour tous' },
+                                    { title: 'Géolocalisation en temps réel', desc: "Suivez votre livreur sur la carte jusqu'à votre porte" },
+                                    { title: 'Paiement sécurisé', desc: 'Plusieurs options de paiement sécurisées' },
+                                    { title: 'Livraison rapide', desc: 'Commandez maintenant, recevez en quelques heures' },
+                                ].map((item) => (
+                                    <li key={item.title} className="flex items-start gap-4">
+                                        <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-lg">
+                                            🍗
+                                        </span>
+                                        <div>
+                                            <p className="font-semibold text-white">{item.title}</p>
+                                            <p className="text-sm text-white/60">{item.desc}</p>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+
+                            <div className="mt-9 flex flex-wrap gap-3">
+                                <a
+                                    href="#"
+                                    title="Bientôt disponible sur l'App Store"
+                                    className="flex items-center gap-3 rounded-full bg-white px-5 py-3 text-brand-800 shadow-lg transition-all duration-300 hover:shadow-xl active:scale-95"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6">
+                                        <path d="M16.365 1.43c0 1.14-.44 2.06-1.32 2.86-.89.79-1.85 1.28-2.98 1.19-.09-1.13.44-2.22 1.31-2.98.86-.75 2.14-1.24 2.99-1.07zM20.5 17.19c-.5 1.14-.74 1.66-1.38 2.68-.9 1.43-2.16 3.21-3.73 3.22-1.4.01-1.76-.91-3.66-.9-1.9.01-2.29.92-3.69.9-1.57-.01-2.76-1.62-3.66-3.05-2.5-3.94-2.76-8.57-1.22-11.03.99-1.58 2.55-2.5 4.02-2.5 1.5 0 2.44.9 3.68.9 1.2 0 1.94-.9 3.68-.9 1.24 0 2.56.68 3.5 1.85-3.08 1.69-2.58 6.09.46 7.83z" />
+                                    </svg>
+                                    <span className="text-left leading-tight">
+                                        <span className="block text-[10px] opacity-70">Télécharger sur</span>
+                                        <span className="block text-sm font-bold">App Store</span>
+                                    </span>
+                                </a>
+                                <a
+                                    href="#"
+                                    title="Bientôt disponible sur Google Play"
+                                    className="flex items-center gap-3 rounded-full bg-white px-5 py-3 text-brand-800 shadow-lg transition-all duration-300 hover:shadow-xl active:scale-95"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6">
+                                        <path d="M3.6 2.35c-.35.36-.55.9-.55 1.6v16.1c0 .7.2 1.24.56 1.6l.1.08L13 12.5v-.24L3.7 2.27l-.1.08z" />
+                                        <path d="M16.15 15.66l-3.15-3.16v-.24l3.16-3.16.07.04 3.74 2.13c1.07.6 1.07 1.6 0 2.2l-3.75 2.15-.07.04z" />
+                                        <path d="M16.22 15.7 13 12.5l-9.4 9.4c.35.37.93.42 1.58.05l10.94-6.13-.9-.12z" />
+                                        <path d="M16.22 9.3 5.28 3.17c-.65-.37-1.23-.32-1.58.05L13 12.5l3.22-3.2z" />
+                                    </svg>
+                                    <span className="text-left leading-tight">
+                                        <span className="block text-[10px] opacity-70">Disponible sur</span>
+                                        <span className="block text-sm font-bold">Google Play</span>
+                                    </span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <div className="hidden justify-center lg:flex">
+                            <div className="relative h-[420px] w-[220px] rounded-[2.5rem] border-4 border-white/20 bg-white/5 p-3 shadow-2xl backdrop-blur-sm">
+                                <div className="absolute left-1/2 top-2 h-4 w-20 -translate-x-1/2 rounded-full bg-brand-950/60" />
+                                <div className="h-full overflow-hidden rounded-[2rem] bg-white">
+                                    <div className="flex h-1/3 items-center justify-center bg-gradient-to-br from-brand-600 to-brand-800 text-5xl">
+                                        🍗
+                                    </div>
+                                    <div className="space-y-3 p-4">
+                                        <div className="h-16 animate-pulse rounded-xl bg-gray-100" />
+                                        <div className="h-16 animate-pulse rounded-xl bg-gray-100" style={{ animationDelay: '150ms' }} />
+                                        <div className="h-16 animate-pulse rounded-xl bg-gray-100" style={{ animationDelay: '300ms' }} />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {articles.length > 0 && (
                 <section
                     style={{ animationDelay: '250ms' }}
@@ -177,7 +262,7 @@ export default function Home({ categories, products, articles }) {
                         <div>
                             <span className="text-xs font-bold uppercase tracking-wider text-accent-600">À la une</span>
                             <h2 className="mt-1 text-xl font-bold text-gray-900">
-                                Actualités <span className="text-brand-600">&amp; promotions</span>
+                                Notre <span className="text-brand-600">blog</span>
                             </h2>
                         </div>
                         <Link href={route('shop.articles.index')} className="text-sm font-semibold text-brand-700 transition-colors duration-300 hover:text-brand-800 hover:underline">

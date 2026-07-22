@@ -28,7 +28,7 @@ export default function Footer() {
                         <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Boutique</h3>
                         <ul className="mt-4 space-y-2.5 text-sm text-white/60">
                             <li><Link href={route('shop.catalog.index')} className="transition-colors duration-300 hover:text-white">Tous les produits</Link></li>
-                            <li><Link href={route('shop.articles.index')} className="transition-colors duration-300 hover:text-white">Actualités &amp; recettes</Link></li>
+                            <li><Link href={route('shop.articles.index')} className="transition-colors duration-300 hover:text-white">Blog</Link></li>
                             <li><Link href={route('shop.cart.index')} className="transition-colors duration-300 hover:text-white">Mon panier</Link></li>
                         </ul>
                     </div>

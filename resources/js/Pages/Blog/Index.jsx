@@ -6,11 +6,11 @@ import EmptyState from '@/Components/Shop/EmptyState';
 export default function Index({ articles }) {
     return (
         <ShopLayout>
-            <Head title="Actualités" />
+            <Head title="Blog" />
 
             <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
                 <h1 className="mb-8 animate-fade-in-up text-2xl font-extrabold text-gray-900">
-                    Actualités <span className="text-brand-600">&amp; promotions</span>
+                    Notre <span className="text-brand-600">blog</span>
                 </h1>
 
                 {articles.data.length === 0 ? (
