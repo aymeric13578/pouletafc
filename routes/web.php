@@ -179,7 +179,7 @@ Route::delete('/parameters/{id}', 'ParametersController@destroy')->name('paramet
 
 
 
-    Route::get('dashboard', 'IndexController@index')->name('dashboard');
+    // GET /dashboard is served by the Folio page at resources/views/pages/dashboard/index.blade.php
     Route::get('logoutUser', 'IndexController@logoutUser')->name('logoutUser');
     Route::get('merchand-dashboard', [App\Http\Controllers\Merchand\IndexController::class, 'index'])->name('merchanddashboard');
 //     Route::get('register', 'RegisterController@registerform')->name('register');
