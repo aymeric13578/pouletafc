@@ -51,8 +51,9 @@ use App\Http\Controllers\AgentAfcOrderController;
 
 
 
-Route::get('/deleteuseraccount', function () {    return view('welcome');
- })->name('welcome');
+Route::get('/deleteuseraccount', function () {
+    return redirect()->route('shop.pages.delete-account');
+})->name('welcome');
 
 Route::get('/check-new-orders', [AgentAfcOrderController::class, 'checkNewOrders'])->name('check.new.order');
 Route::get('/get-new-order', [AgentAfcOrderController::class, 'getNewOrder'])->name('get.new.order');

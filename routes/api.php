@@ -211,7 +211,10 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
      
       Route::get('updateUser', 'UserController@updateUser');
      Route::post('updateUser', 'UserController@updateUser');
-     
+
+     Route::get('deleteUser', 'UserController@deleteUser');
+     Route::post('deleteUser', 'UserController@deleteUser');
+
      
     
     Route::get('updateDeliveryPosition', 'UserController@updateDeliveryPosition');

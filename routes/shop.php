@@ -31,6 +31,9 @@ Route::delete('/panier/{product}', [CartController::class, 'remove'])->name('sho
 Route::get('/actualites', [ArticleController::class, 'index'])->name('shop.articles.index');
 Route::get('/actualites/{article}', [ArticleController::class, 'show'])->name('shop.articles.show');
 
+Route::get('/suppression-compte', [PageController::class, 'deleteAccount'])->name('shop.pages.delete-account');
+Route::post('/suppression-compte', [PageController::class, 'processDeleteAccount'])->name('shop.pages.delete-account.process');
+
 Route::get('/cgv', [PageController::class, 'cgv'])->name('shop.pages.cgv');
 Route::get('/faq', [PageController::class, 'faq'])->name('shop.pages.faq');
 Route::get('/contact', [PageController::class, 'contact'])->name('shop.pages.contact');

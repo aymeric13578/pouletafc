@@ -6,709 +6,633 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\BeginAgentDay;
-use App\Fonction\SendMail;
 use App\Fonction\Fonction;
 use App\Models\Country;
-use Auth;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\NotificationMail;
-use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
-    
     public function takeDay(Request $request)
     {
-           $data = User::Where('ref',$request->ref)->first();
-           
-                 if(!$data)
-        {
-             return response()->json([
-                "response"=>400,
-                "message"=>"utilisateur inexistant",
-    
+        $ref = $request->input('ref');
+        if (!$ref) {
+            return response()->json([
+                "response" => 400,
+                "message" => "Référence utilisateur manquante",
             ]);
         }
-           
-        
-            User::Where('ref',$request->ref)->update(
-                [
-                    'in_activity'=>1,
-                    
-                    'actual_lat_position_agent'=>$request->lat,
-                
-                     'actual_lon_position_agent'=>$request->lon,
-                    
-                    ]);
-        
-        
-           
-       
-           $insert = BeginAgentDay::create([
 
-            'id_user' =>$data->id,
-            'lat' => $request->lat,
-            'lon' => $request->lon,
-             'type' => "beginDay",
-            
+        $data = User::where('ref', $ref)->first();
+        if (!$data) {
+            return response()->json([
+                "response" => 400,
+                "message" => "Utilisateur inexistant",
+            ]);
+        }
 
+        User::where('ref', $ref)->update([
+            'in_activity' => 1,
+            'actual_lat_position_agent' => $request->input('lat'),
+            'actual_lon_position_agent' => $request->input('lon'),
         ]);
-         return response()->json([
-                "response"=>200,
-                "message"=>"requete effectuée avec success",
-                "data"=>$data
-    
-            ]); 
-        
+
+        BeginAgentDay::create([
+            'id_user' => $data->id,
+            'lat' => $request->input('lat'),
+            'lon' => $request->input('lon'),
+            'type' => "beginDay",
+        ]);
+
+        return response()->json([
+            "response" => 200,
+            "message" => "Requête effectuée avec succès",
+            "data" => $data->fresh()
+        ]);
     }
-    
+
     public function updateDeliveryPosition(Request $request)
     {
-            $data = User::Where('id',$request->id_user)->update(
-                [
-                    'longitude'=>$request->lon,
-                    'latitude'=>$request->lat,
-                
-
-                    
-                    ]);
-                    
-                    
-                    if($data)
-                    {
-                         return response()->json([
-                "response"=>200,
-                "message"=>"requete effectuée avec success",
-    
-                        ]);
-                    }
-                    
-                      return response()->json([
-                "response"=>400,
-                
-    
-            ]);
-    }
-    
-      public function takeDayDesactive(Request $request)
-    {
-        
-            User::Where('ref',$request->ref)->update(
-                [
-                    'in_activity'=>0,
-                    'actual_lat_position_agent'=>$request->lat,
-                
-                     'actual_lon_position_agent'=>$request->lon,
-                    
-                    ]);
-        
-           $data = User::Where('ref',$request->ref)->first();
-           
-             if(!$data)
-        {
-             return response()->json([
-                "response"=>400,
-                "message"=>"utilisateur inexistant",
-    
+        $userId = $request->input('id_user');
+        if (!$userId) {
+            return response()->json([
+                "response" => 400,
+                "message" => "Identifiant utilisateur manquant",
             ]);
         }
-           
-           $insert = BeginAgentDay::create([
 
-            'id_user' =>$data->id,
-            'type' => "endDay",
-            
-
+        $updated = User::where('id', $userId)->update([
+            'longitude' => $request->input('lon'),
+            'latitude' => $request->input('lat'),
         ]);
-         return response()->json([
-                "response"=>200,
-                "message"=>"requete effectuée avec success",
-    
-            ]); 
-        
+
+        if ($updated) {
+            return response()->json([
+                "response" => 200,
+                "message" => "Requête effectuée avec succès",
+            ]);
+        }
+
+        return response()->json([
+            "response" => 400,
+            "message" => "Échec de la mise à jour",
+        ]);
     }
+
+    public function takeDayDesactive(Request $request)
+    {
+        $ref = $request->input('ref');
+        if (!$ref) {
+            return response()->json([
+                "response" => 400,
+                "message" => "Référence utilisateur manquante",
+            ]);
+        }
+
+        $data = User::where('ref', $ref)->first();
+        if (!$data) {
+            return response()->json([
+                "response" => 400,
+                "message" => "Utilisateur inexistant",
+            ]);
+        }
+
+        User::where('ref', $ref)->update([
+            'in_activity' => 0,
+            'actual_lat_position_agent' => $request->input('lat'),
+            'actual_lon_position_agent' => $request->input('lon'),
+        ]);
+
+        BeginAgentDay::create([
+            'id_user' => $data->id,
+            'lat' => $request->input('lat'),
+            'lon' => $request->input('lon'),
+            'type' => "endDay",
+        ]);
+
+        return response()->json([
+            "response" => 200,
+            "message" => "Requête effectuée avec succès",
+        ]);
+    }
+
     public function getInfoUser(Request $request)
     {
+        $ref = $request->input('ref');
+        $data = User::where('ref', $ref)->get();
 
-        $data = User::Where('ref',$request->ref)->get();
-
-        if($data)
-        {
+        if ($data->isNotEmpty()) {
             return response()->json([
-                "response"=>200,
-                "data"=>$data,
-    
-            ]);
-        }
-        else{
-            return response()->json([
-                "response"=>400,
-                "data"=>$data,
-    
+                "response" => 200,
+                "data" => $data,
             ]);
         }
 
-       
+        return response()->json([
+            "response" => 400,
+            "data" => [],
+            "message" => "Aucun utilisateur trouvé"
+        ]);
     }
 
     public function register(Request $request)
     {
+        $password = $request->input('password');
+        $confirmpassword = $request->input('confirmpassword');
 
-
-
-        $data = $request->all();
-        
-        
-        if($request->password != $request->confirmpassword)
-        {
+        if ($password !== $confirmpassword) {
             return response()->json([
-                "response"=>400,
-                "message"=>"Les deux mots de passe sont différents"
-              
-    
+                "response" => 400,
+                "message" => "Les deux mots de passe sont différents"
             ]);
-
         }
 
-
-
-        $seachUser = User::where('email',$data['email'])->first();
-
-        if($seachUser)
-        {
-            return response()->json([
-                "response"=>$seachUser,
-                "message"=>"Utilisateur existe déjà !!! impossible de créer un compte"
-              
-    
-            ]);
-
+        $email = $request->input('email');
+        if ($email) {
+            $seachUser = User::where('email', $email)->first();
+            if ($seachUser) {
+                return response()->json([
+                    "response" => 400,
+                    "message" => "Utilisateur existe déjà !!! impossible de créer un compte"
+                ]);
+            }
         }
 
         do {
             $ref = 'REF_' . (new Fonction())->genUniqueID('10');
-            $find_ref = \DB::select('select * from users where ref="' . $ref . '"');
-        } while (!empty($find_ref));
+            $find_ref = DB::table('users')->where('ref', $ref)->exists();
+        } while ($find_ref);
 
         do {
-            $confirmation_code = rand(10000, 99999);
-            $find_confirmation_code = \DB::select('select * from users where confirmation_code="' . $confirmation_code . '"');
-        } while (!empty($find_confirmation_code));
-
-
+            $confirmation_code = (string) rand(10000, 99999);
+            $find_confirmation_code = DB::table('users')->where('confirmation_code', $confirmation_code)->exists();
+        } while ($find_confirmation_code);
 
         $country = Country::find(37);
 
-       
-        // dd($country->name);
+        $lastname = $request->input('lastname', '');
+        $name = $request->input('name', $lastname ?: 'Client');
+        $phone = $request->input('phone');
+        $whatsapp = $request->input('whatsapp', $phone);
 
+        try {
+            $create = User::create([
+                'name' => $name,
+                'last_name' => $lastname,
+                'ref' => $ref,
+                'email' => $email,
+                'password' => Hash::make($password),
+                'whatsapp' => $whatsapp,
+                'phone' => $phone,
+                'country' => $country ? $country->name : 'Cameroon',
+                'id_country' => $country ? $country->id : 37,
+                'country_code' => $country ? $country->phoneCode : '237',
+                'city' => $request->input('city'),
+                'confirmation_code' => $confirmation_code,
+                'status' => 'pending'
+            ]);
+        } catch (\Throwable $e) {
+            Log::error("Erreur lors de la création d'utilisateur: " . $e->getMessage());
+            return response()->json([
+                "response" => 400,
+                "message" => "Impossible de créer le compte. Vérifiez vos informations."
+            ]);
+        }
 
-        $create = User::create([
-
-            'name' => $data['name'],
-            'last_name' => $data['lastname'],
-            'ref' => $ref,
-            'email' => $data['email'],
-            'password' => Hash::make($data['password']),
-            'whatsapp' => $data['whatsapp'],
-            'phone' => $data['phone'],
-            'country' => $country->name,
-            'id_country' => $country->id,
-            'country_code' => $country->phoneCode,
-            'city' => $data['city'],
-            'confirmation_code' => $confirmation_code,
-            'status' => 'pending'
-
-        ]);
-
-        if($create)
-        {
-
+        if ($create) {
             $content = "Votre code de confirmation POULET AFC est " . $confirmation_code;
             $title = "NOUVEAU COMPTE POULET AFC";
             $object = 'NOUVEAU COMPTE POULET AFC';
-            
-                            
-            Mail::to($data['email'])
-                ->send(new NotificationMail($object, $content, $title));
-                
-                         
-         $function  = new Fonction();
-         $function->sendSms("Votre code de confirmation AFC :".$confirmation_code,$data['phone']);
-    
-           return response()->json([
-                "response"=>200,
-                "message"=>"Votre code de confirmation POULET AFC est " . $confirmation_code,
-    
-            ]); 
+
+            if ($email) {
+                try {
+                    Mail::to($email)->send(new NotificationMail($object, $content, $title));
+                } catch (\Throwable $e) {
+                    Log::error("Échec envoi mail inscription : " . $e->getMessage());
+                }
+            }
+
+            if ($phone) {
+                try {
+                    $function = new Fonction();
+                    $function->sendSms("Votre code de confirmation AFC :" . $confirmation_code, $phone);
+                } catch (\Throwable $e) {
+                    Log::error("Échec envoi SMS inscription : " . $e->getMessage());
+                }
+            }
+
+            return response()->json([
+                "response" => 200,
+                "message" => "Votre code de confirmation POULET AFC est " . $confirmation_code,
+            ]);
         }
 
         return response()->json([
-            "response"=>400,
-          
-
+            "response" => 400,
+            "message" => "Échec de l'enregistrement",
         ]);
     }
-
 
     public function updateUser(Request $request)
     {
-        
-         $data = $request->all();
-        
-        $seachUser = User::where('ref',$data['ref'])->first();
+        $ref = $request->input('ref');
+        $seachUser = User::where('ref', $ref)->first();
 
-          if(!$seachUser)
-        {
+        if (!$seachUser) {
             return response()->json([
-                "response"=>$seachUser,
-                "message"=>"Utilisateur inexitant"
-              
-    
+                "response" => 400,
+                "message" => "Utilisateur inexistant"
             ]);
-
         }
-        
-        
-       
-             $update = User::where('ref', $data['ref'])->update([
 
-            'name' => $data['name'],
-            'last_name' => $data['lastname'],
-            'whatsapp' => $data['whatsapp'],
-            'phone' => $data['phone'],
-            'city' => $data['city'],
-           
-
+        $update = User::where('ref', $ref)->update([
+            'name' => $request->input('name', $seachUser->name),
+            'last_name' => $request->input('lastname', $seachUser->last_name),
+            'whatsapp' => $request->input('whatsapp', $seachUser->whatsapp),
+            'phone' => $request->input('phone', $seachUser->phone),
+            'city' => $request->input('city', $seachUser->city),
         ]);
-        
-           if($update)
-        {
 
-          
-    
-           return response()->json([
-                "response"=>200,
-                "message"=>"Compte modifié avec success",
-    
-            ]); 
+        if ($update) {
+            return response()->json([
+                "response" => 200,
+                "message" => "Compte modifié avec succès",
+            ]);
         }
-        
-              return response()->json([
-            "response"=>400,
-          
 
-        ]);
-        
-        
-        
-        
-        
-        
-    }
-    
-    
-    
-    
-  public function changePassword(Request $request)
-{
-    $data = $request->all();
-
-    // Vérifier si le mot de passe actuel correspond à celui de la base de données
-    $seachUser = User::where('ref', $data['ref'])->first();
-
-    if (!$seachUser) {
         return response()->json([
             "response" => 400,
-            "message" => "Utilisateur inexistant"
+            "message" => "Aucune modification effectuée",
         ]);
     }
 
-    if (!Hash::check($data['password'], $seachUser->password)) {
-        return response()->json([
-            "response" => 400,
-            "message" => "Le mot de passe actuel est incorrect"
-        ]);
-    }
+    public function deleteUser(Request $request)
+    {
+        $ref = $request->input('ref');
+        $password = $request->input('password');
 
-    // Vérifier si le nouveau mot de passe et la confirmation correspondent
-    if ($request->newpassword != $request->confirmpassword) {
-        return response()->json([
-            "response" => 400,
-            "message" => "Les deux mots de passe sont différents"
-        ]);
-    }
+        if (!$ref) {
+            return response()->json([
+                "response" => 400,
+                "message" => "Référence utilisateur manquante",
+            ]);
+        }
 
-    // Mettre à jour le mot de passe
-    $update = User::where('ref', $data['ref'])->update([
-        'password' => Hash::make($data['newpassword']),
-    ]);
+        $seachUser = User::where('ref', $ref)->first();
 
-    if ($update) {
+        if (!$seachUser) {
+            return response()->json([
+                "response" => 400,
+                "message" => "Utilisateur inexistant"
+            ]);
+        }
+
+        // Confirmation par mot de passe avant suppression définitive
+        if (!$password || !Hash::check($password, $seachUser->password)) {
+            return response()->json([
+                "response" => 400,
+                "message" => "Mot de passe incorrect"
+            ]);
+        }
+
+        try {
+            $seachUser->purgeAccount();
+        } catch (\Throwable $e) {
+            Log::error("Échec suppression compte (ref {$ref}) : " . $e->getMessage());
+            return response()->json([
+                "response" => 400,
+                "message" => "Impossible de supprimer le compte. Veuillez réessayer."
+            ]);
+        }
+
         return response()->json([
             "response" => 200,
-            "message" => "Mot de passe modifié avec succès"
+            "message" => "Votre compte et vos données personnelles ont été supprimés définitivement"
         ]);
     }
 
-    return response()->json([
-        "response" => 400,
-        "message" => "Échec de la modification du mot de passe"
-    ]);
-}
-    
-    
-    
-    
+    public function changePassword(Request $request)
+    {
+        $ref = $request->input('ref');
+        $password = $request->input('password');
+        $newpassword = $request->input('newpassword');
+        $confirmpassword = $request->input('confirmpassword');
+
+        $seachUser = User::where('ref', $ref)->first();
+
+        if (!$seachUser) {
+            return response()->json([
+                "response" => 400,
+                "message" => "Utilisateur inexistant"
+            ]);
+        }
+
+        if (!Hash::check($password, $seachUser->password)) {
+            return response()->json([
+                "response" => 400,
+                "message" => "Le mot de passe actuel est incorrect"
+            ]);
+        }
+
+        if ($newpassword !== $confirmpassword) {
+            return response()->json([
+                "response" => 400,
+                "message" => "Les deux mots de passe sont différents"
+            ]);
+        }
+
+        $update = User::where('ref', $ref)->update([
+            'password' => Hash::make($newpassword),
+        ]);
+
+        if ($update) {
+            return response()->json([
+                "response" => 200,
+                "message" => "Mot de passe modifié avec succès"
+            ]);
+        }
+
+        return response()->json([
+            "response" => 400,
+            "message" => "Échec de la modification du mot de passe"
+        ]);
+    }
 
     public function login(Request $request)
     {
-        $data = $request->all();
+        $field = $request->filled('whatsapp') ? 'whatsapp' : ($request->filled('email') ? 'email' : ($request->filled('phone') ? 'phone' : 'email'));
+        $identifier = $request->input($field);
+        $password = $request->input('password');
 
+        if (!$identifier || !$password) {
+            return response()->json([
+                "response" => 400,
+                "message" => "Identifiant ou mot de passe manquant",
+            ]);
+        }
 
-        if (Auth::attempt(['email' => $data['email'], 'password' => $data['password'], 'status' => "Success"])) {
-           
-        $seachUser = User::where('email',$data['email'])->first();
+        if (Auth::attempt([$field => $identifier, 'password' => $password, 'status' => "Success"])) {
+            $seachUser = User::where($field, $identifier)->first();
 
-        return response()->json([
-            "response"=>200,
-            "message"=>" Connexion établie avec success",
-            "data"=>$seachUser
-
-        ]);
+            return response()->json([
+                "response" => 200,
+                "message" => "Connexion établie avec succès",
+                "data" => $seachUser
+            ]);
         }
 
         return response()->json([
-            "response"=>400,
-            "message"=>"Utilisateur inexistant ou compte invalide",
-            
-
+            "response" => 400,
+            "message" => "Utilisateur inexistant ou compte invalide",
         ]);
     }
+
     public function loginDelivery(Request $request)
     {
-        $data = $request->all();
+        $field = $request->filled('email') ? 'email' : ($request->filled('phone') ? 'phone' : 'whatsapp');
+        $identifier = $request->input($field);
+        $password = $request->input('password');
 
-
-        if (Auth::attempt(['email' => $data['email'], 'password' => $data['password']])) {
-           
-        $seachUser = User::where('email',$data['email'])->first();
-        
-         if($seachUser->role != "agent")
-        {
-              return response()->json([
-            "response"=>404,
-            "message"=>"Désolé vous n'êtes pas un agent",
-            
-
-        ]);
+        if (!$identifier || !$password) {
+            return response()->json([
+                "response" => 404,
+                "message" => "Identifiant ou mot de passe manquant",
+            ]);
         }
-        
-        if($seachUser->status != "Success")
-        {
-              return response()->json([
-            "response"=>404,
-            "message"=>"Votre compte est en cours de configuration",
-            
 
-        ]);
+        if (Auth::attempt([$field => $identifier, 'password' => $password])) {
+            $seachUser = User::where($field, $identifier)->first();
+
+            if ($seachUser->role !== "agent") {
+                return response()->json([
+                    "response" => 404,
+                    "message" => "Désolé vous n'êtes pas un agent",
+                ]);
+            }
+
+            if ($seachUser->status !== "Success") {
+                return response()->json([
+                    "response" => 404,
+                    "message" => "Votre compte est en cours de configuration",
+                ]);
+            }
+
+            return response()->json([
+                "response" => 200,
+                "message" => "Connexion établie avec succès",
+                "data" => $seachUser
+            ]);
         }
 
         return response()->json([
-            "response"=>200,
-            "message"=>" Connexion établie avec success",
-            "data"=>$seachUser
-
-        ]);
-        }
-
-        return response()->json([
-            "response"=>404,
-            "message"=>"Utilisateur inexistant ou compte invalide",
-            
-
+            "response" => 404,
+            "message" => "Utilisateur inexistant ou compte invalide",
         ]);
     }
 
     public function validateCompte(Request $request)
-    {   
-        $data = $request->all();
+    {
+        $code = $request->input('code');
+        if (!$code) {
+            return response()->json([
+                "response" => 400,
+                "message" => "Code de confirmation manquant",
+            ]);
+        }
 
-        $user = User::where('confirmation_code',$data['code'])->first();
+        $user = User::where('confirmation_code', $code)->first();
 
-        if($user)
-        {
+        if ($user) {
             $user->update([
-                'status'=>'Success',
-                'confirmation_code'=>''
+                'status' => 'Success',
+                'confirmation_code' => ''
             ]);
 
-        
+            $content = "Compte validé avec succès";
+            $title = "Validation de compte POULET AFC";
+            $object = 'Validation de compte POULET AFC';
 
-            
-    $content = "Compte validé avec success ";
-    $title = "Validation de compte POULET AFC";
-    $object = 'Validation de compte POULET AFC';
-     Mail::to($user->email)
-    ->send(new NotificationMail($object,$content,$title)) ; 
-          
+            if ($user->email) {
+                try {
+                    Mail::to($user->email)->send(new NotificationMail($object, $content, $title));
+                } catch (\Throwable $e) {
+                    Log::error("Échec envoi mail validation : " . $e->getMessage());
+                }
+            }
 
-    return response()->json([
-        "response"=>200,
-        "message"=>"Activation du compte effectué avec success",
-        
-
-    ]);
+            return response()->json([
+                "response" => 200,
+                "message" => "Activation du compte effectuée avec succès",
+            ]);
         }
 
         return response()->json([
-            "response"=>400,
-            "message"=>"code incorrect",
-            
-    
+            "response" => 400,
+            "message" => "Code incorrect",
         ]);
-
     }
-    
-    
+
     public function loginEmployee(Request $request)
     {
-        $data = $request->all();
+        $field = $request->filled('email') ? 'email' : ($request->filled('phone') ? 'phone' : 'whatsapp');
+        $identifier = $request->input($field);
+        $password = $request->input('password');
 
-
-        if (Auth::attempt(['email' => $data['email'], 'password' => $data['password']])) {
-           
-        $seachUser = User::where('email',$data['email'])->first();
-        
-         if($seachUser->role != "employee_afc")
-        {
-              return response()->json([
-            "response"=>404,
-            "message"=>"Désolé vous n'êtes pas un gestionnaire AFC ",
-            
-
-        ]);
+        if (!$identifier || !$password) {
+            return response()->json([
+                "response" => 404,
+                "message" => "Identifiant ou mot de passe manquant",
+            ]);
         }
-        
-        if($seachUser->status != "Success")
-        {
-              return response()->json([
-            "response"=>404,
-            "message"=>"Votre compte est en cours de configuration",
-            
 
-        ]);
+        if (Auth::attempt([$field => $identifier, 'password' => $password])) {
+            $seachUser = User::where($field, $identifier)->first();
+
+            if ($seachUser->role !== "employee_afc") {
+                return response()->json([
+                    "response" => 404,
+                    "message" => "Désolé vous n'êtes pas un gestionnaire AFC",
+                ]);
+            }
+
+            if ($seachUser->status !== "Success") {
+                return response()->json([
+                    "response" => 404,
+                    "message" => "Votre compte est en cours de configuration",
+                ]);
+            }
+
+            return response()->json([
+                "response" => 200,
+                "message" => "Connexion établie avec succès",
+                "data" => $seachUser
+            ]);
         }
 
         return response()->json([
-            "response"=>200,
-            "message"=>" Connexion établie avec success",
-            "data"=>$seachUser
-
-        ]);
-        }
-
-        return response()->json([
-            "response"=>404,
-            "message"=>"Utilisateur inexistant ou compte invalide",
-            
-
+            "response" => 404,
+            "message" => "Utilisateur inexistant ou compte invalide",
         ]);
     }
-    
-    
+
     public function sendOtpCode(Request $request)
-    
     {
-         $data = $request->all();
-         
-         
-        if($data['method'] == 'email')
-        {
-              $seachUser = User::where('email',$data['value'])->first();
-              
-              
-        }
-        
-         if($data['method'] == 'sms')
-        {
-              $seachUser = User::where('phone',$data['value'])->first();
-        }
-        
-        
-        if(isset($seachUser))
-        {
-                do {
-            $confirmation_code =  rand(10000, 99999);
-            $find_ref = \DB::select('select * from users where confirmation_code="' . $confirmation_code . '"');
-              } while (!empty($find_ref));
-              
-              $seachUser->update([
-                  'confirmation_code'=> $confirmation_code
-                  
-                  ]);
-        
-         if($data['method'] == 'email')
-        {
-             
-            $content = "Votre code de confirmation POULET AFC est " . $confirmation_code;
-            $title = " RESTAURER COMPTE AFC";
-            $object = 'RESTAURER COMPTE AFC';
-            Mail::to($seachUser->email)
-                ->send(new NotificationMail($object, $content, $title));
-              
-        }
-        
-        
-        
-           if($data['method'] == 'sms')
-        {
-             
-        $function  = new Fonction();
-         $function->sendSms("Votre code de confirmation POULET AFC est " . $confirmation_code,$seachUser->phone);
-             
-        }
-        
-        
-        
-         return response()->json([
-            "response"=>200,
-            "message"=>"Code de confirmation envoyé avec success",
-            
+        $method = $request->input('method');
+        $value = $request->input('value');
 
-        ]);
-        
-        
-        
-        
+        if (!$method || !$value) {
+            return response()->json([
+                "response" => 404,
+                "message" => "Méthode ou valeur manquante",
+            ]);
         }
-        
-         return response()->json([
-            "response"=>404,
-            "message"=>"Une erreur est survenue",
-            
 
+        $seachUser = null;
+        if ($method === 'email') {
+            $seachUser = User::where('email', $value)->first();
+        } elseif ($method === 'sms') {
+            $seachUser = User::where('phone', $value)->orWhere('whatsapp', $value)->first();
+        }
+
+        if ($seachUser) {
+            do {
+                $confirmation_code = (string) rand(10000, 99999);
+                $find_ref = DB::table('users')->where('confirmation_code', $confirmation_code)->exists();
+            } while ($find_ref);
+
+            $seachUser->update([
+                'confirmation_code' => $confirmation_code
+            ]);
+
+            if ($method === 'email' && $seachUser->email) {
+                try {
+                    $content = "Votre code de confirmation POULET AFC est " . $confirmation_code;
+                    $title = "RESTAURER COMPTE AFC";
+                    $object = 'RESTAURER COMPTE AFC';
+                    Mail::to($seachUser->email)->send(new NotificationMail($object, $content, $title));
+                } catch (\Throwable $e) {
+                    Log::error("Échec envoi OTP Mail : " . $e->getMessage());
+                }
+            } elseif ($method === 'sms' && $seachUser->phone) {
+                try {
+                    $function = new Fonction();
+                    $function->sendSms("Votre code de confirmation POULET AFC est " . $confirmation_code, $seachUser->phone);
+                } catch (\Throwable $e) {
+                    Log::error("Échec envoi OTP SMS : " . $e->getMessage());
+                }
+            }
+
+            return response()->json([
+                "response" => 200,
+                "message" => "Code de confirmation envoyé avec succès",
+            ]);
+        }
+
+        return response()->json([
+            "response" => 404,
+            "message" => "Une erreur est survenue ou utilisateur introuvable",
         ]);
-        
-        
-        
-        
-        
     }
-    
-    
+
     public function verifyOtpChangePassword(Request $request)
     {
-        $data = $request->all();
-         if($data['method'] == 'email')
-        {
-              $seachUser = User::where('email',$data['value'])->where('confirmation_code',$data['otp'])->first();
-              
-              
-        }
-        
-         if($data['method'] == 'sms')
-        {
-              $seachUser = User::where('phone',$data['value'])->where('confirmation_code',$data['otp'])->first();
-              
-              
-        }
-        
-            if(isset($seachUser))
-        {
-            
-              return response()->json([
-            "response"=>200,
-            "message"=>"Code de confirmation correct",
-            
+        $method = $request->input('method');
+        $value = $request->input('value');
+        $otp = $request->input('otp');
 
-        ]); 
-            
-            
+        $seachUser = null;
+        if ($method === 'email') {
+            $seachUser = User::where('email', $value)->where('confirmation_code', $otp)->first();
+        } elseif ($method === 'sms') {
+            $seachUser = User::where('phone', $value)->where('confirmation_code', $otp)->first();
         }
-        
-        
-        
-         return response()->json([
-            "response"=>404,
-            "message"=>"Code incorrect",
-            
 
+        if ($seachUser) {
+            return response()->json([
+                "response" => 200,
+                "message" => "Code de confirmation correct",
+            ]);
+        }
+
+        return response()->json([
+            "response" => 404,
+            "message" => "Code incorrect",
         ]);
-        
-        
     }
-    
-    
-    
-      public function changePasswordByOtp(Request $request)
+
+    public function changePasswordByOtp(Request $request)
     {
-        $data = $request->all();
-         if($data['method'] == 'email')
-        {
-              $seachUser = User::where('email',$data['value'])->where('confirmation_code',$data['otp'])->first();
-              
-              
-        }
-        
-         if($data['method'] == 'sms')
-        {
-              $seachUser = User::where('phone',$data['value'])->where('confirmation_code',$data['otp'])->first();
-              
-              
-        }
-        
-            if(isset($seachUser))
-        {
-            
-               $seachUser->update([
-                   'password' => Hash::make($data['password']),
-                  'confirmation_code'=> ""
-                   
-                  
-                  ]);
-            
-              return response()->json([
-            "response"=>200,
-            "message"=>"Mot de passe modifié avec success",
-            
+        $method = $request->input('method');
+        $value = $request->input('value');
+        $otp = $request->input('otp');
+        $password = $request->input('password');
 
-                ]); 
-            
-            
+        $seachUser = null;
+        if ($method === 'email') {
+            $seachUser = User::where('email', $value)->where('confirmation_code', $otp)->first();
+        } elseif ($method === 'sms') {
+            $seachUser = User::where('phone', $value)->where('confirmation_code', $otp)->first();
         }
-        
-        
-        
-         return response()->json([
-            "response"=>404,
-            "message"=>"Impossible de modifier le mot de passe",
-            
 
+        if ($seachUser && $password) {
+            $seachUser->update([
+                'password' => Hash::make($password),
+                'confirmation_code' => ""
+            ]);
+
+            return response()->json([
+                "response" => 200,
+                "message" => "Mot de passe modifié avec succès",
+            ]);
+        }
+
+        return response()->json([
+            "response" => 404,
+            "message" => "Impossible de modifier le mot de passe",
         ]);
-        
-        
     }
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
 }

@@ -6,6 +6,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -102,5 +104,33 @@ class User extends Authenticatable
     return $this->hasMany(order_detail::class,'id_user');
 }
 
+    /**
+     * Supprime définitivement le compte de l'utilisateur ainsi que toutes les
+     * données personnelles associées (conformité Google Play — suppression de compte).
+     *
+     * Les paniers (carts) et leurs éléments (cart_items) sont supprimés
+     * automatiquement par la contrainte onDelete('cascade'). Les autres tables
+     * enfant sont purgées explicitement ci-dessous, avec garde de schéma pour
+     * rester tolérant si une table/colonne n'existe pas sur un environnement.
+     */
+    public function purgeAccount(): void
+    {
+        DB::transaction(function () {
+            $childTables = [
+                'begin_agent_days'   => 'id_user',
+                'order_details'      => 'id_user',
+                'delivery_addresses' => 'id_user',
+                'clando'             => 'id_user',
+            ];
+
+            foreach ($childTables as $table => $column) {
+                if (Schema::hasTable($table) && Schema::hasColumn($table, $column)) {
+                    DB::table($table)->where($column, $this->id)->delete();
+                }
+            }
+
+            $this->delete();
+        });
+    }
 
 }

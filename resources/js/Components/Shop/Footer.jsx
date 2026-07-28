@@ -40,6 +40,7 @@ export default function Footer() {
                             <li><Link href="/privacy" className="transition-colors duration-300 hover:text-white">Mentions légales</Link></li>
                             <li><Link href={route('shop.pages.faq')} className="transition-colors duration-300 hover:text-white">FAQ</Link></li>
                             <li><Link href={route('shop.pages.contact')} className="transition-colors duration-300 hover:text-white">Contact</Link></li>
+                            <li><Link href={route('shop.pages.delete-account')} className="transition-colors duration-300 hover:text-white">Supprimer mon compte</Link></li>
                         </ul>
                     </div>
 
