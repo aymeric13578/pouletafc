@@ -87,7 +87,7 @@ class PageController extends Controller
 
         return back()->with(
             'success',
-            'Votre compte Poulet AFC et l\'ensemble de vos données personnelles ont été supprimés définitivement.'
+            'Votre compte CLANDO (Poulet AFC) et l\'ensemble de vos données personnelles ont été supprimés définitivement.'
         );
     }
 

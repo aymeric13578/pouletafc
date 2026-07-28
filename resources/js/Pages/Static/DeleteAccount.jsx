@@ -19,7 +19,7 @@ export default function DeleteAccount() {
 
     return (
         <ShopLayout>
-            <Head title="Supprimer mon compte Poulet AFC" />
+            <Head title="Supprimer mon compte CLANDO (Poulet AFC)" />
 
             <section className="relative overflow-hidden bg-gradient-to-br from-brand-700 to-brand-900 py-16 text-center text-white sm:py-20">
                 <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/5 blur-3xl" />
@@ -27,8 +27,8 @@ export default function DeleteAccount() {
                 <div className="relative mx-auto max-w-2xl px-4 sm:px-6 lg:px-8">
                     <h1 className="animate-fade-in-up text-3xl font-extrabold sm:text-4xl">Suppression de compte</h1>
                     <p className="mt-3 animate-fade-in-up text-white/70">
-                        Application <span className="font-semibold text-white">Poulet AFC</span> — supprimez votre compte
-                        et vos données personnelles en toute simplicité.
+                        Application <span className="font-semibold text-white">CLANDO</span> (Poulet AFC) — supprimez
+                        votre compte et vos données personnelles en toute simplicité.
                     </p>
                 </div>
             </section>
@@ -37,8 +37,9 @@ export default function DeleteAccount() {
                 {/* Explications de conformité */}
                 <div className="prose mb-8 max-w-none animate-fade-in-up text-gray-600">
                     <p>
-                        Cette page vous permet de demander la suppression définitive de votre compte
-                        <strong> Poulet AFC</strong> (édité par Poulet AFC) ainsi que des données personnelles
+                        Cette page concerne l'application mobile <strong>CLANDO</strong> (publiée sur Google Play),
+                        éditée par <strong>Poulet AFC</strong>. Elle vous permet de demander la suppression définitive
+                        de votre compte <strong>CLANDO / Poulet AFC</strong> ainsi que des données personnelles
                         associées à ce compte.
                     </p>
                     <h2>Données qui seront supprimées</h2>
@@ -54,8 +55,9 @@ export default function DeleteAccount() {
                         conservées de façon anonymisée pendant la durée imposée par la loi.
                     </p>
                     <p>
-                        Vous pouvez aussi effectuer cette opération directement depuis l'application mobile Poulet AFC,
-                        rubrique <em>Mon compte</em>. Pour toute question&nbsp;: <strong>infos@pouletafc.com</strong>.
+                        Vous pouvez aussi effectuer cette opération directement depuis l'application mobile CLANDO
+                        (Poulet AFC), rubrique <em>Mon compte</em>. Pour toute question&nbsp;:
+                        <strong> infos@pouletafc.com</strong>.
                     </p>
                 </div>
 
