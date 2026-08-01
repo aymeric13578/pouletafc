@@ -88,6 +88,20 @@ class CatalogController extends Controller
                 'image_url' => product_image_url($p->img ?: $p->product_image1),
             ]);
 
+        $shareUrl = route('shop.catalog.show', $product->slug);
+
+        // Description courte réutilisée par l'aperçu des réseaux sociaux et par
+        // le message de partage. WhatsApp tronque au-delà de ~160 caractères.
+        $shortDescription = str($product->description ?: '')
+            ->stripTags()
+            ->squish()
+            ->limit(160)
+            ->toString();
+
+        if ($shortDescription === '') {
+            $shortDescription = 'Commandez ' . $product->name . ' sur Poulet AFC, livré chez vous.';
+        }
+
         return Inertia::render('Shop/Show', [
             'product' => [
                 'id' => $product->id,
@@ -99,8 +113,22 @@ class CatalogController extends Controller
                 'category' => $product->category?->name,
                 'options' => collect([$product->parameter1, $product->parameter2])->filter()->values(),
                 'gallery' => $gallery,
+                'share_url' => $shareUrl,
+                'share_description' => $shortDescription,
             ],
             'related' => $related,
+        ])->withViewData([
+            // Rendu côté serveur dans resources/views/partials/social-meta.blade.php :
+            // c'est la seule version que les robots d'aperçu (WhatsApp, Facebook…)
+            // savent lire, puisqu'ils n'exécutent pas le JavaScript d'Inertia.
+            'meta' => [
+                'title' => $product->name,
+                'description' => $shortDescription,
+                'image' => $gallery->first(),
+                'url' => $shareUrl,
+                'type' => 'product',
+                'price' => (int) $product->price,
+            ],
         ]);
     }
 }
