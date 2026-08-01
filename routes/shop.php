@@ -7,6 +7,7 @@ use App\Http\Controllers\Shop\CartController;
 use App\Http\Controllers\Shop\CatalogController;
 use App\Http\Controllers\Shop\CheckoutController;
 use App\Http\Controllers\Shop\HomeController;
+use App\Http\Controllers\Shop\MobileAppController;
 use App\Http\Controllers\Shop\PageController;
 use Illuminate\Support\Facades\Route;
 
@@ -30,6 +31,13 @@ Route::delete('/panier/{product}', [CartController::class, 'remove'])->name('sho
 
 Route::get('/actualites', [ArticleController::class, 'index'])->name('shop.articles.index');
 Route::get('/actualites/{article}', [ArticleController::class, 'show'])->name('shop.articles.show');
+
+Route::get('/download-app', [MobileAppController::class, 'show'])->name('shop.app.show');
+Route::get('/download-app/clando.apk', [MobileAppController::class, 'apk'])->name('shop.app.android.apk');
+
+// Ancienne URL francophone : conservée en redirection au cas où elle aurait été
+// partagée, l'URL de référence communiquée est /download-app.
+Route::redirect('/application-mobile', '/download-app', 301);
 
 Route::get('/suppression-compte', [PageController::class, 'deleteAccount'])->name('shop.pages.delete-account');
 Route::post('/suppression-compte', [PageController::class, 'processDeleteAccount'])->name('shop.pages.delete-account.process');

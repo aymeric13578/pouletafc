@@ -30,6 +30,7 @@ export default function Footer() {
                             <li><Link href={route('shop.catalog.index')} className="transition-colors duration-300 hover:text-white">Tous les produits</Link></li>
                             <li><Link href={route('shop.articles.index')} className="transition-colors duration-300 hover:text-white">Blog</Link></li>
                             <li><Link href={route('shop.cart.index')} className="transition-colors duration-300 hover:text-white">Mon panier</Link></li>
+                            <li><Link href={route('shop.app.show')} className="transition-colors duration-300 hover:text-white">Application mobile</Link></li>
                         </ul>
                     </div>
 

@@ -6,12 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Article;
 use App\Models\Category;
 use App\Models\Product;
+use App\Services\MobileAppService;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class HomeController extends Controller
 {
-    public function index(): Response
+    public function index(MobileAppService $mobileApp): Response
     {
         $categories = Category::orderBy('name')
             ->take(6)
@@ -44,6 +45,7 @@ class HomeController extends Controller
             'categories' => $categories,
             'products' => $products,
             'articles' => $articles,
+            'mobileApp' => $mobileApp->toArray(),
         ]);
     }
 
