@@ -183,7 +183,9 @@ jobs:
             # 5 ter. Filet de sécurité : le webroot peut contenir des uploads plus récents que
             #        la release sauvegardée (fichiers envoyés depuis le dernier déploiement).
             #        On les récupère avant que le rsync --delete de l'étape 6 ne les supprime.
-            if [ -d "$WEBROOT_PATH/upload" ]; then
+            #        Le test "! -L" évite de recopier un dossier sur lui-même une fois que
+            #        l'étape 7 bis a transformé le webroot en lien symbolique.
+            if [ -d "$WEBROOT_PATH/upload" ] && [ ! -L "$WEBROOT_PATH/upload" ]; then
               mkdir -p "$DEPLOY_PATH/public/upload"
               rsync -a --ignore-existing "$WEBROOT_PATH/upload/" "$DEPLOY_PATH/public/upload/"
             fi
@@ -198,7 +200,30 @@ jobs:
               --exclude='index.php' \
               --exclude='.well-known' \
               --exclude='storage' \
+              --exclude='upload' \
               "$DEPLOY_PATH/public/" "$WEBROOT_PATH/"
+
+            # 6 bis. "upload" est exclu ci-dessus car ce n'est plus une copie mais un lien
+            #        (voir étape 7 bis) : sans l'exclusion, rsync --delete écraserait le lien
+            #        par un dossier et le problème reviendrait au déploiement suivant.
+
+            # 7 bis. CAUSE RACINE des images produits invisibles : PHP écrit les fichiers
+            #        envoyés depuis le back-office et l'app mobile dans
+            #        public_path('upload') = "$DEPLOY_PATH/public/upload", alors que le
+            #        webserver sert "$WEBROOT_PATH", qui en est une COPIE distincte. Une
+            #        image ajoutée depuis le tableau de bord était donc bien enregistrée sur
+            #        le disque, mais jamais servie : elle n'apparaissait qu'après le
+            #        déploiement suivant, et seulement si elle avait été committée.
+            #        On remplace la copie par un lien vers le dossier réellement écrit.
+            #        Le contenu du webroot a déjà été récupéré à l'étape 5 ter, donc rien
+            #        n'est perdu par le rm ci-dessous.
+            UPLOAD_TARGET="$DEPLOY_PATH/public/upload"
+            mkdir -p "$UPLOAD_TARGET"
+            if [ "$(readlink "$WEBROOT_PATH/upload" 2>/dev/null || true)" != "$UPLOAD_TARGET" ]; then
+              rm -rf "$WEBROOT_PATH/upload"
+              ln -sfn "$UPLOAD_TARGET" "$WEBROOT_PATH/upload"
+              echo "public_html/upload est désormais un lien vers $UPLOAD_TARGET"
+            fi
 
             # 7. Lien storage accessible publiquement : recréé s'il est absent ou s'il ne pointe
             #    pas vers le bon chemin (ne touche pas à un lien déjà valide).
