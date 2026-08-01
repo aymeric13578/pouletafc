@@ -168,6 +168,26 @@ jobs:
               rsync -a "$BACKUP_PATH/storage/logs/" "$DEPLOY_PATH/storage/logs/"
             fi
 
+            # 5 bis. Images produits et pièces jointes envoyées depuis l'app mobile et le
+            #        back-office. Le code les écrit dans public_path('upload') (33 appels),
+            #        donc DANS le dossier de release : sans cette restauration, chaque
+            #        déploiement les efface, puisque l'archive ne contient que les fichiers
+            #        versionnés et que le rsync de l'étape 6 tourne avec --delete.
+            #        C'est ce qui a fait disparaître les images des fiches produits.
+            if [ -d "$BACKUP_PATH/public/upload" ]; then
+              mkdir -p "$DEPLOY_PATH/public/upload"
+              rsync -a "$BACKUP_PATH/public/upload/" "$DEPLOY_PATH/public/upload/"
+              echo "Uploads restaurés : $(ls -1 "$DEPLOY_PATH/public/upload" | wc -l) fichiers"
+            fi
+
+            # 5 ter. Filet de sécurité : le webroot peut contenir des uploads plus récents que
+            #        la release sauvegardée (fichiers envoyés depuis le dernier déploiement).
+            #        On les récupère avant que le rsync --delete de l'étape 6 ne les supprime.
+            if [ -d "$WEBROOT_PATH/upload" ]; then
+              mkdir -p "$DEPLOY_PATH/public/upload"
+              rsync -a --ignore-existing "$WEBROOT_PATH/upload/" "$DEPLOY_PATH/public/upload/"
+            fi
+
             # 6. Synchronise les assets buildés vers le webroot réel (public_html n'est pas un
             #    symlink vers erpndazoa/public sur ce serveur, donc il faut copier le build à
             #    chaque déploiement, sinon le site sert d'anciens fichiers JS/CSS -> page cassée).
