@@ -44,13 +44,22 @@ new class extends Component {
     public $parameter2 = '';
     public $category_name = '';
     public $shop_name = '';
-    public $categories = [];
-    public $shops = [];
-
-    public function mount()
+    /*
+     | categories et shops étaient des propriétés publiques contenant des collections
+     | Eloquent complètes. Livewire sérialise l'état public du composant à CHAQUE
+     | requête — frappe clavier, ouverture de modale, et surtout chaque morceau de
+     | fichier envoyé : ces deux tables faisaient l'aller-retour à chaque fois.
+     | En propriétés calculées, elles sont lues une fois par rendu et ne transitent
+     | plus par le réseau.
+     */
+    public function getCategoriesProperty()
     {
-        $this->categories = Category::all();
-        $this->shops = Shop::all();
+        return Category::orderBy('name')->get(['id', 'name']);
+    }
+
+    public function getShopsProperty()
+    {
+        return Shop::orderBy('shop_name')->get(['id', 'shop_name']);
     }
 
     public function openModal($mode = 'add', $productId = null)
@@ -192,44 +201,14 @@ new class extends Component {
         ];
 
         if ($this->product_image1) {
-            $img_name1 = hexdec(uniqid()) . '.' . $this->product_image1->getClientOriginalExtension();
-            $img_path1 = $this->product_image1->storeAs('upload', $img_name1, 'public');
-            //$this->product_image1->move(public_path('upload'), $img_name1);
-            $img_url1 = 'upload/' . $img_name1;
-            $data['product_image1'] = 'https://pouletafc.2gether-network.com/' . $img_url1;
+            $data['product_image1'] = $this->storeUploadedImage($this->product_image1);
         }
 
         if ($this->product_image2) {
-            $img_name2 = hexdec(uniqid()) . '.' . $this->product_image2->getClientOriginalExtension();
-              $img_path2 = $this->product_image2->storeAs('upload', $img_name2, 'public');
-            //$this->product_image2->move(public_path('upload'), $img_name2);
-            $img_url2 = 'upload/' . $img_name2;
-            $data['product_image2'] = 'https://pouletafc.2gether-network.com/' . $img_url2;
+            $data['product_image2'] = $this->storeUploadedImage($this->product_image2);
         }
 
         if ($this->editMode) {
-            
-            
-             if ($this->product_image1) {
-            $img_name1 = hexdec(uniqid()) . '1.' . $this->product_image1->getClientOriginalExtension();
-            $img_path1 = $this->product_image1->storeAs('upload', $img_name1, 'public');
-            //$this->product_image1->move(public_path('upload'), $img_name1);
-            $img_url1 = 'upload/' . $img_name1;
-            $data['product_image1'] = 'https://pouletafc.2gether-network.com/' . $img_url1;
-        }
-
-        if ($this->product_image2) {
-            $img_name2 = hexdec(uniqid()) . '2.' . $this->product_image2->getClientOriginalExtension();
-              $img_path2 = $this->product_image2->storeAs('upload', $img_name2, 'public');
-            //$this->product_image2->move(public_path('upload'), $img_name2);
-            $img_url2 = 'upload/' . $img_name2;
-            $data['product_image2'] = 'https://pouletafc.2gether-network.com/' . $img_url2;
-        }
-            
-            
-            
-            
-            
             $product = Product::findOrFail($this->productId);
             $product->update($data);
             $this->dispatch('notify', ['message' => 'Produit modifié avec succès !', 'type' => 'success']);
@@ -244,6 +223,25 @@ new class extends Component {
         $this->closeModal();
     }
 
+    /**
+     * Enregistre une image envoyée depuis le formulaire et renvoie son URL publique.
+     *
+     * Deux pièges corrigés ici, qui rendaient toute image ajoutée invisible :
+     *  - le fichier partait sur le disque "public", dont la racine se résout sur la
+     *    racine du projet et non sur public/ : il atterrissait dans <projet>/upload,
+     *    que le serveur web ne sert pas. On passe par le disque "uploads", qui pointe
+     *    sur public/upload ;
+     *  - l'URL était préfixée en dur par l'ancien domaine 2gether-network.com, qui ne
+     *    répond plus. asset() suit APP_URL et suivra donc tout changement de domaine.
+     */
+    protected function storeUploadedImage($file): string
+    {
+        $name = hexdec(uniqid()) . '.' . $file->getClientOriginalExtension();
+        $file->storeAs('', $name, 'uploads');
+
+        return asset('upload/' . $name);
+    }
+
     public function toggleStatus($productId)
     {
         $product = Product::findOrFail($productId);
@@ -256,16 +254,18 @@ new class extends Component {
     public function deleteProduct($productId)
     {
         $product = Product::findOrFail($productId);
-        if ($product->product_image1) {
-            $imagePath1 = str_replace('https://pouletafc.2gether-network.com/', '', $product->product_image1);
-            if (file_exists(public_path($imagePath1))) {
-                unlink(public_path($imagePath1));
+        // Les URLs en base cohabitent sous plusieurs formes (ancien domaine, nouveau
+        // domaine, chemin relatif) : on ne retient que la partie chemin pour retrouver
+        // le fichier sur le disque, quel que soit le préfixe utilisé à l'époque.
+        foreach ([$product->product_image1, $product->product_image2] as $imageUrl) {
+            if (! $imageUrl) {
+                continue;
             }
-        }
-        if ($product->product_image2) {
-            $imagePath2 = str_replace('https://pouletafc.2gether-network.com/', '', $product->product_image2);
-            if (file_exists(public_path($imagePath2))) {
-                unlink(public_path($imagePath2));
+
+            $path = ltrim(parse_url($imageUrl, PHP_URL_PATH) ?: $imageUrl, '/');
+
+            if ($path && file_exists(public_path($path)) && is_file(public_path($path))) {
+                unlink(public_path($path));
             }
         }
         $product->delete();
@@ -554,7 +554,7 @@ new class extends Component {
                                         <label class="block text-gray-700 text-sm mb-1" for="id_category">Catégorie <span class="text-red-500">*</span></label>
                                         <select id="id_category" wire:model="id_category" class="w-full p-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" required>
                                             <option value="">Sélectionner</option>
-                                            @foreach ($categories as $category)
+                                            @foreach ($this->categories as $category)
                                                 <option value="{{ $category->id }}">{{ $category->name }}</option>
                                             @endforeach
                                         </select>
@@ -566,7 +566,7 @@ new class extends Component {
                                         <label class="block text-gray-700 text-sm mb-1" for="id_shop">Boutique <span class="text-red-500">*</span></label>
                                         <select id="id_shop" wire:model="id_shop" class="w-full p-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" required>
                                             <option value="">Sélectionner</option>
-                                            @foreach ($shops as $shop)
+                                            @foreach ($this->shops as $shop)
                                                 <option value="{{ $shop->id }}">{{ $shop->shop_name }}</option>
                                             @endforeach
                                         </select>
@@ -626,8 +626,27 @@ new class extends Component {
                                         <div class="grid grid-cols-2 gap-3">
                                             <div>
                                                 <label class="block text-gray-700 text-sm mb-1" for="product_image1">Image 1 @unless($editMode)<span class="text-red-500">*</span>@endunless</label>
-                                                <input type="file" id="product_image1" wire:model="product_image1"
+                                                <input type="file" id="product_image1" wire:model="product_image1" accept="image/*"
                                                        class="w-full p-1 text-sm border border-gray-300 rounded-lg" {{ $editMode ? '' : 'required' }}>
+
+                                                {{-- Barre de progression native de Livewire : sans elle, l'utilisateur
+                                                     n'avait aucun retour pendant l'envoi et croyait que rien ne se passait. --}}
+                                                <div wire:loading wire:target="product_image1" class="mt-2 flex items-center gap-2 text-xs text-indigo-600">
+                                                    <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"></path>
+                                                    </svg>
+                                                    <span x-data="{ p: 0 }"
+                                                          x-on:livewire-upload-progress.window="p = $event.detail.progress"
+                                                          x-text="'Envoi de l\'image… ' + p + '%'"></span>
+                                                </div>
+
+                                                @if ($product_image1 && ! is_string($product_image1))
+                                                    <img src="{{ $product_image1->temporaryUrl() }}" alt="Aperçu image 1"
+                                                         wire:loading.remove wire:target="product_image1"
+                                                         class="mt-2 h-20 w-20 rounded-lg border object-cover">
+                                                @endif
+
                                                 @error('product_image1')
                                                     <span class="text-red-500 text-xs">{{ $message }}</span>
                                                 @enderror
@@ -638,8 +657,25 @@ new class extends Component {
                                             </div>
                                             <div>
                                                 <label class="block text-gray-700 text-sm mb-1" for="product_image2">Image 2 (optionnel)</label>
-                                                <input type="file" id="product_image2" wire:model="product_image2"
+                                                <input type="file" id="product_image2" wire:model="product_image2" accept="image/*"
                                                        class="w-full p-1 text-sm border border-gray-300 rounded-lg">
+
+                                                <div wire:loading wire:target="product_image2" class="mt-2 flex items-center gap-2 text-xs text-indigo-600">
+                                                    <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"></path>
+                                                    </svg>
+                                                    <span x-data="{ p: 0 }"
+                                                          x-on:livewire-upload-progress.window="p = $event.detail.progress"
+                                                          x-text="'Envoi de l\'image… ' + p + '%'"></span>
+                                                </div>
+
+                                                @if ($product_image2 && ! is_string($product_image2))
+                                                    <img src="{{ $product_image2->temporaryUrl() }}" alt="Aperçu image 2"
+                                                         wire:loading.remove wire:target="product_image2"
+                                                         class="mt-2 h-20 w-20 rounded-lg border object-cover">
+                                                @endif
+
                                                 @error('product_image2')
                                                     <span class="text-red-500 text-xs">{{ $message }}</span>
                                                 @enderror
@@ -721,8 +757,14 @@ new class extends Component {
                             <button type="button" wire:click="closeModal"
                                     class="bg-gray-500 text-white py-1 px-3 text-sm rounded-lg hover:bg-gray-600 mr-2">Fermer</button>
                             @if (!$viewMode)
+                                {{-- Désactivé pendant l'envoi d'une image et pendant l'enregistrement :
+                                     un clic prématuré validait le formulaire sans l'image, ou créait un doublon. --}}
                                 <button type="submit" form="productForm"
-                                        class="bg-indigo-600 text-white py-1 px-3 text-sm rounded-lg hover:bg-indigo-700">{{ $editMode ? 'Modifier' : 'Ajouter' }}</button>
+                                        wire:loading.attr="disabled" wire:target="product_image1,product_image2,addProduct"
+                                        class="bg-indigo-600 text-white py-1 px-3 text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <span wire:loading.remove wire:target="addProduct">{{ $editMode ? 'Modifier' : 'Ajouter' }}</span>
+                                    <span wire:loading wire:target="addProduct">Enregistrement…</span>
+                                </button>
                             @endif
                         </div>
                     </div>

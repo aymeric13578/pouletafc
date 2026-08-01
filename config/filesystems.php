@@ -52,6 +52,24 @@ return [
             'throw' => false,
         ],*/
 
+        /*
+        | Images produits et pièces jointes. Pointe sur public/upload, le dossier
+        | réellement servi par le webserver.
+        |
+        | À ne pas confondre avec le disque "public" ci-dessus, dont la racine
+        | storage_path('../../pouletafc') se résout sur la RACINE DU PROJET : un
+        | storeAs('upload', ..., 'public') écrit donc dans <projet>/upload, qui
+        | n'est servi par personne. C'est ce qui rendait invisibles les images
+        | ajoutées depuis le tableau de bord.
+        */
+        'uploads' => [
+            'driver' => 'local',
+            'root' => public_path('upload'),
+            'url' => env('APP_URL').'/upload',
+            'visibility' => 'public',
+            'throw' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
