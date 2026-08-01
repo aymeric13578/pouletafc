@@ -102,7 +102,7 @@ public function getToken()
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_HTTPHEADER => array(
                 "Content-Type: application/x-www-form-urlencoded",
-                "Authorization: Basic ODZ4QVVDWVJFVzREZXVweGRQbG9GU3hYN2tqb0U0TWg6Vm1XS25wejY2aGhFRXpVODNXYk9Bb3l4a05aWVh0VVNrOVREM2tIdGpIeGg=",
+                "Authorization: Basic UEJhQXVKMWUzemtzc2JvWTJHTWRUM0hIS2FNUEhCcVY6Yk1rVEZIbVJlWnJvakI1bkFjeGNlZTgxbkpRSndxUFIwU0xVWjVBZDRTWmw=",
             ),
             CURLOPT_ENCODING => "",
             CURLOPT_MAXREDIRS => 10,
@@ -135,7 +135,7 @@ public function getToken()
            curl_setopt_array($curl, array(
     CURLOPT_URL => 'https://api.orange.com/smsmessaging/v1/outbound/tel%3A%2B2370000000/requests',
     CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_SSL_VERIFYPEER => false, // Note : Désactiver la vérification SSL n'est pas recommandé en production
+    CURLOPT_SSL_VERIFYPEER => false, // Note : Dï¿½sactiver la vï¿½rification SSL n'est pas recommandï¿½ en production
     CURLOPT_HTTPHEADER => array(
         "Authorization: Bearer " . $getToken['access_token'],
         "Content-Type: application/json"
