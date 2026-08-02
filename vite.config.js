@@ -6,7 +6,9 @@ export default defineConfig({
    
     plugins: [
         laravel({
-            input: 'resources/js/app.jsx',
+            // app.jsx : boutique React/Inertia.
+            // dashboard.css : back-office Livewire, sans React ni Inertia.
+            input: ['resources/js/app.jsx', 'resources/css/dashboard.css'],
             refresh: true,
         }),
         react(),

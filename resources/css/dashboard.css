@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+| Feuille dédiée au back-office.
+|
+| Le tableau de bord chargeait jusqu'ici uniquement flowbite.min.css depuis un
+| CDN : un Tailwind générique, sans les couleurs de marque ni les animations
+| définies dans tailwind.config.js. D'où un rendu impersonnel, sans rapport
+| visuel avec la boutique.
+|
+| On ne réutilise pas resources/css/app.css via app.jsx : cette entrée embarque
+| React et Inertia, inutiles sur des pages Livewire.
+*/
+
+@layer components {
+    /* Masque le contenu tant qu'Alpine n'a pas évalué les x-show/x-data. */
+    [x-cloak] {
+        display: none !important;
+    }
+
+    .admin-scrollbar::-webkit-scrollbar {
+        height: 8px;
+        width: 8px;
+    }
+
+    .admin-scrollbar::-webkit-scrollbar-thumb {
+        border-radius: 9999px;
+        background-color: theme('colors.gray.300');
+    }
+
+    .admin-scrollbar::-webkit-scrollbar-track {
+        background-color: transparent;
+    }
+}

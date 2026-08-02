@@ -2,270 +2,184 @@
 
 use function Laravel\Folio\{name};
 use Livewire\Volt\Component;
+use App\Models\Category;
+use App\Models\Product;
+use App\Models\User;
+use App\Models\order_detail;
 
 name('admin.index');
 
+new class extends Component {
+    /*
+    | L'accueil était une grille de liens vers les modules. La navigation étant
+    | désormais permanente dans la barre latérale, cette grille faisait doublon :
+    | elle est remplacée par une vraie synthèse d'activité.
+    |
+    | Toutes les valeurs sont des propriétés calculées : rien n'est stocké dans
+    | l'état public du composant, donc rien ne transite à chaque requête Livewire.
+    */
+
+    public function getStatsProperty(): array
+    {
+        $enCours = order_detail::whereIn('status', ['process', 'want', 'take', 'pending'])->count();
+
+        return [
+            'commandes' => order_detail::count(),
+            'en_cours' => $enCours,
+            'livrees' => order_detail::where('status', 'Success')->count(),
+            'echecs' => order_detail::where('status', 'failed')->count(),
+            'produits' => Product::count(),
+            'produits_actifs' => Product::where('status', 'Success')->count(),
+            'rupture' => Product::where('stock_init', '<', 10)->count(),
+            'clients' => User::count(),
+            'categories' => Category::count(),
+        ];
+    }
+
+    public function getChiffreAffairesProperty(): int
+    {
+        return (int) order_detail::where('status', 'Success')->sum('price');
+    }
+
+    public function getRecentesProperty()
+    {
+        return order_detail::latest('id')->take(8)->get();
+    }
+
+    public function getStockFaibleProperty()
+    {
+        return Product::where('stock_init', '<', 10)
+            ->orderBy('stock_init')
+            ->take(5)
+            ->get(['id', 'name', 'stock_init', 'status']);
+    }
+};
 ?>
 
-<x-layouts.app>
+<x-layouts.app title="Tableau de bord">
     @volt
-        <div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8">
-            <div class="container mx-auto px-4 max-w-7xl">
-                
-                <!-- Header Section -->
-                <div class="mb-8">
-                    <h1 class="text-4xl font-bold text-gray-800 mb-2">Tableau de bord</h1>
-                    <p class="text-gray-600">Gérez tous les modules de votre application</p>
-                </div>
+        <div>
+            <x-ui.page-header
+                title="Vue d'ensemble"
+                subtitle="Activité de la boutique en un coup d'œil" />
 
-                <!-- Search Bar -->
-                <div class="mb-8">
-                    <form class="flex items-center max-w-2xl mx-auto">
-                        <label for="voice-search" class="sr-only">Search</label>
-                        <div class="relative w-full">
-                            <div class="absolute inset-y-0 start-0 flex items-center ps-4 pointer-events-none">
-                                <svg class="w-5 h-5 text-gray-400" aria-hidden="true"
-                                    xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 21 21">
-                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M11.15 5.6h.01m3.337 1.913h.01m-6.979 0h.01M5.541 11h.01M15 15h2.706a1.957 1.957 0 0 0 1.883-1.325A9 9 0 1 0 2.043 11.89 9.1 9.1 0 0 0 7.2 19.1a8.62 8.62 0 0 0 3.769.9A2.013 2.013 0 0 0 13 18v-.857A2.034 2.034 0 0 1 15 15Z" />
-                                </svg>
-                            </div>
-                            <input type="text" id="voice-search"
-                                class="bg-white border border-gray-200 text-gray-900 text-sm rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent block w-full ps-12 p-4 shadow-sm transition duration-200"
-                                placeholder="Rechercher un module..." required />
-                        </div>
-                        <button type="submit"
-                            class="inline-flex items-center py-4 px-6 ms-3 text-sm font-semibold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 focus:ring-4 focus:outline-none focus:ring-indigo-300 shadow-md hover:shadow-lg transition duration-200">
-                            <svg class="w-4 h-4 me-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none"
-                                viewBox="0 0 20 20">
-                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z" />
-                            </svg>
-                            Rechercher
-                        </button>
-                    </form>
-                </div>
+            {{-- Indicateurs principaux --}}
+            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <x-ui.stat
+                    label="Commandes"
+                    :value="number_format($this->stats['commandes'], 0, ',', ' ')"
+                    :hint="$this->stats['en_cours'] . ' en cours'"
+                    tone="brand"
+                    icon="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12A1.125 1.125 0 0119.75 22H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007z" />
 
-                <!-- Cards Grid -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <x-ui.stat
+                    label="Chiffre d'affaires"
+                    :value="number_format($this->chiffreAffaires, 0, ',', ' ') . ' F'"
+                    :hint="$this->stats['livrees'] . ' commandes livrées'"
+                    tone="success"
+                    icon="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 
-                    <!-- Card Produits -->
-                    <div class="group bg-white rounded-xl shadow-md hover:shadow-xl p-6 text-center transition-all duration-300 hover:-translate-y-1 border border-gray-100">
-                        <div class="flex justify-center mb-4">
-                            <div class="bg-indigo-100 p-4 rounded-full group-hover:bg-indigo-600 transition duration-300">
-                                <svg class="w-8 h-8 text-indigo-600 group-hover:text-white transition duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-                                </svg>
-                            </div>
-                        </div>
-                        <h2 class="text-xl font-bold text-gray-800 mb-2">Produits</h2>
-                        <p class="text-gray-600 text-sm mb-6 leading-relaxed">Gérez les produits, ajoutez, modifiez ou supprimez des articles.</p>
-                        <a href="/dashboard/products"
-                            class="inline-block w-full bg-indigo-600 text-white py-2.5 px-6 rounded-lg font-medium hover:bg-indigo-700 transition duration-200">
-                            Accéder
-                        </a>
-                    </div>
+                <x-ui.stat
+                    label="Produits"
+                    :value="$this->stats['produits']"
+                    :hint="$this->stats['produits_actifs'] . ' en ligne'"
+                    tone="brand"
+                    icon="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5m16.5 0a48.7 48.7 0 00-16.5 0" />
 
-                    <!-- Card Catégories -->
-                    <div class="group bg-white rounded-xl shadow-md hover:shadow-xl p-6 text-center transition-all duration-300 hover:-translate-y-1 border border-gray-100">
-                        <div class="flex justify-center mb-4">
-                            <div class="bg-purple-100 p-4 rounded-full group-hover:bg-purple-600 transition duration-300">
-                                <svg class="w-8 h-8 text-purple-600 group-hover:text-white transition duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
-                                </svg>
-                            </div>
-                        </div>
-                        <h2 class="text-xl font-bold text-gray-800 mb-2">Catégories</h2>
-                        <p class="text-gray-600 text-sm mb-6 leading-relaxed">Créez et gérez les catégories des produits.</p>
-                        <a href="/dashboard/categories"
-                            class="inline-block w-full bg-purple-600 text-white py-2.5 px-6 rounded-lg font-medium hover:bg-purple-700 transition duration-200">
-                            Accéder
-                        </a>
-                    </div>
+                <x-ui.stat
+                    label="Stock faible"
+                    :value="$this->stats['rupture']"
+                    hint="moins de 10 unités"
+                    :tone="$this->stats['rupture'] > 0 ? 'warning' : 'success'"
+                    icon="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </div>
 
-                    <!-- Card Sous-catégories -->
-                    <div class="group bg-white rounded-xl shadow-md hover:shadow-xl p-6 text-center transition-all duration-300 hover:-translate-y-1 border border-gray-100">
-                        <div class="flex justify-center mb-4">
-                            <div class="bg-pink-100 p-4 rounded-full group-hover:bg-pink-600 transition duration-300">
-                                <svg class="w-8 h-8 text-pink-600 group-hover:text-white transition duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path>
-                                </svg>
-                            </div>
-                        </div>
-                        <h2 class="text-xl font-bold text-gray-800 mb-2">Sous-catégories</h2>
-                        <p class="text-gray-600 text-sm mb-6 leading-relaxed">Gérez les sous-catégories pour organiser les produits.</p>
-                        <a href="/dashboard/sub-categories"
-                            class="inline-block w-full bg-pink-600 text-white py-2.5 px-6 rounded-lg font-medium hover:bg-pink-700 transition duration-200">
-                            Accéder
-                        </a>
-                    </div>
+            <div class="mt-6 grid gap-6 lg:grid-cols-3">
 
-                    <!-- Card Utilisateurs -->
-                    <div class="group bg-white rounded-xl shadow-md hover:shadow-xl p-6 text-center transition-all duration-300 hover:-translate-y-1 border border-gray-100">
-                        <div class="flex justify-center mb-4">
-                            <div class="bg-blue-100 p-4 rounded-full group-hover:bg-blue-600 transition duration-300">
-                                <svg class="w-8 h-8 text-blue-600 group-hover:text-white transition duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
-                                </svg>
-                            </div>
-                        </div>
-                        <h2 class="text-xl font-bold text-gray-800 mb-2">Utilisateurs</h2>
-                        <p class="text-gray-600 text-sm mb-6 leading-relaxed">Créez, modifiez ou supprimez des comptes utilisateurs.</p>
-                        <a href="/dashboard/users"
-                            class="inline-block w-full bg-blue-600 text-white py-2.5 px-6 rounded-lg font-medium hover:bg-blue-700 transition duration-200">
-                            Accéder
-                        </a>
-                    </div>
+                {{-- Dernières commandes --}}
+                <x-ui.card class="lg:col-span-2" :padded="false" title="Dernières commandes">
+                    <x-slot:actions>
+                        <x-ui.button size="sm" variant="secondary" :href="route('dashboard.commands')">Tout voir</x-ui.button>
+                    </x-slot:actions>
 
-                    <!-- Card Commandes -->
-                    <div class="group bg-white rounded-xl shadow-md hover:shadow-xl p-6 text-center transition-all duration-300 hover:-translate-y-1 border border-gray-100">
-                        <div class="flex justify-center mb-4">
-                            <div class="bg-green-100 p-4 rounded-full group-hover:bg-green-600 transition duration-300">
-                                <svg class="w-8 h-8 text-green-600 group-hover:text-white transition duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
-                                </svg>
-                            </div>
-                        </div>
-                        <h2 class="text-xl font-bold text-gray-800 mb-2">Commandes</h2>
-                        <p class="text-gray-600 text-sm mb-6 leading-relaxed">Gérez les commandes, suivez leur statut et mettez à jour les détails.</p>
-                        <a href="/dashboard/commandes"
-                            class="inline-block w-full bg-green-600 text-white py-2.5 px-6 rounded-lg font-medium hover:bg-green-700 transition duration-200">
-                            Accéder
-                        </a>
-                    </div>
+                    <x-ui.table :headers="['Référence', 'Montant', 'Statut', 'Date']">
+                        @forelse ($this->recentes as $ligne)
+                            <tr class="transition-colors hover:bg-gray-50">
+                                <td class="whitespace-nowrap px-4 py-3 font-semibold text-gray-900">{{ $ligne->ref ?: '—' }}</td>
+                                <td class="whitespace-nowrap px-4 py-3 text-gray-700">{{ number_format((int) $ligne->price, 0, ',', ' ') }} F</td>
+                                <td class="whitespace-nowrap px-4 py-3">
+                                    @php
+                                        $tone = match ($ligne->status) {
+                                            'Success' => 'success',
+                                            'failed' => 'danger',
+                                            'pending' => 'warning',
+                                            default => 'info',
+                                        };
+                                        $libelle = match ($ligne->status) {
+                                            'Success' => 'Livrée',
+                                            'failed' => 'Échec',
+                                            'pending' => 'En attente',
+                                            'process' => 'En cours',
+                                            'take' => 'Prise en charge',
+                                            default => $ligne->status,
+                                        };
+                                    @endphp
+                                    <x-ui.badge :tone="$tone">{{ $libelle }}</x-ui.badge>
+                                </td>
+                                <td class="whitespace-nowrap px-4 py-3 text-gray-500">{{ $ligne->created_at?->format('d/m/Y H:i') ?? '—' }}</td>
+                            </tr>
+                        @empty
+                            <x-ui.empty
+                                :colspan="4"
+                                title="Aucune commande"
+                                message="Les commandes passées depuis la boutique ou l'application apparaîtront ici." />
+                        @endforelse
+                    </x-ui.table>
+                </x-ui.card>
 
-                    <!-- Card Clando -->
-                    <div class="group bg-white rounded-xl shadow-md hover:shadow-xl p-6 text-center transition-all duration-300 hover:-translate-y-1 border border-gray-100">
-                        <div class="flex justify-center mb-4">
-                            <div class="bg-yellow-100 p-4 rounded-full group-hover:bg-yellow-600 transition duration-300">
-                                <svg class="w-8 h-8 text-yellow-600 group-hover:text-white transition duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M12 14l9-5-9-5-9 5 9 5zm0 0v7m-9-7v7m18-7v7m-9-12v2m-6 4h12"></path>
-                                </svg>
-                            </div>
-                        </div>
-                        <h2 class="text-xl font-bold text-gray-800 mb-2">Clando</h2>
-                        <p class="text-gray-600 text-sm mb-6 leading-relaxed">Gérez les services ou activités liés à Clando.</p>
-                        <a href="/dashboard/clando"
-                            class="inline-block w-full bg-yellow-600 text-white py-2.5 px-6 rounded-lg font-medium hover:bg-yellow-700 transition duration-200">
-                            Accéder
-                        </a>
-                    </div>
+                {{-- Alertes stock --}}
+                <x-ui.card :padded="false" title="Stock à surveiller" subtitle="Moins de 10 unités">
+                    <x-slot:actions>
+                        <x-ui.button size="sm" variant="secondary" :href="route('dashboard.products')">Produits</x-ui.button>
+                    </x-slot:actions>
 
-                    <!-- Card Agents -->
-                    <div class="group bg-white rounded-xl shadow-md hover:shadow-xl p-6 text-center transition-all duration-300 hover:-translate-y-1 border border-gray-100">
-                        <div class="flex justify-center mb-4">
-                            <div class="bg-red-100 p-4 rounded-full group-hover:bg-red-600 transition duration-300">
-                                <svg class="w-8 h-8 text-red-600 group-hover:text-white transition duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a2 2 0 012-2h2a2 2 0 012 2v5m-4 0h4"></path>
-                                </svg>
-                            </div>
-                        </div>
-                        <h2 class="text-xl font-bold text-gray-800 mb-2">Agents</h2>
-                        <p class="text-gray-600 text-sm mb-6 leading-relaxed">Gérez les agents et affectez-les à des tâches ou services.</p>
-                        <a href="/dashboard/agents"
-                            class="inline-block w-full bg-red-600 text-white py-2.5 px-6 rounded-lg font-medium hover:bg-red-700 transition duration-200">
-                            Accéder
-                        </a>
-                    </div>
+                    <ul class="divide-y divide-gray-100">
+                        @forelse ($this->stockFaible as $produit)
+                            <li class="flex items-center justify-between gap-3 px-5 py-3">
+                                <div class="min-w-0">
+                                    <p class="truncate text-sm font-semibold text-gray-900">{{ $produit->name }}</p>
+                                    <p class="text-xs text-gray-500">{{ $produit->status === 'Success' ? 'En ligne' : 'Hors ligne' }}</p>
+                                </div>
+                                <x-ui.badge :tone="(int) $produit->stock_init === 0 ? 'danger' : 'warning'">
+                                    {{ (int) $produit->stock_init }}
+                                </x-ui.badge>
+                            </li>
+                        @empty
+                            <li>
+                                <x-ui.empty
+                                    :in-row="false"
+                                    title="Stocks au vert"
+                                    message="Aucun produit sous le seuil de 10 unités." />
+                            </li>
+                        @endforelse
+                    </ul>
+                </x-ui.card>
+            </div>
 
-                    <!-- Card Statistiques -->
-                    <div class="group bg-white rounded-xl shadow-md hover:shadow-xl p-6 text-center transition-all duration-300 hover:-translate-y-1 border border-gray-100">
-                        <div class="flex justify-center mb-4">
-                            <div class="bg-green-100 p-4 rounded-full group-hover:bg-cyan-600 transition duration-300">
-                                <svg class="w-8 h-8 text-cyan-600 group-hover:text-white transition duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                                </svg>
-                            </div>
-                        </div>
-                        <h2 class="text-xl font-bold text-gray-800 mb-2">Statistiques</h2>
-                        <p class="text-gray-600 text-sm mb-6 leading-relaxed">Consultez les statistiques des ventes, produits et performances.</p>
-                        <a href="/dashboard/statistiques"
-                            class="inline-block w-full bg-green-600 text-white py-2.5 px-6 rounded-lg font-medium hover:bg-cyan-700 transition duration-200">
-                            Accéder
-                        </a>
-                    </div>
-
-                    <!-- Card Clients -->
-                    <div class="group bg-white rounded-xl shadow-md hover:shadow-xl p-6 text-center transition-all duration-300 hover:-translate-y-1 border border-gray-100">
-                        <div class="flex justify-center mb-4">
-                            <div class="bg-yellow-100 p-4 rounded-full group-hover:bg-teal-600 transition duration-300">
-                                <svg class="w-8 h-8 text-teal-600 group-hover:text-white transition duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                                </svg>
-                            </div>
-                        </div>
-                        <h2 class="text-xl font-bold text-gray-800 mb-2">Clients</h2>
-                        <p class="text-gray-600 text-sm mb-6 leading-relaxed">Gérez les informations des clients et leur historique d'achat.</p>
-                        <a href="/dashboard/customers"
-                            class="inline-block w-full bg-yellow-600 text-white py-2.5 px-6 rounded-lg font-medium hover:bg-teal-700 transition duration-200">
-                            Accéder
-                        </a>
-                    </div>
-
-                    <!-- Card Articles -->
-                    <div class="group bg-white rounded-xl shadow-md hover:shadow-xl p-6 text-center transition-all duration-300 hover:-translate-y-1 border border-gray-100">
-                        <div class="flex justify-center mb-4">
-                            <div class="bg-indigo-100 p-4 rounded-full group-hover:bg-orange-600 transition duration-300">
-                                <svg class="w-8 h-8 text-orange-600 group-hover:text-white transition duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"></path>
-                                </svg>
-                            </div>
-                        </div>
-                        <h2 class="text-xl font-bold text-gray-800 mb-2">Articles</h2>
-                        <p class="text-gray-600 text-sm mb-6 leading-relaxed">Gérez les articles, leur contenu et leur publication.</p>
-                        <a href="/dashboard/articles"
-                            class="inline-block w-full bg-indigo-600 text-white py-2.5 px-6 rounded-lg font-medium hover:bg-orange-700 transition duration-200">
-                            Accéder
-                        </a>
-                    </div>
-
-                    <!-- Card Transactions -->
-                    <div class="group bg-white rounded-xl shadow-md hover:shadow-xl p-6 text-center transition-all duration-300 hover:-translate-y-1 border border-gray-100">
-                        <div class="flex justify-center mb-4">
-                            <div class="bg-blue-100 p-4 rounded-full group-hover:bg-emerald-600 transition duration-300">
-                                <svg class="w-8 h-8 text-emerald-600 group-hover:text-white transition duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                </svg>
-                            </div>
-                        </div>
-                        <h2 class="text-xl font-bold text-gray-800 mb-2">Transactions</h2>
-                        <p class="text-gray-600 text-sm mb-6 leading-relaxed">Consultez et gérez les détails des transactions financières.</p>
-                        <a href="/dashboard/transactions"
-                            class="inline-block w-full bg-blue-600 text-white py-2.5 px-6 rounded-lg font-medium hover:bg-emerald-700 transition duration-200">
-                            Accéder
-                        </a>
-                    </div>
-
-                    <!-- Card Opérateurs -->
-                    <div class="group bg-white rounded-xl shadow-md hover:shadow-xl p-6 text-center transition-all duration-300 hover:-translate-y-1 border border-gray-100">
-                        <div class="flex justify-center mb-4">
-                            <div class="bg-red-100 p-4 rounded-full group-hover:bg-slate-600 transition duration-300">
-                                <svg class="w-8 h-8 text-slate-600 group-hover:text-white transition duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a2 2 0 012-2h2a2 2 0 012 2v5m-4 0h4"></path>
-                                </svg>
-                            </div>
-                        </div>
-                        <h2 class="text-xl font-bold text-gray-800 mb-2">Opérateurs</h2>
-                        <p class="text-gray-600 text-sm mb-6 leading-relaxed">Gérez les opérateurs et leurs rôles dans le système.</p>
-                        <a href="/dashboard/operators"
-                            class="inline-block w-full bg-red-600 text-white py-2.5 px-6 rounded-lg font-medium hover:bg-slate-700 transition duration-200">
-                            Accéder
-                        </a>
-                    </div>
-
-                </div>
+            {{-- Raccourcis --}}
+            <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                @foreach ([
+                    ['dashboard.products', 'Ajouter un produit', 'Créer une fiche et publier'],
+                    ['dashboard.commands', 'Suivre les commandes', $this->stats['en_cours'] . ' en cours'],
+                    ['dashboard.customers', 'Clients', $this->stats['clients'] . ' comptes'],
+                    ['dashboard.statistiques', 'Statistiques', 'Analyse détaillée'],
+                ] as [$route, $titre, $desc])
+                    <a href="{{ route($route) }}"
+                       class="group rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md">
+                        <p class="text-sm font-bold text-gray-900 group-hover:text-brand-700">{{ $titre }}</p>
+                        <p class="mt-1 text-xs text-gray-500">{{ $desc }}</p>
+                    </a>
+                @endforeach
             </div>
         </div>
     @endvolt
