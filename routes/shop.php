@@ -32,6 +32,15 @@ Route::delete('/panier/{product}', [CartController::class, 'remove'])->name('sho
 Route::get('/actualites', [ArticleController::class, 'index'])->name('shop.articles.index');
 Route::get('/actualites/{article}', [ArticleController::class, 'show'])->name('shop.articles.show');
 
+/*
+| Mur des commandes affiché en télévision. Réservé à l'équipe : l'écran expose
+| noms, téléphones et adresses de clients.
+*/
+Route::middleware(['auth', \App\Http\Middleware\EnsureUserIsStaff::class])->group(function () {
+    Route::get('/commandes', [\App\Http\Controllers\Admin\OrderBoardController::class, 'index'])->name('orders.board');
+    Route::get('/commandes/flux', [\App\Http\Controllers\Admin\OrderBoardController::class, 'feed'])->name('orders.board.feed');
+});
+
 Route::get('/download-app', [MobileAppController::class, 'show'])->name('shop.app.show');
 Route::get('/download-app/clando.apk', [MobileAppController::class, 'apk'])->name('shop.app.android.apk');
 

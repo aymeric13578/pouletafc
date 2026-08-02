@@ -18,7 +18,9 @@
     use Livewire\Volt\Component;
     use App\Models\order_detail;
 
-    name('dashboard.commands');
+    // Renommé : /commandes est désormais servi par la version React (OrderBoardController).
+    // Cette page reste accessible sur /commandes-legacy le temps de la comparaison.
+    name('dashboard.commands.legacy');
 
     new class extends Component {
         public $search = '';
