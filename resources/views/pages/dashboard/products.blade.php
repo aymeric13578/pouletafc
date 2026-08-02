@@ -30,10 +30,29 @@ new class extends Component {
     public $locality = '';
     public $bar_code = '';
     public $commission = '';
-    public $product_image1 = null;
-    public $product_image2 = null;
-    public $existing_image1 = '';
-    public $existing_image2 = '';
+    /*
+    | Une fiche produit porte quatre colonnes d'image, mais le formulaire n'en
+    | pilotait que deux (product_image1 et product_image2) et jamais "img".
+    | Or la boutique se sert de "img" comme image principale et construit sa
+    | galerie à partir des quatre : remplacer l'image depuis le tableau de bord
+    | laissait donc l'ancienne en place ET ajoutait la nouvelle à côté.
+    |
+    | Le formulaire distingue maintenant explicitement :
+    |   image principale  -> img + product_image1 (les deux, pour que la boutique
+    |                        et l'application mobile pointent sur la même)
+    |   images secondaires -> product_image2, product_image3
+    */
+    public $main_image = null;
+    public $secondary_image1 = null;
+    public $secondary_image2 = null;
+
+    public $existing_main = '';
+    public $existing_secondary1 = '';
+    public $existing_secondary2 = '';
+
+    /** Images existantes marquées pour suppression à l'enregistrement. */
+    public $remove_secondary1 = false;
+    public $remove_secondary2 = false;
     public $product_length = '';
     public $product_width = '';
     public $product_epaisseur = '';
@@ -88,8 +107,11 @@ new class extends Component {
             $this->product_weight = $product->product_weight ?? $product->product_weigth;
             $this->parameter1 = $product->parameter1;
             $this->parameter2 = $product->parameter2;
-            $this->existing_image1 = $product->product_image1;
-            $this->existing_image2 = $product->product_image2;
+            // "img" fait foi comme image principale ; on retombe sur product_image1
+            // pour les fiches créées avant que le formulaire ne pilote "img".
+            $this->existing_main = $product->img ?: $product->product_image1;
+            $this->existing_secondary1 = $product->product_image2;
+            $this->existing_secondary2 = $product->product_image3;
             $this->category_name = $product->category?->name ?? 'N/A';
             $this->shop_name = $product->shop?->shop_name ?? 'N/A';
         }
@@ -131,10 +153,14 @@ new class extends Component {
         $this->locality = '';
         $this->bar_code = '';
         $this->commission = '';
-        $this->product_image1 = null;
-        $this->product_image2 = null;
-        $this->existing_image1 = '';
-        $this->existing_image2 = '';
+        $this->main_image = null;
+        $this->secondary_image1 = null;
+        $this->secondary_image2 = null;
+        $this->existing_main = '';
+        $this->existing_secondary1 = '';
+        $this->existing_secondary2 = '';
+        $this->remove_secondary1 = false;
+        $this->remove_secondary2 = false;
         $this->product_length = '';
         $this->product_width = '';
         $this->product_epaisseur = '';
@@ -160,8 +186,9 @@ new class extends Component {
             'locality' => 'nullable|string|max:191',
             'bar_code' => 'nullable|string|max:191',
             'commission' => 'nullable|string|max:191',
-            'product_image1' => $this->editMode ? 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048' : 'required|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
-            'product_image2' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+            'main_image' => $this->editMode ? 'nullable|image|mimes:jpeg,png,jpg,gif,svg,webp|max:4096' : 'required|image|mimes:jpeg,png,jpg,gif,svg,webp|max:4096',
+            'secondary_image1' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg,webp|max:4096',
+            'secondary_image2' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg,webp|max:4096',
             'product_length' => 'nullable|string|max:191',
             'product_width' => 'nullable|string|max:191',
             'product_epaisseur' => 'nullable|string|max:191',
@@ -200,16 +227,45 @@ new class extends Component {
             'status' => 'pending',
         ];
 
-        if ($this->product_image1) {
-            $data['product_image1'] = $this->storeUploadedImage($this->product_image1);
+        // Image principale : écrite dans "img" ET "product_image1". La boutique lit
+        // "img", l'application mobile "product_image1" : les deux doivent désigner
+        // le même fichier, sinon l'ancienne image reste visible à côté de la neuve.
+        if ($this->main_image) {
+            $url = $this->storeUploadedImage($this->main_image);
+            $data['img'] = $url;
+            $data['product_image1'] = $url;
         }
 
-        if ($this->product_image2) {
-            $data['product_image2'] = $this->storeUploadedImage($this->product_image2);
+        if ($this->secondary_image1) {
+            $data['product_image2'] = $this->storeUploadedImage($this->secondary_image1);
+        } elseif ($this->remove_secondary1) {
+            $data['product_image2'] = null;
+        }
+
+        if ($this->secondary_image2) {
+            $data['product_image3'] = $this->storeUploadedImage($this->secondary_image2);
+        } elseif ($this->remove_secondary2) {
+            $data['product_image3'] = null;
         }
 
         if ($this->editMode) {
             $product = Product::findOrFail($this->productId);
+
+            // Supprime du disque les fichiers remplacés, sinon public/upload enfle
+            // indéfiniment à chaque modification.
+            if ($this->main_image) {
+                $this->deleteStoredImage($product->img);
+                if ($product->product_image1 !== $product->img) {
+                    $this->deleteStoredImage($product->product_image1);
+                }
+            }
+            if ($this->secondary_image1 || $this->remove_secondary1) {
+                $this->deleteStoredImage($product->product_image2);
+            }
+            if ($this->secondary_image2 || $this->remove_secondary2) {
+                $this->deleteStoredImage($product->product_image3);
+            }
+
             $product->update($data);
             $this->dispatch('notify', ['message' => 'Produit modifié avec succès !', 'type' => 'success']);
         } else {
@@ -242,6 +298,35 @@ new class extends Component {
         return asset('upload/' . $name);
     }
 
+    /**
+     * Supprime le fichier correspondant à une URL enregistrée en base.
+     *
+     * Les valeurs stockées cohabitent sous trois formes selon leur époque : URL
+     * absolue sur l'ancien domaine, URL absolue sur le domaine actuel, ou chemin
+     * relatif. On ne garde que la partie chemin pour retrouver le fichier.
+     *
+     * Les images livrées avec le projet (images/produits de la boutique) ne sont
+     * jamais supprimées : elles sont versionnées et partagées entre fiches.
+     */
+    protected function deleteStoredImage(?string $url): void
+    {
+        if (! $url) {
+            return;
+        }
+
+        $path = ltrim(parse_url($url, PHP_URL_PATH) ?: $url, '/');
+
+        if (! str_starts_with($path, 'upload/')) {
+            return;
+        }
+
+        $full = public_path($path);
+
+        if (is_file($full)) {
+            @unlink($full);
+        }
+    }
+
     public function toggleStatus($productId)
     {
         $product = Product::findOrFail($productId);
@@ -254,19 +339,8 @@ new class extends Component {
     public function deleteProduct($productId)
     {
         $product = Product::findOrFail($productId);
-        // Les URLs en base cohabitent sous plusieurs formes (ancien domaine, nouveau
-        // domaine, chemin relatif) : on ne retient que la partie chemin pour retrouver
-        // le fichier sur le disque, quel que soit le préfixe utilisé à l'époque.
-        foreach ([$product->product_image1, $product->product_image2] as $imageUrl) {
-            if (! $imageUrl) {
-                continue;
-            }
-
-            $path = ltrim(parse_url($imageUrl, PHP_URL_PATH) ?: $imageUrl, '/');
-
-            if ($path && file_exists(public_path($path)) && is_file(public_path($path))) {
-                unlink(public_path($path));
-            }
+        foreach ([$product->img, $product->product_image1, $product->product_image2, $product->product_image3] as $imageUrl) {
+            $this->deleteStoredImage($imageUrl);
         }
         $product->delete();
         Category::where('id', $product->id_category)->decrement('product_count', 1);
@@ -485,24 +559,33 @@ new class extends Component {
                                         <p class="text-sm">{{ $commission }}</p>
                                     </div>
                                     <div class="col-span-3">
-                                        <label class="block text-gray-700 text-sm mb-1">Images</label>
-                                        <div class="grid grid-cols-2 gap-3">
+                                        <label class="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-500">Images</label>
+                                        <div class="flex flex-wrap items-end gap-4">
                                             <div>
-                                                @if ($existing_image1)
-                                                    <button type="button" wire:click="openImagePopup('{{ $existing_image1 }}')"
-                                                        class="bg-blue-600 text-white py-1 px-3 text-sm rounded-lg hover:bg-blue-700">Voir l'image 1</button>
+                                                <p class="mb-1 text-xs font-semibold text-gray-600">Principale</p>
+                                                @if ($existing_main)
+                                                    <button type="button" wire:click="openImagePopup('{{ $existing_main }}')">
+                                                        <img src="{{ $existing_main }}" alt="Image principale"
+                                                             class="h-24 w-24 rounded-xl border-2 border-brand-200 object-cover transition hover:opacity-80">
+                                                    </button>
                                                 @else
-                                                    <p class="text-sm">Aucune image</p>
+                                                    <div class="flex h-24 w-24 items-center justify-center rounded-xl border-2 border-dashed border-gray-300 text-xs text-gray-400">Aucune</div>
                                                 @endif
                                             </div>
-                                            <div>
-                                                @if ($existing_image2)
-                                                    <button type="button" wire:click="openImagePopup('{{ $existing_image2 }}')"
-                                                        class="bg-blue-600 text-white py-1 px-3 text-sm rounded-lg hover:bg-blue-700">Voir l'image 2</button>
-                                                @else
-                                                    <p class="text-sm">Aucune image</p>
-                                                @endif
-                                            </div>
+
+                                            @foreach ([$existing_secondary1, $existing_secondary2] as $i => $secondaire)
+                                                <div>
+                                                    <p class="mb-1 text-xs font-semibold text-gray-600">Secondaire {{ $i + 1 }}</p>
+                                                    @if ($secondaire)
+                                                        <button type="button" wire:click="openImagePopup('{{ $secondaire }}')">
+                                                            <img src="{{ $secondaire }}" alt="Image secondaire {{ $i + 1 }}"
+                                                                 class="h-16 w-16 rounded-lg border border-gray-200 object-cover transition hover:opacity-80">
+                                                        </button>
+                                                    @else
+                                                        <div class="flex h-16 w-16 items-center justify-center rounded-lg border-2 border-dashed border-gray-300 text-xs text-gray-400">—</div>
+                                                    @endif
+                                                </div>
+                                            @endforeach
                                         </div>
                                     </div>
                                     <div>
@@ -622,67 +705,109 @@ new class extends Component {
                                         @enderror
                                     </div>
                                     <div class="col-span-3">
-                                        <label class="block text-gray-700 text-sm mb-1">Images</label>
-                                        <div class="grid grid-cols-2 gap-3">
-                                            <div>
-                                                <label class="block text-gray-700 text-sm mb-1" for="product_image1">Image 1 @unless($editMode)<span class="text-red-500">*</span>@endunless</label>
-                                                <input type="file" id="product_image1" wire:model="product_image1" accept="image/*"
-                                                       class="w-full p-1 text-sm border border-gray-300 rounded-lg" {{ $editMode ? '' : 'required' }}>
+                                        <div class="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+                                            <p class="text-xs font-bold uppercase tracking-wider text-gray-500">Image principale @unless($editMode)<span class="text-red-500">*</span>@endunless</p>
+                                            <p class="mt-0.5 text-xs text-gray-500">Celle qui représente le produit dans la boutique, l'application et les partages.</p>
 
-                                                {{-- Barre de progression native de Livewire : sans elle, l'utilisateur
-                                                     n'avait aucun retour pendant l'envoi et croyait que rien ne se passait. --}}
-                                                <div wire:loading wire:target="product_image1" class="mt-2 flex items-center gap-2 text-xs text-indigo-600">
-                                                    <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"></path>
-                                                    </svg>
-                                                    <span x-data="{ p: 0 }"
-                                                          x-on:livewire-upload-progress.window="p = $event.detail.progress"
-                                                          x-text="'Envoi de l\'image… ' + p + '%'"></span>
+                                            <div class="mt-3 flex flex-wrap items-start gap-4">
+                                                <div class="shrink-0">
+                                                    @if ($main_image && ! is_string($main_image))
+                                                        <img src="{{ $main_image->temporaryUrl() }}" alt="Nouvelle image principale"
+                                                             wire:loading.remove wire:target="main_image"
+                                                             class="h-24 w-24 rounded-xl border-2 border-brand-500 object-cover shadow-sm">
+                                                    @elseif ($existing_main)
+                                                        <button type="button" wire:click="openImagePopup('{{ $existing_main }}')" class="block">
+                                                            <img src="{{ $existing_main }}" alt="Image principale actuelle"
+                                                                 class="h-24 w-24 rounded-xl border border-gray-200 object-cover transition hover:opacity-80">
+                                                        </button>
+                                                    @else
+                                                        <div class="flex h-24 w-24 items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-white">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-7 w-7 text-gray-300">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M18 6.75h.008v.008H18V6.75z" />
+                                                            </svg>
+                                                        </div>
+                                                    @endif
                                                 </div>
 
-                                                @if ($product_image1 && ! is_string($product_image1))
-                                                    <img src="{{ $product_image1->temporaryUrl() }}" alt="Aperçu image 1"
-                                                         wire:loading.remove wire:target="product_image1"
-                                                         class="mt-2 h-20 w-20 rounded-lg border object-cover">
-                                                @endif
+                                                <div class="min-w-0 flex-1">
+                                                    <input type="file" id="main_image" wire:model="main_image" accept="image/*"
+                                                           class="block w-full cursor-pointer rounded-lg border border-gray-300 bg-white p-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-brand-700 hover:file:bg-brand-100">
 
-                                                @error('product_image1')
-                                                    <span class="text-red-500 text-xs">{{ $message }}</span>
-                                                @enderror
-                                                @if ($existing_image1)
-                                                    <button type="button" wire:click="openImagePopup('{{ $existing_image1 }}')"
-                                                        class="mt-2 bg-blue-600 text-white py-1 px-3 text-sm rounded-lg hover:bg-blue-700">Voir l'image 1</button>
-                                                @endif
+                                                    <div wire:loading wire:target="main_image" class="mt-2 flex items-center gap-2 text-xs font-medium text-brand-700">
+                                                        <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"></path>
+                                                        </svg>
+                                                        <span x-data="{ p: 0 }" x-on:livewire-upload-progress.window="p = $event.detail.progress"
+                                                              x-text="'Envoi… ' + p + '%'"></span>
+                                                    </div>
+
+                                                    @if ($editMode && $existing_main && ! $main_image)
+                                                        <p class="mt-2 text-xs text-gray-500">Choisir un fichier <strong>remplace</strong> l'image actuelle.</p>
+                                                    @endif
+
+                                                    @error('main_image')
+                                                        <p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>
+                                                    @enderror
+                                                </div>
                                             </div>
-                                            <div>
-                                                <label class="block text-gray-700 text-sm mb-1" for="product_image2">Image 2 (optionnel)</label>
-                                                <input type="file" id="product_image2" wire:model="product_image2" accept="image/*"
-                                                       class="w-full p-1 text-sm border border-gray-300 rounded-lg">
+                                        </div>
 
-                                                <div wire:loading wire:target="product_image2" class="mt-2 flex items-center gap-2 text-xs text-indigo-600">
-                                                    <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"></path>
-                                                    </svg>
-                                                    <span x-data="{ p: 0 }"
-                                                          x-on:livewire-upload-progress.window="p = $event.detail.progress"
-                                                          x-text="'Envoi de l\'image… ' + p + '%'"></span>
-                                                </div>
+                                        <div class="mt-4 rounded-xl border border-gray-200 p-4">
+                                            <p class="text-xs font-bold uppercase tracking-wider text-gray-500">Images secondaires</p>
+                                            <p class="mt-0.5 text-xs text-gray-500">Facultatives. Affichées dans la galerie de la fiche produit.</p>
 
-                                                @if ($product_image2 && ! is_string($product_image2))
-                                                    <img src="{{ $product_image2->temporaryUrl() }}" alt="Aperçu image 2"
-                                                         wire:loading.remove wire:target="product_image2"
-                                                         class="mt-2 h-20 w-20 rounded-lg border object-cover">
-                                                @endif
+                                            <div class="mt-3 grid gap-4 sm:grid-cols-2">
+                                                @foreach ([
+                                                    ['secondary_image1', 'existing_secondary1', 'remove_secondary1', 'Image secondaire 1'],
+                                                    ['secondary_image2', 'existing_secondary2', 'remove_secondary2', 'Image secondaire 2'],
+                                                ] as [$champ, $existant, $suppression, $libelle])
+                                                    <div class="flex items-start gap-3">
+                                                        <div class="shrink-0">
+                                                            @if ($$champ && ! is_string($$champ))
+                                                                <img src="{{ $$champ->temporaryUrl() }}" alt="{{ $libelle }}"
+                                                                     wire:loading.remove wire:target="{{ $champ }}"
+                                                                     class="h-16 w-16 rounded-lg border-2 border-brand-500 object-cover">
+                                                            @elseif ($$existant && ! $$suppression)
+                                                                <button type="button" wire:click="openImagePopup('{{ $$existant }}')" class="block">
+                                                                    <img src="{{ $$existant }}" alt="{{ $libelle }}"
+                                                                         class="h-16 w-16 rounded-lg border border-gray-200 object-cover transition hover:opacity-80">
+                                                                </button>
+                                                            @else
+                                                                <div class="flex h-16 w-16 items-center justify-center rounded-lg border-2 border-dashed border-gray-300">
+                                                                    <span class="text-lg text-gray-300">+</span>
+                                                                </div>
+                                                            @endif
+                                                        </div>
 
-                                                @error('product_image2')
-                                                    <span class="text-red-500 text-xs">{{ $message }}</span>
-                                                @enderror
-                                                @if ($existing_image2)
-                                                    <button type="button" wire:click="openImagePopup('{{ $existing_image2 }}')"
-                                                        class="mt-2 bg-blue-600 text-white py-1 px-3 text-sm rounded-lg hover:bg-blue-700">Voir l'image 2</button>
-                                                @endif
+                                                        <div class="min-w-0 flex-1">
+                                                            <label class="mb-1 block text-xs font-semibold text-gray-700" for="{{ $champ }}">{{ $libelle }}</label>
+                                                            <input type="file" id="{{ $champ }}" wire:model="{{ $champ }}" accept="image/*"
+                                                                   class="block w-full cursor-pointer rounded-lg border border-gray-300 bg-white p-1.5 text-xs file:mr-2 file:rounded file:border-0 file:bg-gray-100 file:px-2 file:py-1 file:text-xs file:font-semibold file:text-gray-700">
+
+                                                            <div wire:loading wire:target="{{ $champ }}" class="mt-1.5 flex items-center gap-1.5 text-xs text-brand-700">
+                                                                <svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"></path>
+                                                                </svg>
+                                                                Envoi…
+                                                            </div>
+
+                                                            @if ($$existant && ! $$suppression && ! $$champ)
+                                                                <button type="button" wire:click="$set('{{ $suppression }}', true)"
+                                                                        class="mt-1.5 text-xs font-semibold text-red-600 hover:underline">Retirer</button>
+                                                            @elseif ($$suppression)
+                                                                <p class="mt-1.5 text-xs text-red-600">Sera retirée à l'enregistrement.
+                                                                    <button type="button" wire:click="$set('{{ $suppression }}', false)" class="font-semibold underline">Annuler</button>
+                                                                </p>
+                                                            @endif
+
+                                                            @error($champ)
+                                                                <p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>
+                                                            @enderror
+                                                        </div>
+                                                    </div>
+                                                @endforeach
                                             </div>
                                         </div>
                                     </div>
@@ -760,7 +885,7 @@ new class extends Component {
                                 {{-- Désactivé pendant l'envoi d'une image et pendant l'enregistrement :
                                      un clic prématuré validait le formulaire sans l'image, ou créait un doublon. --}}
                                 <button type="submit" form="productForm"
-                                        wire:loading.attr="disabled" wire:target="product_image1,product_image2,addProduct"
+                                        wire:loading.attr="disabled" wire:target="main_image,secondary_image1,secondary_image2,addProduct"
                                         class="bg-indigo-600 text-white py-1 px-3 text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
                                     <span wire:loading.remove wire:target="addProduct">{{ $editMode ? 'Modifier' : 'Ajouter' }}</span>
                                     <span wire:loading wire:target="addProduct">Enregistrement…</span>

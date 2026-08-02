@@ -21,7 +21,9 @@ class FolioServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Folio::path(resource_path('views/pages'))->middleware([
-            'dashboard/*' => ['auth'],
+            // "auth" seul laissait entrer n'importe quel compte connecté, clients
+            // de la boutique compris. EnsureUserIsStaff limite aux rôles internes.
+            'dashboard/*' => ['auth', \App\Http\Middleware\EnsureUserIsStaff::class],
         ]);
     }
 }

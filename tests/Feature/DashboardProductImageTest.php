@@ -50,16 +50,17 @@ class DashboardProductImageTest extends TestCase
 
     public function test_la_page_produits_s_affiche_avec_l_indicateur_de_chargement(): void
     {
-        $user = \App\Models\User::first();
+        $user = \App\Models\User::where('role', 'admin')->first();
 
         if (! $user) {
-            $this->markTestSkipped('Aucun utilisateur en base pour authentifier la requête.');
+            $this->markTestSkipped('Aucun administrateur en base pour authentifier la requête.');
         }
 
         $response = $this->actingAs($user)->get('/dashboard/products');
 
         $response->assertOk();
-        $response->assertSee('product_image1', false);
+        // Champ renommé : le formulaire distingue désormais image principale et secondaires.
+        $response->assertSee('main_image', false);
         $response->assertSee('livewire-upload-progress', false);
         $response->assertSee('wire:loading.attr', false);
         $response->assertDontSee('2gether-network', false);

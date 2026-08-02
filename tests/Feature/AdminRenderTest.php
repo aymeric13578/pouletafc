@@ -27,13 +27,13 @@ class AdminRenderTest extends TestCase
     /** @dataProvider pages */
     public function test_ecran_rend_sans_erreur(string $url): void
     {
-        $user = \App\Models\User::first();
+        $user = \App\Models\User::where("role", "admin")->firstOrFail();
         $this->actingAs($user)->get($url)->assertOk();
     }
 
     public function test_la_navigation_laterale_expose_tous_les_ecrans(): void
     {
-        $user = \App\Models\User::first();
+        $user = \App\Models\User::where("role", "admin")->firstOrFail();
         $html = $this->actingAs($user)->get('/dashboard')->getContent();
 
         foreach (['Produits', 'Catégories', 'Commandes', 'Transactions', 'Clients', 'Agents', 'Utilisateurs', 'Statistiques'] as $lien) {
@@ -43,7 +43,7 @@ class AdminRenderTest extends TestCase
 
     public function test_l_accueil_affiche_des_indicateurs_et_non_une_grille_de_liens(): void
     {
-        $user = \App\Models\User::first();
+        $user = \App\Models\User::where("role", "admin")->firstOrFail();
         $response = $this->actingAs($user)->get('/dashboard');
 
         // assertSee échappe par défaut, ce qui correspond au rendu Blade (apostrophes en &#039;).
