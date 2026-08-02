@@ -112,6 +112,14 @@ jobs:
             set -euo pipefail
             ARCHIVE="$HOME/${ARCHIVE_NAME}"
 
+            # Jalon horodaté avant chaque étape. Sans ça, quand le déploiement dépasse
+            # le timeout on ne sait pas laquelle a traîné : la sortie s'arrête net sur
+            # la dernière ligne affichée, qui ne dit rien de l'étape en cours.
+            DEPLOY_T0=$(date +%s)
+            step() {
+              echo "[+$(( $(date +%s) - DEPLOY_T0 ))s] === $1"
+            }
+
             # 0. Sauvegarde défensive et explicite du .env serveur AVANT toute opération
             #    destructive (le mv/rm ci-dessous). Ces copies vivent dans un dossier dédié
             #    qui n'est JAMAIS purgé par le déploiement : le .env de production reste donc
@@ -129,6 +137,7 @@ jobs:
               echo "Aucun .env courant à sauvegarder (premier déploiement ?)"
             fi
 
+            step "1 - sauvegarde de la release"
             # 1. Sauvegarde la release actuelle si elle existe (le backup précédent est remplacé)
             if [ -d "$DEPLOY_PATH" ]; then
               echo "Sauvegarde de la release existante vers $BACKUP_PATH"
@@ -141,6 +150,7 @@ jobs:
             # 2. Crée le dossier de release seulement s'il n'existe pas déjà
             mkdir -p "$DEPLOY_PATH"
 
+            step "3 - extraction archive"
             # 3. Extrait la nouvelle release
             tar -xzf "$ARCHIVE" -C "$DEPLOY_PATH"
             rm -f "$ARCHIVE"
@@ -160,13 +170,19 @@ jobs:
               exit 1
             fi
 
-            # 5. Restaure les fichiers persistants (uploads utilisateurs, logs) depuis la sauvegarde
+            # 5. Restaure les fichiers persistants depuis la sauvegarde
+            step "5 - restauration storage/app"
             if [ -d "$BACKUP_PATH/storage/app" ]; then
               rsync -a "$BACKUP_PATH/storage/app/" "$DEPLOY_PATH/storage/app/"
             fi
-            if [ -d "$BACKUP_PATH/storage/logs" ]; then
-              rsync -a "$BACKUP_PATH/storage/logs/" "$DEPLOY_PATH/storage/logs/"
-            fi
+
+            # Les logs ne sont PLUS recopiés d'une release à l'autre. Un laravel.log
+            # non tourné atteint facilement plusieurs Go sur un projet ancien, et le
+            # recopier intégralement à chaque déploiement sur ce disque mutualisé
+            # faisait dépasser le command_timeout de 30 min : le déploiement
+            # s'interrompait avant d'avoir synchronisé le webroot.
+            # Les anciens logs restent consultables dans $BACKUP_PATH/storage/logs.
+            step "5 - logs (ignorés volontairement, voir commentaire)"
 
             # 5 bis. Images produits et pièces jointes envoyées depuis l'app mobile et le
             #        back-office. Le code les écrit dans public_path('upload') (33 appels),
@@ -190,6 +206,7 @@ jobs:
               rsync -a --ignore-existing "$WEBROOT_PATH/upload/" "$DEPLOY_PATH/public/upload/"
             fi
 
+            step "6 - rsync vers le webroot"
             # 6. Synchronise les assets buildés vers le webroot réel (public_html n'est pas un
             #    symlink vers erpndazoa/public sur ce serveur, donc il faut copier le build à
             #    chaque déploiement, sinon le site sert d'anciens fichiers JS/CSS -> page cassée).
@@ -231,12 +248,15 @@ jobs:
               ln -sfn "$DEPLOY_PATH/storage/app/public" "$WEBROOT_PATH/storage"
             fi
 
+            step "8 - permissions"
             # 8. Permissions
             chmod -R ug+rwx "$DEPLOY_PATH/storage" "$DEPLOY_PATH/bootstrap/cache"
 
+            step "9 - taches artisan (migrate / config / view)"
             # 9. Tâches de release Laravel
             cd "$DEPLOY_PATH"
             php artisan migrate --force
+            step "9 - migrate termine, config:cache"
             php artisan config:cache
             # route:cache désactivé : routes/web.php contient des noms de route dupliqués
             # (dashboard, home, status.change, ...) qui font échouer la compilation du cache.
