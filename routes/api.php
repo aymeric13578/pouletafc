@@ -86,8 +86,13 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
        Route::post('getLocationAgent', 'GeolocalisationController@getLocationAgent');
     
        Route::get('getLocationAgent', 'GeolocalisationController@getLocationAgent');
-    
-    //agent 
+
+       // Lieux de livraison : alimente la recherche d'adresse du panier.
+       Route::get('getLocations', 'GeolocalisationController@getLocations');
+
+       Route::post('getLocations', 'GeolocalisationController@getLocations');
+
+    //agent
     
      Route::get('updatePositionAgent', 'ClandoController@updatePositionAgent');
       Route::post('updatePositionAgent', 'ClandoController@updatePositionAgent');
