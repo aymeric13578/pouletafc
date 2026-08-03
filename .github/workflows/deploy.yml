@@ -155,6 +155,24 @@ jobs:
             tar -xzf "$ARCHIVE" -C "$DEPLOY_PATH"
             rm -f "$ARCHIVE"
 
+            # 3 bis. Publie les assets buildés vers le webroot IMMÉDIATEMENT, sans --delete.
+            #
+            #        L'étape 1 a déjà basculé la release : le PHP servi lit donc le nouveau
+            #        manifest et réclame les nouveaux fichiers hashés. Or le webroot n'était
+            #        synchronisé qu'à l'étape 6, après plusieurs minutes de rsync sur ~5500
+            #        fichiers. Pendant tout cet intervalle, chaque page renvoyait du HTML
+            #        pointant vers des CSS et JS absents : site sans aucun style, ou en 500.
+            #
+            #        En copiant "build" tout de suite et sans --delete, les anciens et les
+            #        nouveaux fichiers hashés coexistent : les pages déjà ouvertes continuent
+            #        de fonctionner, les nouvelles trouvent leurs assets. L'étape 6 fera le
+            #        ménage des fichiers devenus inutiles.
+            if [ -d "$DEPLOY_PATH/public/build" ]; then
+              mkdir -p "$WEBROOT_PATH/build"
+              rsync -a "$DEPLOY_PATH/public/build/" "$WEBROOT_PATH/build/"
+              step "3 bis - assets publies (fenetre sans style refermee)"
+            fi
+
             # 4. Restaure le .env (jamais écrasé/regénéré par le pipeline). Ordre de priorité :
             #    a) le backup de la release précédente, b) la sauvegarde dédiée .env.latest,
             #    sinon on échoue proprement plutôt que de démarrer sans configuration.
