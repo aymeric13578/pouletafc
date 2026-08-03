@@ -19,4 +19,10 @@ class Quarter extends Model
     {
         return $this->hasMany(Location::class, 'id_quarter');
     }
+
+    /** Agent ou employé qui a créé le quartier depuis l'application mobile. */
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'id_user');
+    }
 }

@@ -26,4 +26,13 @@ class Location extends Model
     {
         return $this->belongsTo(Quarter::class, 'id_quarter');
     }
+
+    /**
+     * Agent ou employé qui a enregistré le lieu depuis l'application mobile.
+     * Nullable : les lieux les plus anciens n'ont pas d'auteur renseigné.
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'id_user');
+    }
 }
