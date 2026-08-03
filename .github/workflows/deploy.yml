@@ -137,6 +137,34 @@ jobs:
               echo "Aucun .env courant à sauvegarder (premier déploiement ?)"
             fi
 
+            # 0 bis. Contrôle de l'espace disque AVANT toute opération destructive.
+            #
+            #        Un déploiement a déjà échoué faute de place : l'extraction s'est
+            #        arrêtée en chemin, laissant une release sans "artisan", donc un
+            #        site en erreur 500. Le mal était fait puisque l'étape 1 avait déjà
+            #        écrasé la sauvegarde précédente. On refuse maintenant de démarrer
+            #        plutôt que de détruire le filet de sécurité.
+            #
+            #        Facteur 3 : l'archive reste sur le disque pendant l'extraction, son
+            #        contenu décompressé pèse environ 2,5 fois son poids, et la copie
+            #        vers le webroot demande un peu de marge. Volontairement calé au
+            #        plus juste : un seuil trop large bloquerait des déploiements
+            #        parfaitement viables, ce qui serait pire que le mal.
+            step "0 bis - controle de l'espace disque"
+            ESPACE_DISPO=$(df -Pk "$HOME" | awk 'NR==2 {print $4}')
+            TAILLE_ARCHIVE=$(du -k "$ARCHIVE" | awk '{print $1}')
+            REQUIS=$(( TAILLE_ARCHIVE * 3 ))
+
+            echo "Disponible : $(( ESPACE_DISPO / 1024 )) Mo | requis : $(( REQUIS / 1024 )) Mo"
+
+            if [ "$ESPACE_DISPO" -lt "$REQUIS" ]; then
+              echo "ERREUR: espace disque insuffisant, déploiement annulé." >&2
+              echo "Aucune modification n'a été faite, le site reste en ligne." >&2
+              df -h "$HOME" >&2
+              echo "Pistes : rm -rf ~/pouletafc_casse ~/release-*.tar.gz" >&2
+              exit 1
+            fi
+
             step "1 - sauvegarde de la release"
             # 1. Sauvegarde la release actuelle si elle existe (le backup précédent est remplacé)
             if [ -d "$DEPLOY_PATH" ]; then
@@ -154,6 +182,30 @@ jobs:
             # 3. Extrait la nouvelle release
             tar -xzf "$ARCHIVE" -C "$DEPLOY_PATH"
             rm -f "$ARCHIVE"
+
+            # 3 ter. Vérifie que la release extraite est complète, et revient en arrière
+            #        sinon.
+            #
+            #        Une extraction tronquée passait jusqu'ici inaperçue : le script
+            #        continuait, écrasait le webroot, et n'échouait qu'à l'étape 9 sur
+            #        « Could not open input file: artisan » — trop tard, le site était
+            #        déjà cassé et la sauvegarde consommée. On restaure immédiatement.
+            if [ ! -f "$DEPLOY_PATH/artisan" ] || [ ! -d "$DEPLOY_PATH/public/build" ]; then
+              echo "ERREUR: release incomplète après extraction." >&2
+              ls -la "$DEPLOY_PATH" | head -20 >&2
+              df -h "$HOME" >&2
+
+              if [ -d "$BACKUP_PATH/artisan" ] || [ -f "$BACKUP_PATH/artisan" ]; then
+                echo "Restauration de la release précédente..." >&2
+                rm -rf "$DEPLOY_PATH"
+                mv "$BACKUP_PATH" "$DEPLOY_PATH"
+                echo "Release précédente restaurée : le site reste en ligne." >&2
+              else
+                echo "AUCUNE sauvegarde exploitable : intervention manuelle nécessaire." >&2
+              fi
+
+              exit 1
+            fi
 
             # 3 bis. Publie les assets buildés vers le webroot IMMÉDIATEMENT, sans --delete.
             #
