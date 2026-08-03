@@ -20,18 +20,15 @@ class OrderBoardTest extends TestCase
         $this->actingAs($this->staff())->get('/commandes')->assertOk();
     }
 
-    public function test_le_mur_est_ferme_aux_clients(): void
+    public function test_le_mur_est_accessible_sans_connexion(): void
     {
-        $client = User::where('role', 'user')->firstOrFail();
-
-        $this->actingAs($client)->get('/commandes')->assertForbidden();
-        $this->actingAs($client)->get('/commandes/flux')->assertForbidden();
-    }
-
-    public function test_le_mur_est_ferme_aux_visiteurs(): void
-    {
-        // L'écran affiche noms, téléphones et adresses : il ne doit jamais être public.
-        $this->get('/commandes')->assertRedirect('/login');
+        /*
+         * Accès libre voulu : l'écran tourne en continu dans le local, sans clavier
+         * ni session ouverte. Conséquence assumée, noms, téléphones et adresses de
+         * clients sont visibles de qui connaît l'URL.
+         */
+        $this->get('/commandes')->assertOk();
+        $this->getJson('/commandes/flux')->assertOk();
     }
 
     public function test_le_flux_renvoie_les_commandes_et_les_compteurs(): void

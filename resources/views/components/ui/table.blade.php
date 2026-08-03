@@ -23,11 +23,11 @@
     <div class="admin-scrollbar overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
         <table class="min-w-full divide-y divide-gray-200 text-sm">
             @if (count($headers))
-                <thead class="bg-gray-50">
+                <thead class="bg-brand-700">
                     <tr>
                         @foreach ($headers as $header)
                             <th scope="col"
-                                class="whitespace-nowrap px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                                class="whitespace-nowrap px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-white">
                                 {{ $header }}
                             </th>
                         @endforeach

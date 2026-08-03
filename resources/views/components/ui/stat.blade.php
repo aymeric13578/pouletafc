@@ -2,33 +2,44 @@
     'label',
     'value',
     'hint' => null,
-    'tone' => 'brand', // brand | success | warning | danger
+    'tone' => 'brand', // brand | success | warning | danger | accent
     'icon' => null,
 ])
 
 @php
+    /*
+    | Tuiles en couleur pleine. Elles étaient blanches sur fond gris : sur un
+    | tableau de bord entièrement composé de cartes blanches, plus rien ne
+    | ressortait et l'écran paraissait vide.
+    |
+    | Chaque teinte porte un sens : bleu pour le neutre, ambre pour ce qui
+    | demande une action, vert pour ce qui est acquis, rouge pour un problème.
+    */
     $tones = [
-        'brand' => 'bg-brand-50 text-brand-700',
-        'success' => 'bg-emerald-50 text-emerald-700',
-        'warning' => 'bg-amber-50 text-amber-700',
-        'danger' => 'bg-red-50 text-red-700',
+        'brand' => 'from-brand-600 to-brand-800 text-white',
+        'accent' => 'from-accent-400 to-accent-600 text-white',
+        'success' => 'from-emerald-500 to-emerald-700 text-white',
+        'warning' => 'from-amber-400 to-amber-600 text-white',
+        'danger' => 'from-red-500 to-red-700 text-white',
     ];
     $toneClass = $tones[$tone] ?? $tones['brand'];
 @endphp
 
-<div {{ $attributes->merge(['class' => 'rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow duration-300 hover:shadow-md']) }}>
+<div {{ $attributes->merge([
+    'class' => 'rounded-2xl bg-gradient-to-br p-5 shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg ' . $toneClass,
+]) }}>
     <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-            <p class="truncate text-xs font-semibold uppercase tracking-wider text-gray-500">{{ $label }}</p>
-            <p class="mt-2 text-2xl font-extrabold text-gray-900">{{ $value }}</p>
+            <p class="truncate text-xs font-bold uppercase tracking-wider text-white/70">{{ $label }}</p>
+            <p class="mt-2 text-3xl font-extrabold tabular-nums">{{ $value }}</p>
             @if ($hint)
-                <p class="mt-1 truncate text-xs text-gray-400">{{ $hint }}</p>
+                <p class="mt-1 truncate text-xs text-white/70">{{ $hint }}</p>
             @endif
         </div>
 
         @if ($icon)
-            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl {{ $toneClass }}">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
+            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/20 ring-1 ring-inset ring-white/25">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-6 w-6">
                     <path stroke-linecap="round" stroke-linejoin="round" d="{{ $icon }}" />
                 </svg>
             </span>

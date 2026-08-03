@@ -33,13 +33,15 @@ Route::get('/actualites', [ArticleController::class, 'index'])->name('shop.artic
 Route::get('/actualites/{article}', [ArticleController::class, 'show'])->name('shop.articles.show');
 
 /*
-| Mur des commandes affiché en télévision. Réservé à l'équipe : l'écran expose
-| noms, téléphones et adresses de clients.
+| Mur des commandes affiché en télévision, en accès libre : l'écran tourne en
+| continu dans le local, sans clavier ni session ouverte.
+|
+| Conséquence assumée : la page expose noms, téléphones et adresses de clients à
+| qui connaît l'URL. Si le besoin d'un garde-fou se présente, le plus simple sans
+| identifiants est de déplacer la route derrière un segment secret.
 */
-Route::middleware(['auth', \App\Http\Middleware\EnsureUserIsStaff::class])->group(function () {
-    Route::get('/commandes', [\App\Http\Controllers\Admin\OrderBoardController::class, 'index'])->name('orders.board');
-    Route::get('/commandes/flux', [\App\Http\Controllers\Admin\OrderBoardController::class, 'feed'])->name('orders.board.feed');
-});
+Route::get('/commandes', [\App\Http\Controllers\Admin\OrderBoardController::class, 'index'])->name('orders.board');
+Route::get('/commandes/flux', [\App\Http\Controllers\Admin\OrderBoardController::class, 'feed'])->name('orders.board.feed');
 
 Route::get('/download-app', [MobileAppController::class, 'show'])->name('shop.app.show');
 Route::get('/download-app/clando.apk', [MobileAppController::class, 'apk'])->name('shop.app.android.apk');
