@@ -96,17 +96,15 @@ class OrderBoardController extends Controller
                 'carts.cart_items.product:id,name,price',
             ])
             /*
-             | Tri par urgence avant tri par date : ce qui attend une action monte en
-             | haut de l'écran, ce qui est terminé descend en bas. Sur un mur consulté
-             | d'un coup d'œil, l'ordre chronologique seul noyait les commandes à
-             | traiter au milieu de commandes déjà livrées.
+             | Tri strictement chronologique, de la plus récente à la plus ancienne.
+             |
+             | Un tri par statut avait été essayé pour faire remonter les commandes à
+             | traiter. Il rendait le mur inutilisable dès qu'on agissait dessus :
+             | prendre une commande la faisait changer de groupe, donc chuter derrière
+             | toutes les commandes en attente — plus d'une centaine — et disparaître
+             | de l'écran. Une ligne sur laquelle on vient de cliquer doit rester là
+             | où elle est.
              */
-            ->orderByRaw("CASE
-                WHEN status IN ('pending', 'want') THEN 0
-                WHEN status IN ('process', 'take') THEN 1
-                WHEN status = 'Success' THEN 2
-                ELSE 3
-            END")
             ->orderByDesc('id')
             ->paginate(self::PAR_PAGE, ['*'], 'page', $page);
 

@@ -102,37 +102,38 @@ class OrderBoardTest extends TestCase
         ]);
     }
 
-    public function test_les_commandes_en_attente_remontent_et_les_livrees_descendent(): void
+    public function test_les_commandes_sont_triees_de_la_plus_recente_a_la_plus_ancienne(): void
     {
-        $statuts = collect($this->actingAs($this->staff())->getJson('/commandes/flux')->json('orders'))
-            ->pluck('status');
+        $ids = collect($this->actingAs($this->staff())->getJson('/commandes/flux')->json('orders'))
+            ->pluck('id')
+            ->all();
 
-        $rang = fn (string $statut) => match (true) {
-            in_array($statut, ['pending', 'want'], true) => 0,
-            in_array($statut, ['process', 'take'], true) => 1,
-            $statut === 'Success' => 2,
-            default => 3,
-        };
+        $attendus = $ids;
+        rsort($attendus);
 
-        $rangs = $statuts->map($rang)->all();
-        $attendus = $rangs;
-        sort($attendus);
-
-        $this->assertSame($attendus, $rangs,
-            "Les commandes à traiter doivent précéder celles en cours, puis les livrées.");
+        $this->assertSame($attendus, $ids, 'La commande la plus récente doit arriver en premier.');
     }
 
-    public function test_a_statut_egal_la_plus_recente_passe_devant(): void
+    public function test_changer_le_statut_ne_deplace_pas_la_commande(): void
     {
-        $commandes = collect($this->actingAs($this->staff())->getJson('/commandes/flux')->json('orders'));
+        /*
+         * Un tri par statut avait été essayé : prendre une commande la faisait
+         * changer de groupe et disparaître de l'écran, renvoyée derrière la
+         * centaine de commandes en attente. Le tri étant désormais purement
+         * chronologique, une ligne sur laquelle on agit reste à sa place.
+         */
+        $commande = \App\Models\order_detail::whereIn('status', ['pending', 'want'])->firstOrFail();
+        $statutInitial = $commande->status;
 
-        $commandes->groupBy('status')->each(function ($groupe) {
-            $ids = $groupe->pluck('id')->all();
-            $triees = $ids;
-            rsort($triees);
+        $avant = collect($this->getJson('/commandes/flux')->json('orders'))
+            ->search(fn ($o) => $o['id'] === $commande->id);
 
-            $this->assertSame($triees, $ids);
-        });
+        $apres = collect($this->postJson("/commandes/{$commande->id}/statut", ['status' => 'process'])->json('orders'))
+            ->search(fn ($o) => $o['id'] === $commande->id);
+
+        $commande->update(['status' => $statutInitial]);
+
+        $this->assertSame($avant, $apres, 'La commande doit conserver sa position après un changement de statut.');
     }
 
     public function test_la_pagination_permet_d_atteindre_les_commandes_suivantes(): void
