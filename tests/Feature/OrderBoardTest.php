@@ -57,6 +57,41 @@ class OrderBoardTest extends TestCase
         $this->assertSame($statutInitial, $commande->fresh()->status);
     }
 
+    public function test_les_heures_sont_celles_du_cameroun(): void
+    {
+        /*
+         * L'application tourne en UTC ; le Cameroun est à UTC+1. Sans conversion,
+         * l'écran affichait une heure de moins que l'heure réelle du local.
+         */
+        $response = $this->getJson('/commandes/flux');
+        $response->assertOk();
+
+        $this->assertSame(
+            now()->setTimezone('Africa/Douala')->format('H:i'),
+            substr($response->json('server_time'), 0, 5),
+            "L'horloge du mur doit afficher l'heure de Douala, pas l'heure UTC du serveur."
+        );
+
+        $commande = \App\Models\order_detail::latest('id')->first();
+
+        $this->assertSame(
+            $commande->created_at->copy()->setTimezone('Africa/Douala')->format('H:i'),
+            collect($response->json('orders'))->firstWhere('id', $commande->id)['created_label']
+        );
+    }
+
+    public function test_la_date_est_affichee_en_francais(): void
+    {
+        $response = $this->getJson('/commandes/flux');
+
+        // La locale de l'application est "en" : sans forçage, on obtiendrait
+        // « Monday 3 August » sur un écran destiné à une équipe francophone.
+        $this->assertMatchesRegularExpression(
+            '/^(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche) /',
+            $response->json('server_date')
+        );
+    }
+
     public function test_le_flux_renvoie_les_commandes_et_les_compteurs(): void
     {
         $response = $this->actingAs($this->staff())->getJson('/commandes/flux');

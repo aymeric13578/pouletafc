@@ -75,6 +75,33 @@ const VARIANTES = {
 const jetonCsrf = () =>
     document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 
+/*
+ * Heure du Cameroun, forcée par le fuseau plutôt que reprise du système.
+ * Le boîtier d'une télé est très souvent réglé sur un autre fuseau, ou pas réglé
+ * du tout : afficher son heure locale donnerait un horaire faux sur un écran
+ * censé faire référence pour l'équipe.
+ */
+const FUSEAU_CAMEROUN = 'Africa/Douala';
+
+const heureCameroun = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: FUSEAU_CAMEROUN,
+    hour: '2-digit',
+    minute: '2-digit',
+});
+
+const secondesCameroun = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: FUSEAU_CAMEROUN,
+    second: '2-digit',
+});
+
+const dateCameroun = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: FUSEAU_CAMEROUN,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+});
+
 function Horloge() {
     const [heure, setHeure] = useState(() => new Date());
 
@@ -86,13 +113,14 @@ function Horloge() {
     return (
         <div className="text-right leading-none">
             <p className="font-mono text-4xl font-bold tabular-nums text-gray-900">
-                {heure.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                <span className="ml-1 text-xl text-gray-400">
-                    {heure.toLocaleTimeString('fr-FR', { second: '2-digit' })}
-                </span>
+                {heureCameroun.format(heure)}
+                <span className="ml-1 text-xl text-gray-400">{secondesCameroun.format(heure)}</span>
             </p>
-            <p className="mt-1 text-sm capitalize text-gray-500">
-                {heure.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+            <p className="mt-1 text-sm font-semibold capitalize text-gray-600">
+                {dateCameroun.format(heure)}
+            </p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                Heure du Cameroun
             </p>
         </div>
     );
@@ -671,13 +699,20 @@ export default function Board({ initial }) {
                                                     estNouvelle || attend ? 'ligne-alerte' : 'hover:bg-gray-50'
                                                 }`}
                                             >
-                                                <td className="whitespace-nowrap px-4 py-4 font-mono text-xl font-bold tabular-nums text-gray-900">
-                                                    {commande.created_label}
-                                                    {estNouvelle && (
-                                                        <span className="ml-2 rounded-full bg-amber-500 px-2 py-0.5 align-middle text-[11px] font-black uppercase text-white">
-                                                            Nouveau
+                                                <td className="whitespace-nowrap px-4 py-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-mono text-xl font-bold tabular-nums text-gray-900">
+                                                            {commande.created_label}
                                                         </span>
-                                                    )}
+                                                        {estNouvelle && (
+                                                            <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-black uppercase text-white">
+                                                                Nouveau
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="mt-0.5 text-xs font-semibold text-gray-500">
+                                                        {commande.created_day}
+                                                    </p>
                                                 </td>
                                                 <td className="whitespace-nowrap px-4 py-4 font-mono text-base text-gray-500">
                                                     {commande.ref ?? `#${commande.id}`}

@@ -34,6 +34,17 @@ class OrderBoardController extends Controller
     /** Statuts qui déclenchent et entretiennent la sonnerie. */
     private const EN_ATTENTE = ['pending', 'want'];
 
+    /*
+     | Heure du Cameroun (WAT, UTC+1).
+     |
+     | On convertit à l'affichage plutôt que de basculer config('app.timezone') :
+     | les dates déjà en base ont été écrites en UTC, et changer le fuseau de
+     | l'application les ferait relire comme des heures de Douala. Toutes les
+     | commandes passées afficheraient alors une heure fausse, décalée d'une heure,
+     | et le décalage se propagerait partout ailleurs dans le projet.
+     */
+    private const FUSEAU = 'Africa/Douala';
+
     public function index(Request $request): Response
     {
         return Inertia::render('Orders/Board', [
@@ -122,10 +133,17 @@ class OrderBoardController extends Controller
                 'actives' => order_detail::whereIn('status', self::ACTIFS)->count(),
                 'en_attente' => order_detail::whereIn('status', self::EN_ATTENTE)->count(),
                 'livrees' => order_detail::where('status', 'Success')->count(),
-                'ca_jour' => (int) order_detail::whereDate('created_at', today())
+                /*
+                 | Bornes de la journée camerounaise converties en UTC, puisque les
+                 | dates sont stockées ainsi. Avec un simple whereDate(today()), les
+                 | compteurs « du jour » basculaient à minuit UTC, soit une heure du
+                 | matin à Douala : entre minuit et une heure, l'écran affichait
+                 | encore le chiffre d'affaires de la veille.
+                 */
+                'ca_jour' => (int) order_detail::whereBetween('created_at', $this->bornesDuJour())
                     ->where('status', 'Success')
                     ->sum('price'),
-                'du_jour' => order_detail::whereDate('created_at', today())->count(),
+                'du_jour' => order_detail::whereBetween('created_at', $this->bornesDuJour())->count(),
             ],
             /*
              | Identifiant le plus élevé, toutes pages confondues. La détection d'une
@@ -134,10 +152,50 @@ class OrderBoardController extends Controller
              | pas et la sonnerie ne partirait jamais.
              */
             'latest_id' => (int) order_detail::max('id'),
-            // Horodatage serveur : le navigateur d'une télé a rarement une heure
-            // juste, et l'écart se voit tout de suite sur un affichage permanent.
-            'server_time' => now()->format('H:i:s'),
+            // Horodatage serveur, en heure du Cameroun : le navigateur d'une télé a
+            // rarement une heure juste, et l'écart se voit tout de suite sur un
+            // affichage permanent.
+            'server_time' => now()->setTimezone(self::FUSEAU)->format('H:i:s'),
+            'server_date' => now()->setTimezone(self::FUSEAU)->locale('fr')->translatedFormat('l j F Y'),
         ];
+    }
+
+    /**
+     * Début et fin de la journée camerounaise, exprimés en UTC pour interroger la
+     * base, où les dates sont stockées dans ce fuseau.
+     *
+     * @return array{0: \Illuminate\Support\Carbon, 1: \Illuminate\Support\Carbon}
+     */
+    private function bornesDuJour(): array
+    {
+        $debut = now()->setTimezone(self::FUSEAU)->startOfDay();
+
+        return [
+            $debut->copy()->utc(),
+            $debut->copy()->endOfDay()->utc(),
+        ];
+    }
+
+    /**
+     * Jour d'une commande, exprimé en heure du Cameroun.
+     *
+     * « Aujourd'hui » et « Hier » plutôt qu'une date : sur un mur regardé de loin,
+     * ce sont les seuls repères qu'on lit sans réfléchir.
+     */
+    private function libelleJour(?\Illuminate\Support\Carbon $date): ?string
+    {
+        if (! $date) {
+            return null;
+        }
+
+        $local = $date->copy()->setTimezone(self::FUSEAU);
+        $aujourdhui = now()->setTimezone(self::FUSEAU)->startOfDay();
+
+        return match (true) {
+            $local->isSameDay($aujourdhui) => "Aujourd'hui",
+            $local->isSameDay($aujourdhui->copy()->subDay()) => 'Hier',
+            default => $local->format('d/m/Y'),
+        };
     }
 
     /**
@@ -158,9 +216,13 @@ class OrderBoardController extends Controller
             'phone' => $order->user?->phone,
             'whatsapp' => $order->user?->whatsapp,
             'email' => $order->user?->email,
+            // Tous les horodatages sont convertis en heure du Cameroun : les dates
+            // sont stockées en UTC, les afficher brutes décalerait tout d'une heure.
             'created_at' => $order->created_at?->toIso8601String(),
-            'created_label' => $order->created_at?->format('H:i'),
-            'created_full' => $order->created_at?->format('d/m/Y à H:i'),
+            'created_label' => $order->created_at?->setTimezone(self::FUSEAU)->format('H:i'),
+            'created_day' => $this->libelleJour($order->created_at),
+            'created_full' => $order->created_at?->setTimezone(self::FUSEAU)->locale('fr')->translatedFormat('l j F Y') . ' à '
+                . $order->created_at?->setTimezone(self::FUSEAU)->format('H:i'),
             // Panier complet : le détail est consulté à la demande depuis le tableau,
             // et la liste est plafonnée à 12 commandes, donc le poids reste faible.
             'items' => $items->map(fn ($item) => [
