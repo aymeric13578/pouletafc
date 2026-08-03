@@ -37,6 +37,44 @@ const STATUTS = {
 
 const formatMontant = (valeur) => new Intl.NumberFormat('fr-FR').format(valeur ?? 0);
 
+/*
+ * Actions proposées selon l'état courant. On n'affiche que les transitions qui
+ * ont un sens : proposer « Terminer » sur une commande déjà livrée, ou « Prendre »
+ * sur une commande annulée, encombre l'écran et invite à l'erreur.
+ */
+const ACTIONS = {
+    pending: [
+        { statut: 'process', libelle: 'Prendre', variante: 'sky' },
+        { statut: 'Success', libelle: 'Terminer', variante: 'emerald' },
+        { statut: 'failed', libelle: 'Annuler', variante: 'red' },
+    ],
+    want: [
+        { statut: 'process', libelle: 'Prendre', variante: 'sky' },
+        { statut: 'Success', libelle: 'Terminer', variante: 'emerald' },
+        { statut: 'failed', libelle: 'Annuler', variante: 'red' },
+    ],
+    take: [
+        { statut: 'Success', libelle: 'Terminer', variante: 'emerald' },
+        { statut: 'failed', libelle: 'Annuler', variante: 'red' },
+    ],
+    process: [
+        { statut: 'Success', libelle: 'Terminer', variante: 'emerald' },
+        { statut: 'failed', libelle: 'Annuler', variante: 'red' },
+    ],
+    Success: [{ statut: 'process', libelle: 'Rouvrir', variante: 'gris' }],
+    failed: [{ statut: 'process', libelle: 'Rouvrir', variante: 'gris' }],
+};
+
+const VARIANTES = {
+    sky: 'bg-sky-600 text-white hover:bg-sky-700',
+    emerald: 'bg-emerald-600 text-white hover:bg-emerald-700',
+    red: 'bg-red-600 text-white hover:bg-red-700',
+    gris: 'bg-gray-200 text-gray-700 hover:bg-gray-300',
+};
+
+const jetonCsrf = () =>
+    document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+
 function Horloge() {
     const [heure, setHeure] = useState(() => new Date());
 
@@ -69,7 +107,7 @@ function Compteur({ label, valeur, accent = 'text-gray-900' }) {
     );
 }
 
-function DetailCommande({ commande, onClose }) {
+function DetailCommande({ commande, onClose, onChangerStatut, enCours }) {
     const statut = STATUTS[commande.status] ?? { label: commande.status, classe: 'bg-gray-100 text-gray-700 ring-gray-300' };
     const totalArticles = commande.items.reduce((somme, article) => somme + article.quantity, 0);
 
@@ -171,11 +209,27 @@ function DetailCommande({ commande, onClose }) {
                         </div>
                     </div>
 
-                    <div className="flex shrink-0 items-center justify-between border-t border-gray-200 bg-gray-50 px-6 py-4">
-                        <span className="text-sm font-semibold uppercase tracking-wider text-gray-500">Total commande</span>
-                        <span className="text-3xl font-extrabold tabular-nums text-gray-900">
-                            {formatMontant(commande.price)} <span className="text-base font-bold text-gray-400">F</span>
-                        </span>
+                    <div className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-t border-gray-200 bg-gray-50 px-6 py-4">
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Total commande</p>
+                            <p className="text-3xl font-extrabold tabular-nums text-gray-900">
+                                {formatMontant(commande.price)} <span className="text-base font-bold text-gray-400">F</span>
+                            </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                            {(ACTIONS[commande.status] ?? []).map((action) => (
+                                <button
+                                    key={action.statut}
+                                    type="button"
+                                    onClick={() => onChangerStatut(commande.id, action.statut)}
+                                    disabled={enCours}
+                                    className={`rounded-xl px-5 py-3 text-base font-bold transition-all duration-200 active:scale-95 disabled:cursor-wait disabled:opacity-40 ${VARIANTES[action.variante]}`}
+                                >
+                                    {action.libelle}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -192,6 +246,9 @@ export default function Board({ initial }) {
     const [nouvelles, setNouvelles] = useState(() => new Set());
     const [detailId, setDetailId] = useState(null);
     const [veilleBloquee, setVeilleBloquee] = useState(false);
+    // Commandes dont le changement de statut est en cours : leurs boutons sont
+    // neutralisés le temps de l'aller-retour, pour éviter le double clic.
+    const [enCours, setEnCours] = useState(() => new Set());
 
     const audioRef = useRef(null);
     // Références plutôt qu'états : lues dans les intervalles, elles ne doivent pas
@@ -388,6 +445,48 @@ export default function Board({ initial }) {
         };
     }, [jouerAlerte, page]);
 
+    /*
+     * Changement de statut. La réponse contient déjà le mur à jour : on l'applique
+     * directement, sans attendre le prochain cycle de cinq secondes, sinon le
+     * bouton semble ne rien faire.
+     */
+    const changerStatut = async (id, statut) => {
+        setEnCours((precedent) => new Set([...precedent, id]));
+
+        try {
+            const reponse = await fetch(`/commandes/${id}/statut`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': jetonCsrf(),
+                },
+                body: JSON.stringify({ status: statut }),
+            });
+
+            if (!reponse.ok) throw new Error(String(reponse.status));
+
+            const charge = await reponse.json();
+            setDonnees(charge);
+            setEnLigne(true);
+
+            // La commande traitée cesse d'être signalée comme nouvelle.
+            setNouvelles((precedent) => {
+                const copie = new Set(precedent);
+                copie.delete(id);
+                return copie;
+            });
+        } catch {
+            setEnLigne(false);
+        } finally {
+            setEnCours((precedent) => {
+                const copie = new Set(precedent);
+                copie.delete(id);
+                return copie;
+            });
+        }
+    };
+
     const allerPage = (cible) => {
         const borne = Math.min(Math.max(1, cible), pagination.last_page || 1);
         pageRef.current = borne;
@@ -552,8 +651,8 @@ export default function Board({ initial }) {
                                         <th className="px-4 py-3">Adresse</th>
                                         <th className="px-4 py-3 text-center">Détail</th>
                                         <th className="px-4 py-3 text-right">Montant</th>
-                                        <th className="px-4 py-3">Paiement</th>
                                         <th className="px-4 py-3">Statut</th>
+                                        <th className="px-4 py-3">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
@@ -612,13 +711,28 @@ export default function Board({ initial }) {
                                                     {formatMontant(commande.price)}
                                                     <span className="ml-1 text-sm font-bold text-gray-400">F</span>
                                                 </td>
-                                                <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold uppercase tracking-wide text-gray-500">
-                                                    {commande.payment_method ?? '—'}
-                                                </td>
                                                 <td className="whitespace-nowrap px-4 py-4">
                                                     <span className={`rounded-full px-3 py-1 text-sm font-bold ring-1 ring-inset ${statut.classe}`}>
                                                         {statut.label}
                                                     </span>
+                                                    <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                                                        {commande.payment_method ?? '—'}
+                                                    </p>
+                                                </td>
+                                                <td className="whitespace-nowrap px-4 py-4">
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {(ACTIONS[commande.status] ?? []).map((action) => (
+                                                            <button
+                                                                key={action.statut}
+                                                                type="button"
+                                                                onClick={() => changerStatut(commande.id, action.statut)}
+                                                                disabled={enCours.has(commande.id)}
+                                                                className={`rounded-lg px-3 py-2 text-sm font-bold transition-all duration-200 active:scale-95 disabled:cursor-wait disabled:opacity-40 ${VARIANTES[action.variante]}`}
+                                                            >
+                                                                {action.libelle}
+                                                            </button>
+                                                        ))}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
@@ -714,7 +828,12 @@ export default function Board({ initial }) {
                 </audio>
 
                 {commandeDetail && (
-                    <DetailCommande commande={commandeDetail} onClose={() => setDetailId(null)} />
+                    <DetailCommande
+                        commande={commandeDetail}
+                        onClose={() => setDetailId(null)}
+                        onChangerStatut={changerStatut}
+                        enCours={enCours.has(commandeDetail.id)}
+                    />
                 )}
             </div>
         </>

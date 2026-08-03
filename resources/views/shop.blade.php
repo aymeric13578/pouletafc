@@ -3,6 +3,9 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        {{-- Nécessaire aux appels fetch() du mur des commandes, qui n'utilisent pas
+             le client Inertia et ne bénéficient donc pas de son jeton automatique. --}}
+        <meta name="csrf-token" content="{{ csrf_token() }}">
 
         @include('partials.social-meta')
 

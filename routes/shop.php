@@ -42,6 +42,7 @@ Route::get('/actualites/{article}', [ArticleController::class, 'show'])->name('s
 */
 Route::get('/commandes', [\App\Http\Controllers\Admin\OrderBoardController::class, 'index'])->name('orders.board');
 Route::get('/commandes/flux', [\App\Http\Controllers\Admin\OrderBoardController::class, 'feed'])->name('orders.board.feed');
+Route::post('/commandes/{order}/statut', [\App\Http\Controllers\Admin\OrderBoardController::class, 'updateStatus'])->name('orders.board.status');
 
 Route::get('/download-app', [MobileAppController::class, 'show'])->name('shop.app.show');
 Route::get('/download-app/clando.apk', [MobileAppController::class, 'apk'])->name('shop.app.android.apk');

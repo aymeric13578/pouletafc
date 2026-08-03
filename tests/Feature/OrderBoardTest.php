@@ -31,6 +31,32 @@ class OrderBoardTest extends TestCase
         $this->getJson('/commandes/flux')->assertOk();
     }
 
+    public function test_un_operateur_peut_terminer_une_commande(): void
+    {
+        $commande = \App\Models\order_detail::whereIn('status', ['pending', 'want'])->firstOrFail();
+        $statutInitial = $commande->status;
+
+        $response = $this->postJson("/commandes/{$commande->id}/statut", ['status' => 'Success']);
+
+        $response->assertOk();
+        // La réponse renvoie le mur à jour : pas de seconde requête côté navigateur.
+        $response->assertJsonStructure(['orders', 'stats', 'pagination']);
+        $this->assertSame('Success', $commande->fresh()->status);
+
+        $commande->update(['status' => $statutInitial]);
+    }
+
+    public function test_un_statut_inconnu_est_refuse(): void
+    {
+        $commande = \App\Models\order_detail::firstOrFail();
+        $statutInitial = $commande->status;
+
+        $this->postJson("/commandes/{$commande->id}/statut", ['status' => 'nimporte-quoi'])
+            ->assertStatus(422);
+
+        $this->assertSame($statutInitial, $commande->fresh()->status);
+    }
+
     public function test_le_flux_renvoie_les_commandes_et_les_compteurs(): void
     {
         $response = $this->actingAs($this->staff())->getJson('/commandes/flux');

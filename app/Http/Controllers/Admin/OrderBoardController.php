@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\order_detail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -50,6 +51,35 @@ class OrderBoardController extends Controller
         return response()->json($this->payload($request))
             // L'écran reste allumé des jours : un proxy ou le navigateur qui
             // mettrait ce flux en cache figerait le mur sur d'anciennes commandes.
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+
+    /**
+     * Statuts qu'un opérateur peut poser depuis le mur. Repris de l'ancienne page
+     * Livewire, moins « waiting » qui n'apparaît dans aucune commande existante.
+     */
+    private const STATUTS_AUTORISES = ['pending', 'want', 'take', 'process', 'Success', 'failed'];
+
+    /**
+     * Change le statut d'une commande depuis le mur.
+     *
+     * La page est volontairement en accès libre : l'écran tourne sans session
+     * ouverte. Cette action est donc elle aussi accessible sans authentification,
+     * ce qui est un choix assumé et non un oubli.
+     */
+    public function updateStatus(Request $request, int $order): JsonResponse
+    {
+        $valide = $request->validate([
+            'status' => ['required', 'string', Rule::in(self::STATUTS_AUTORISES)],
+        ]);
+
+        $commande = order_detail::findOrFail($order);
+        $commande->status = $valide['status'];
+        $commande->save();
+
+        // On renvoie le mur à jour : le navigateur n'a pas à enchaîner une seconde
+        // requête pour rafraîchir l'écran après l'action.
+        return response()->json($this->payload($request))
             ->header('Cache-Control', 'no-store, no-cache, must-revalidate');
     }
 
