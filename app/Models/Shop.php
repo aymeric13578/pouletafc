@@ -15,8 +15,15 @@ class Shop extends Model
      */
     protected $table = 'shops';
 
+    /*
+    | "name" ne correspond à aucune colonne — la table porte "shop_name" — tandis
+    | que id_user et status, eux bien réels, étaient absents : toute écriture de
+    | masse sur ces trois champs était silencieusement ignorée.
+    */
     protected $fillable = [
-        'name',
+        'shop_name',
+        'id_user',
+        'status',
         'ref',
         'banner',
         'phone1',
@@ -47,6 +54,18 @@ class Shop extends Model
     public function user()
     {
         return $this->belongsTo(User::class, 'id_user');
+    }
+
+    /**
+     * Produits portés par la boutique.
+     *
+     * Nommée "produits" et non "products" : la table possède déjà une colonne
+     * product_count, et une relation homonyme entrerait en conflit avec elle
+     * lors d'un withCount().
+     */
+    public function produits()
+    {
+        return $this->hasMany(Product::class, 'id_shop');
     }
     public function category()
     {
