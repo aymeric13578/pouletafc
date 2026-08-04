@@ -39,6 +39,15 @@ class Shop extends Model
     {
         return $this->belongsTo(Merchand::class, 'id_merchand');
     }
+
+    /**
+     * Utilisateur rattaché à la boutique : c'est lui qui la gère depuis l'espace
+     * marchand, et c'est ce lien qui l'y redirige à la connexion.
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'id_user');
+    }
     public function category()
     {
         return $this->hasOne(Category::class, 'id_shop');
