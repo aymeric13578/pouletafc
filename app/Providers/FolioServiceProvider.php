@@ -24,6 +24,9 @@ class FolioServiceProvider extends ServiceProvider
             // "auth" seul laissait entrer n'importe quel compte connecté, clients
             // de la boutique compris. EnsureUserIsStaff limite aux rôles internes.
             'dashboard/*' => ['auth', \App\Http\Middleware\EnsureUserIsStaff::class],
+            // Espace marchand : réservé aux comptes rattachés à une boutique, qui
+            // est résolue une fois pour toutes par le middleware.
+            'merchand/*' => ['auth', \App\Http\Middleware\EnsureUserHasShop::class],
         ]);
     }
 }

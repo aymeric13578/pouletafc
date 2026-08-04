@@ -182,7 +182,10 @@ Route::delete('/parameters/{id}', 'ParametersController@destroy')->name('paramet
 
     // GET /dashboard is served by the Folio page at resources/views/pages/dashboard/index.blade.php
     Route::get('logoutUser', 'IndexController@logoutUser')->name('logoutUser');
-    Route::get('merchand-dashboard', [App\Http\Controllers\Merchand\IndexController::class, 'index'])->name('merchanddashboard');
+    // L'espace marchand vit désormais sous /merchand (pages Folio). Cette URL est
+    // conservée en redirection : elle est référencée dans l'ancien back-office et
+    // dans la redirection de connexion.
+    Route::get('merchand-dashboard', fn () => redirect()->route('merchand.index'))->name('merchanddashboard');
 //     Route::get('register', 'RegisterController@registerform')->name('register');
     Route::get('/list_products', [App\Http\Controllers\Admin\ProductController::class, 'listProduct'])->name('listProduct');
     Route::get('/add_products', [App\Http\Controllers\Admin\ProductController::class, 'addProduct'])->name('addProduct');
