@@ -23,6 +23,10 @@ export default function Header() {
     // routes /dashboard, afficher le bouton n'accorde aucun droit.
     const isStaff = ['admin', 'employee_afc'].includes(auth?.user?.role);
 
+    // Une boutique rattachée, quel que soit le rôle : des boutiques appartiennent
+    // à des comptes « agent » ou « employee_afc », le rôle ne dit rien de fiable.
+    const boutique = auth?.shop;
+
     useEffect(() => {
         const count = cart?.count ?? 0;
         if (count > previousCount.current) {
@@ -123,6 +127,18 @@ export default function Header() {
                                     <div className="border-b border-gray-100 px-4 py-2 text-sm text-gray-500">
                                         Bonjour, {auth.user.name}
                                     </div>
+
+                                    {boutique && (
+                                        <a
+                                            href="/merchand"
+                                            className="flex items-center gap-2 border-b border-gray-100 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors duration-200 hover:bg-emerald-100"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 shrink-0">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614" />
+                                            </svg>
+                                            <span className="min-w-0 truncate">Ma boutique — {boutique}</span>
+                                        </a>
+                                    )}
 
                                     {isStaff && (
                                         <a

@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Category;
+use App\Models\Shop;
 use App\Services\CartService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -48,6 +49,19 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $request->user(),
+                /*
+                 | Boutique rattachée au compte, s'il y en a une.
+                 |
+                 | Sans cette information, un marchand n'avait aucun moyen de
+                 | retrouver son espace : il y était envoyé une fois à la connexion,
+                 | et dès qu'il revenait sur la boutique publique, plus aucun lien
+                 | ne l'y ramenait. Le rôle ne suffit pas à en décider : des
+                 | boutiques sont rattachées à des comptes "agent" ou
+                 | "employee_afc", c'est le rattachement qui fait foi.
+                 */
+                'shop' => $request->user()
+                    ? Shop::where('id_user', $request->user()->id)->value('shop_name')
+                    : null,
             ],
             'cart' => [
                 'count' => $cart->count(),

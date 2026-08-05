@@ -89,6 +89,35 @@ class EspaceMarchandTest extends TestCase
         );
     }
 
+    public function test_la_boutique_rattachee_est_partagee_aux_pages_de_la_boutique(): void
+    {
+        /*
+         * Sans cette donnée, un marchand n'avait aucun lien vers son espace : il y
+         * était envoyé une fois à la connexion, puis plus rien ne l'y ramenait dès
+         * qu'il revenait sur la boutique publique.
+         *
+         * Le rôle ne peut pas servir de critère : des boutiques sont rattachées à
+         * des comptes « agent » ou « employee_afc ».
+         */
+        $marchand = $this->marchand();
+
+        $this->actingAs($marchand)
+            ->get('/')
+            ->assertOk()
+            ->assertSee($this->boutique()->shop_name);
+    }
+
+    public function test_un_compte_sans_boutique_ne_recoit_pas_ce_lien(): void
+    {
+        $sansBoutique = User::whereNotIn('id', Shop::whereNotNull('id_user')->pluck('id_user'))
+            ->firstOrFail();
+
+        $this->actingAs($sansBoutique)
+            ->get('/')
+            ->assertOk()
+            ->assertDontSee('Ma boutique —');
+    }
+
     public function test_l_ancienne_url_redirige_vers_le_nouvel_espace(): void
     {
         $this->actingAs($this->marchand())
