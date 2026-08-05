@@ -4,19 +4,18 @@ use function Laravel\Folio\{name};
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 use App\Models\Clando;
+use App\Models\order_detail;
 
-name('dashboard.clando');
+name('dashboard.coursiers');
 
 /*
-| Courses Clando : des trajets, sans colis.
+| Courses de coursier : un colis à déposer.
 |
-| Un client demande à être conduit quelque part ; un agent prend la course. À
-| distinguer du service Coursier, qui transporte un paquet et se reconnaît à son
-| delivery_type « delivery » et à son id_order renseigné — celui-ci est traité sur
-| son propre écran.
+| Même mécanique qu'une course Clando, à ceci près qu'un colis est transporté et
+| que la course naît d'une commande (createclandoorder). Elles se reconnaissent à
+| leur id_order renseigné ; les trajets sans colis relèvent de l'écran Clando.
 |
-| L'écran précédent était un squelette : le total affichait « 300 » codé en dur et
-| le formulaire n'enregistrait rien.
+| Le service n'avait aucun écran : ni ici, ni ailleurs.
 */
 new class extends Component {
     use WithPagination;
@@ -24,33 +23,26 @@ new class extends Component {
     public $search = '';
     public $statutFiltre = '';
 
-    /** Statuts posés par l'application mobile, avec leur libellé. */
     public const STATUTS = [
         'pending' => 'En attente',
         'want' => 'Demandée',
         'take' => 'Prise en charge',
         'process' => 'En cours',
-        'Success' => 'Terminée',
+        'Success' => 'Livrée',
         'declin' => 'Refusée',
         'failed' => 'Échec',
     ];
 
     /**
-     * Trajets, à l'exclusion des courses de coursier.
+     * Courses de coursier, reconnues par delivery_type « delivery ».
      *
-     * Le tri se fait sur delivery_type, seul champ qui distingue réellement les
-     * deux services : les 19 courses existantes portent toutes « clando ». Avoir
-     * cru que le critère était id_order aurait laissé l'écran Coursiers vide, ce
-     * champ n'étant renseigné sur aucune course.
-     *
-     * Tout ce qui n'est pas explicitement « delivery » atterrit ici : une valeur
-     * inattendue reste ainsi visible quelque part, au lieu de disparaître.
+     * C'est createclandoorder qui pose cette valeur. id_order, qu'on aurait pu
+     * croire suffisant, n'est renseigné sur aucune course en base : s'y fier
+     * laissait cet écran vide.
      */
     protected function requeteDeBase()
     {
-        return Clando::query()->where(function ($q) {
-            $q->whereNull('delivery_type')->orWhere('delivery_type', '!=', 'delivery');
-        });
+        return Clando::query()->where('delivery_type', 'delivery');
     }
 
     public function getCoursesProperty()
@@ -70,12 +62,25 @@ new class extends Component {
             ->paginate(15);
     }
 
+    /**
+     * Commandes d'origine des courses affichées, chargées en une requête.
+     *
+     * clando.id_order ne porte pas de relation Eloquent : on résout donc les
+     * commandes séparément plutôt que d'en interroger une par ligne.
+     */
+    public function getCommandesProperty()
+    {
+        return order_detail::whereIn('id', $this->courses->pluck('id_order')->filter())
+            ->get(['id', 'ref', 'address', 'price', 'status'])
+            ->keyBy('id');
+    }
+
     public function getStatsProperty(): array
     {
         return [
             'total' => $this->requeteDeBase()->count(),
             'en_cours' => $this->requeteDeBase()->whereIn('status', ['pending', 'want', 'take', 'process'])->count(),
-            'terminees' => $this->requeteDeBase()->where('status', 'Success')->count(),
+            'livrees' => $this->requeteDeBase()->where('status', 'Success')->count(),
             'ca' => (int) $this->requeteDeBase()->where('status', 'Success')->sum('price'),
         ];
     }
@@ -84,8 +89,6 @@ new class extends Component {
     {
         abort_unless(array_key_exists($statut, self::STATUTS), 422);
 
-        // On repasse par la requête de base : elle garantit qu'on ne touche pas à
-        // une course de coursier, qui relève de l'autre écran.
         $course = $this->requeteDeBase()->findOrFail($id);
         $course->status = $statut;
         $course->save();
@@ -100,19 +103,19 @@ new class extends Component {
 };
 ?>
 
-<x-layouts.app title="Clando">
+<x-layouts.app title="Coursiers">
     @volt
         <div>
-            <x-ui.page-header title="Clando" subtitle="Courses de transport, sans colis" />
+            <x-ui.page-header title="Coursiers" subtitle="Colis à déposer, rattachés à une commande" />
 
             <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <x-ui.stat label="Courses" :value="$this->stats['total']" tone="brand"
-                    icon="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25" />
+                    icon="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5m16.5 0a48.7 48.7 0 00-16.5 0" />
 
                 <x-ui.stat label="En cours" :value="$this->stats['en_cours']" tone="warning"
                     icon="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
 
-                <x-ui.stat label="Terminées" :value="$this->stats['terminees']" tone="success"
+                <x-ui.stat label="Livrées" :value="$this->stats['livrees']" tone="success"
                     icon="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 
                 <x-ui.stat label="Chiffre d'affaires"
@@ -133,11 +136,22 @@ new class extends Component {
 
             <div class="mt-4">
                 <x-ui.table target="search,statutFiltre,gotoPage,previousPage,nextPage"
-                    :headers="['Référence', 'Client', 'Destination', 'Agent', 'Prix', 'Statut', 'Date']">
+                    :headers="['Référence', 'Commande', 'Client', 'Destination', 'Agent', 'Prix', 'Statut']">
                     @forelse ($this->courses as $course)
+                        @php $commande = $this->commandes[$course->id_order] ?? null; @endphp
                         <tr class="transition-colors hover:bg-gray-50">
                             <td class="whitespace-nowrap px-4 py-3 font-mono text-sm font-semibold text-gray-900">
                                 {{ $course->ref ?: '#' . $course->id }}
+                            </td>
+
+                            <td class="whitespace-nowrap px-4 py-3">
+                                @if ($commande)
+                                    <p class="font-mono text-xs text-brand-700">{{ $commande->ref }}</p>
+                                    <p class="text-xs text-gray-500">{{ number_format((int) $commande->price, 0, ',', ' ') }} F</p>
+                                @else
+                                    {{-- Une course peut pointer vers une commande supprimée. --}}
+                                    <span class="text-xs text-gray-400">Commande introuvable</span>
+                                @endif
                             </td>
 
                             <td class="px-4 py-3">
@@ -148,10 +162,7 @@ new class extends Component {
                             </td>
 
                             <td class="max-w-xs px-4 py-3 text-sm text-gray-600">
-                                {{ $course->destinationName ?: '—' }}
-                                @if ($course->distance)
-                                    <span class="block text-xs text-gray-400">{{ $course->distance }} · {{ $course->times ?: '—' }}</span>
-                                @endif
+                                {{ $course->destinationName ?: ($commande->address ?? '—') }}
                             </td>
 
                             <td class="px-4 py-3 text-sm">
@@ -183,20 +194,16 @@ new class extends Component {
                                 @if (! in_array($course->status, ['Success', 'failed', 'declin'], true))
                                     <div class="mt-1.5 flex gap-1">
                                         <button type="button" wire:click="changerStatut({{ $course->id }}, 'Success')"
-                                                class="rounded bg-emerald-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-emerald-700">Terminer</button>
+                                                class="rounded bg-emerald-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-emerald-700">Livrée</button>
                                         <button type="button" wire:click="changerStatut({{ $course->id }}, 'failed')"
                                                 class="rounded bg-red-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-red-700">Annuler</button>
                                     </div>
                                 @endif
                             </td>
-
-                            <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
-                                {{ $course->created_at?->setTimezone('Africa/Douala')->format('d/m/Y H:i') ?? '—' }}
-                            </td>
                         </tr>
                     @empty
-                        <x-ui.empty :colspan="7" title="Aucune course"
-                            message="Les demandes de trajet passées depuis l'application apparaîtront ici." />
+                        <x-ui.empty :colspan="7" title="Aucune course de coursier"
+                            message="Les demandes de coursier passées depuis l'application apparaîtront ici." />
                     @endforelse
                 </x-ui.table>
 

@@ -62,4 +62,18 @@ class order_detail extends Model
     {
         return $this->belongsTo(Agent::class, 'id_agent', 'id_user');
     }
+
+    /**
+     * Course de coursier rattachée à la commande.
+     *
+     * Un coursier n'est pas une entité distincte : c'est un enregistrement de la
+     * table clando créé à partir d'une commande (createclandoorder), reconnaissable
+     * à son delivery_type « delivery » et à son id_order renseigné. Un clando sans
+     * id_order est un simple trajet, sans colis.
+     */
+    public function coursier()
+    {
+        return $this->hasOne(Clando::class, 'id_order')
+            ->where('delivery_type', 'delivery');
+    }
 }

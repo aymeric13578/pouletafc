@@ -139,6 +139,9 @@ class OrderBoardController extends Controller
                 'agent.user:id,name,phone,whatsapp',
                 'carts.cart_items.product:id,name,price,id_shop',
                 'carts.cart_items.product.shop:id,shop_name',
+                // Présence d'une course de coursier : c'est ce qui distingue une
+                // demande de coursier d'une commande ordinaire sur l'écran.
+                'coursier:id,id_order,ref,status,destinationName,price',
             ])
             /*
              | Tri strictement chronologique, de la plus récente à la plus ancienne.
@@ -245,6 +248,18 @@ class OrderBoardController extends Controller
             'price' => (int) $order->price,
             'status' => $order->status,
             'status_paiement' => $order->status_paiement,
+            /*
+             | Nature de la demande. Un coursier n'est pas une commande à part : c'est
+             | une commande à laquelle une course de dépôt de colis a été rattachée.
+             | L'écran doit les distinguer, les gestes du comptoir n'étant pas les
+             | mêmes selon qu'on prépare un panier ou qu'on remet un paquet.
+             */
+            'type' => $order->coursier ? 'coursier' : 'commande',
+            'coursier' => $order->coursier ? [
+                'ref' => $order->coursier->ref,
+                'status' => $order->coursier->status,
+                'destination' => $order->coursier->destinationName,
+            ] : null,
             'address' => $order->address,
             'payment_method' => $order->payment_method,
             'customer' => $order->user?->name,

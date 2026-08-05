@@ -172,8 +172,20 @@ function DetailCommande({ commande, onClose, onChangerStatut, enCours }) {
 
                     <div className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-200 px-6 py-4">
                         <div>
-                            <h2 className="font-mono text-xl font-bold text-gray-900">{commande.ref ?? `#${commande.id}`}</h2>
+                            <div className="flex items-center gap-2">
+                                <h2 className="font-mono text-xl font-bold text-gray-900">{commande.ref ?? `#${commande.id}`}</h2>
+                                {commande.type === 'coursier' && (
+                                    <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-black uppercase tracking-wide text-violet-800">
+                                        Coursier
+                                    </span>
+                                )}
+                            </div>
                             <p className="mt-0.5 text-sm text-gray-500">{commande.created_full}</p>
+                            {commande.coursier?.destination && (
+                                <p className="mt-1 text-sm text-violet-700">
+                                    Dépôt : {commande.coursier.destination}
+                                </p>
+                            )}
                         </div>
                         <div className="flex items-center gap-3">
                             <span className={`rounded-full px-3 py-1 text-sm font-bold ring-1 ring-inset ${statut.classe}`}>
@@ -793,8 +805,24 @@ export default function Board({ initial }) {
                                                         {commande.created_day}
                                                     </p>
                                                 </td>
-                                                <td className="whitespace-nowrap px-4 py-4 font-mono text-base text-gray-500">
-                                                    {commande.ref ?? `#${commande.id}`}
+                                                <td className="whitespace-nowrap px-4 py-4">
+                                                    <p className="font-mono text-base text-gray-500">
+                                                        {commande.ref ?? `#${commande.id}`}
+                                                    </p>
+                                                    {/* Nature de la demande : préparer un panier et remettre un
+                                                        colis ne demandent pas les mêmes gestes au comptoir. */}
+                                                    {commande.type === 'coursier' ? (
+                                                        <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-black uppercase tracking-wide text-violet-800">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-3 w-3">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5m16.5 0a48.7 48.7 0 00-16.5 0" />
+                                                            </svg>
+                                                            Coursier
+                                                        </span>
+                                                    ) : (
+                                                        <span className="mt-0.5 inline-block rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-gray-500">
+                                                            Commande
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-4">
                                                     <p className="font-semibold text-gray-900">{commande.customer ?? '—'}</p>
@@ -843,7 +871,7 @@ export default function Board({ initial }) {
                                                             type="button"
                                                             onClick={() => changerPaiement(commande.id, 'Success')}
                                                             disabled={enCours.has(commande.id)}
-                                                            className="mt-1.5 block rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition-all duration-200 hover:bg-emerald-700 active:scale-95 disabled:cursor-wait disabled:opacity-40"
+                                                            className="mt-1 block rounded bg-emerald-600 px-1.5 py-1 text-[11px] font-bold leading-tight text-white transition-all duration-200 hover:bg-emerald-700 active:scale-95 disabled:cursor-wait disabled:opacity-40"
                                                         >
                                                             Marquer payée
                                                         </button>
@@ -852,22 +880,26 @@ export default function Board({ initial }) {
                                                             type="button"
                                                             onClick={() => changerPaiement(commande.id, 'pending')}
                                                             disabled={enCours.has(commande.id)}
-                                                            className="mt-1.5 block rounded-lg bg-gray-200 px-3 py-1.5 text-xs font-bold text-gray-600 transition-all duration-200 hover:bg-gray-300 active:scale-95 disabled:cursor-wait disabled:opacity-40"
+                                                            className="mt-1 block rounded bg-gray-200 px-1.5 py-1 text-[11px] font-bold leading-tight text-gray-600 transition-all duration-200 hover:bg-gray-300 active:scale-95 disabled:cursor-wait disabled:opacity-40"
                                                         >
                                                             Annuler le paiement
                                                         </button>
                                                     )}
                                                 </td>
 
-                                                <td className="whitespace-nowrap px-4 py-4">
-                                                    <div className="flex flex-wrap gap-1.5">
+                                                {/* Boutons compacts sur deux colonnes : en pleine largeur ils
+                                                    mangeaient la moitié de la ligne et débordaient sur la télé.
+                                                    Le texte reste en gras pour rester lisible de loin. */}
+                                                <td className="px-3 py-4">
+                                                    <div className="grid w-[9.5rem] grid-cols-2 gap-1">
                                                         {(ACTIONS[commande.status] ?? []).map((action) => (
                                                             <button
                                                                 key={action.statut}
                                                                 type="button"
                                                                 onClick={() => changerStatut(commande.id, action.statut)}
                                                                 disabled={enCours.has(commande.id)}
-                                                                className={`rounded-lg px-3 py-2 text-sm font-bold transition-all duration-200 active:scale-95 disabled:cursor-wait disabled:opacity-40 ${VARIANTES[action.variante]}`}
+                                                                title={action.libelle}
+                                                                className={`rounded px-1.5 py-1 text-[11px] font-bold leading-tight transition-all duration-200 active:scale-95 disabled:cursor-wait disabled:opacity-40 ${VARIANTES[action.variante]}`}
                                                             >
                                                                 {action.libelle}
                                                             </button>
