@@ -79,6 +79,25 @@ new class extends Component {
         $this->dispatch('notify', ['message' => 'Statut de la commande modifié avec succès !', 'type' => 'success']);
         $this->closeModal();
     }
+
+    /**
+     * Bascule le statut de paiement d'une commande.
+     *
+     * La colonne status_paiement est un enum('pending','Success','failed') : on
+     * s'y tient. Le tunnel du site y écrivait 'paid'/'unpaid', valeurs que MySQL
+     * refuse — aucune commande du web n'avait donc de paiement exploitable.
+     */
+    public function togglePaiement($id)
+    {
+        $order = order_detail::findOrFail($id);
+        $order->status_paiement = $order->status_paiement === 'Success' ? 'pending' : 'Success';
+        $order->save();
+
+        $this->dispatch('notify', [
+            'message' => $order->status_paiement === 'Success' ? 'Commande marquée payée !' : 'Paiement annulé.',
+            'type' => 'success',
+        ]);
+    }
 };
 ?>
 
@@ -133,6 +152,7 @@ new class extends Component {
                             <th class="py-3 px-4 text-gray-800">Référence</th>
                             <th class="py-3 px-4 text-gray-800">Méthode de Paiement</th>
                             <th class="py-3 px-4 text-gray-800">Statut</th>
+                            <th class="py-3 px-4 text-gray-800">Paiement</th>
                             <th class="py-3 px-4 text-gray-800">Date</th>
                             <th class="py-3 px-4 text-gray-800">Actions</th>
                         </tr>
@@ -163,6 +183,17 @@ new class extends Component {
                                            ($order->status === 'want' ? 'Colis souhaité' :
                                            'Colis pris'))))) }}
                                     </span>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full
+                                        {{ $order->status_paiement === 'Success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
+                                        {{ $order->status_paiement === 'Success' ? 'Payée' : 'Non payée' }}
+                                    </span>
+                                    <button wire:click="togglePaiement({{ $order->id }})"
+                                            class="mt-1.5 block rounded-lg px-2.5 py-1 text-xs font-bold text-white transition-colors
+                                                {{ $order->status_paiement === 'Success' ? 'bg-gray-400 hover:bg-gray-500' : 'bg-emerald-600 hover:bg-emerald-700' }}">
+                                        {{ $order->status_paiement === 'Success' ? 'Annuler' : 'Marquer payée' }}
+                                    </button>
                                 </td>
                                 <td class="py-3 px-4">{{ optional($order->created_at)->format('Y-m-d') }}</td>
                                 <td class="py-3 px-4">

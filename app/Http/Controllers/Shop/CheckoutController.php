@@ -125,7 +125,13 @@ class CheckoutController extends Controller
             'delivery_type' => $data['delivery_method'],
             'payment_method' => $data['payment_method'],
             'status' => 'pending',
-            'status_paiement' => $data['payment_method'] === 'cash_on_delivery' ? 'unpaid' : 'paid',
+            /*
+             | La colonne est un enum('pending','Success','failed'). Les valeurs
+             | 'unpaid' / 'paid' écrites ici n'en font pas partie : MySQL les refuse
+             | en mode strict, ou les remplace par une chaîne vide sinon. Aucune
+             | commande du site n'avait donc de statut de paiement exploitable.
+             */
+            'status_paiement' => $data['payment_method'] === 'cash_on_delivery' ? 'pending' : 'Success',
             'address' => $address,
             'phone_customer' => $data['phone'],
             'email_customer' => $user->email,

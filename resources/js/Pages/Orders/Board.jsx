@@ -86,6 +86,16 @@ const VARIANTES = {
     gris: 'bg-gray-200 text-gray-700 hover:bg-gray-300',
 };
 
+/*
+ * Statut de paiement. La colonne en base est un enum('pending','Success','failed') :
+ * « Success » signifie encaissé, « pending » reste à encaisser.
+ */
+const PAIEMENTS = {
+    Success: { label: 'Payée', classe: 'bg-emerald-100 text-emerald-800 ring-emerald-300' },
+    pending: { label: 'Non payée', classe: 'bg-red-100 text-red-800 ring-red-300' },
+    failed: { label: 'Paiement échoué', classe: 'bg-gray-200 text-gray-700 ring-gray-300' },
+};
+
 const jetonCsrf = () =>
     document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 
@@ -212,9 +222,19 @@ function DetailCommande({ commande, onClose, onChangerStatut, enCours }) {
                         )}
 
                         <div className="mt-5">
-                            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500">
-                                Panier — {commande.items_count} article{commande.items_count > 1 ? 's' : ''} ({totalArticles} unité{totalArticles > 1 ? 's' : ''})
-                            </p>
+                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                                    Panier — {commande.items_count} article{commande.items_count > 1 ? 's' : ''} ({totalArticles} unité{totalArticles > 1 ? 's' : ''})
+                                </p>
+
+                                {/* Un panier peut mêler plusieurs boutiques : on le signale
+                                    explicitement, sinon la répartition passe inaperçue. */}
+                                {(commande.shops?.length ?? 0) > 1 && (
+                                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800">
+                                        {commande.shops.length} boutiques : {commande.shops.join(', ')}
+                                    </span>
+                                )}
+                            </div>
 
                             {commande.items.length === 0 ? (
                                 <p className="rounded-xl border border-dashed border-gray-300 px-4 py-8 text-center text-gray-400">
@@ -226,6 +246,7 @@ function DetailCommande({ commande, onClose, onChangerStatut, enCours }) {
                                         <thead className="bg-gray-50 text-xs font-bold uppercase tracking-wider text-gray-500">
                                             <tr>
                                                 <th className="px-4 py-2.5">Article</th>
+                                                <th className="px-4 py-2.5">Boutique</th>
                                                 <th className="px-4 py-2.5 text-center">Qté</th>
                                                 <th className="px-4 py-2.5 text-right">Prix unitaire</th>
                                                 <th className="px-4 py-2.5 text-right">Total</th>
@@ -235,6 +256,15 @@ function DetailCommande({ commande, onClose, onChangerStatut, enCours }) {
                                             {commande.items.map((article, index) => (
                                                 <tr key={index}>
                                                     <td className="px-4 py-3 font-semibold text-gray-900">{article.name}</td>
+                                                    <td className="px-4 py-3">
+                                                        {article.shop ? (
+                                                            <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-700">
+                                                                {article.shop}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-xs text-gray-400">—</span>
+                                                        )}
+                                                    </td>
                                                     <td className="px-4 py-3 text-center font-bold tabular-nums text-gray-700">×{article.quantity}</td>
                                                     <td className="px-4 py-3 text-right tabular-nums text-gray-600">
                                                         {article.unit_price ? `${formatMontant(article.unit_price)} F` : '—'}
@@ -529,6 +559,36 @@ export default function Board({ initial }) {
         }
     };
 
+    /** Bascule payée / non payée. Même mécanique que le changement de statut. */
+    const changerPaiement = async (id, statutPaiement) => {
+        setEnCours((precedent) => new Set([...precedent, id]));
+
+        try {
+            const reponse = await fetch(`/commandes/${id}/paiement`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': jetonCsrf(),
+                },
+                body: JSON.stringify({ status_paiement: statutPaiement }),
+            });
+
+            if (!reponse.ok) throw new Error(String(reponse.status));
+
+            setDonnees(await reponse.json());
+            setEnLigne(true);
+        } catch {
+            setEnLigne(false);
+        } finally {
+            setEnCours((precedent) => {
+                const copie = new Set(precedent);
+                copie.delete(id);
+                return copie;
+            });
+        }
+    };
+
     const allerPage = (cible) => {
         const borne = Math.min(Math.max(1, cible), pagination.last_page || 1);
         pageRef.current = borne;
@@ -694,6 +754,7 @@ export default function Board({ initial }) {
                                         <th className="px-4 py-3 text-center">Détail</th>
                                         <th className="px-4 py-3 text-right">Montant</th>
                                         <th className="px-4 py-3">Statut</th>
+                                        <th className="px-4 py-3">Paiement</th>
                                         <th className="px-4 py-3">Actions</th>
                                     </tr>
                                 </thead>
@@ -701,6 +762,10 @@ export default function Board({ initial }) {
                                     {commandes.map((commande) => {
                                         const statut = STATUTS[commande.status] ?? {
                                             label: commande.status,
+                                            classe: 'bg-gray-100 text-gray-700 ring-gray-300',
+                                        };
+                                        const paiement = PAIEMENTS[commande.status_paiement] ?? {
+                                            label: commande.status_paiement ?? '—',
                                             classe: 'bg-gray-100 text-gray-700 ring-gray-300',
                                         };
                                         const estNouvelle = nouvelles.has(commande.id);
@@ -768,6 +833,32 @@ export default function Board({ initial }) {
                                                         {commande.payment_method ?? '—'}
                                                     </p>
                                                 </td>
+                                                <td className="whitespace-nowrap px-4 py-4">
+                                                    <span className={`rounded-full px-3 py-1 text-sm font-bold ring-1 ring-inset ${paiement.classe}`}>
+                                                        {paiement.label}
+                                                    </span>
+
+                                                    {commande.status_paiement !== 'Success' ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => changerPaiement(commande.id, 'Success')}
+                                                            disabled={enCours.has(commande.id)}
+                                                            className="mt-1.5 block rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition-all duration-200 hover:bg-emerald-700 active:scale-95 disabled:cursor-wait disabled:opacity-40"
+                                                        >
+                                                            Marquer payée
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => changerPaiement(commande.id, 'pending')}
+                                                            disabled={enCours.has(commande.id)}
+                                                            className="mt-1.5 block rounded-lg bg-gray-200 px-3 py-1.5 text-xs font-bold text-gray-600 transition-all duration-200 hover:bg-gray-300 active:scale-95 disabled:cursor-wait disabled:opacity-40"
+                                                        >
+                                                            Annuler le paiement
+                                                        </button>
+                                                    )}
+                                                </td>
+
                                                 <td className="whitespace-nowrap px-4 py-4">
                                                     <div className="flex flex-wrap gap-1.5">
                                                         {(ACTIONS[commande.status] ?? []).map((action) => (

@@ -30,8 +30,31 @@ new class extends Component {
     {
         $boutiqueId = $this->boutique->id;
 
-        return order_detail::with(['user:id,name,phone', 'carts.cart_items.product:id,name,price,id_shop'])
+        /*
+         | Le marchand voit qu'un de ses produits a été commandé, rien de plus.
+         |
+         | On ne charge donc pas la relation "user" : ni nom, ni téléphone, ni
+         | adresse du client. Ce ne sont pas ses données, et une commande peut
+         | mêler plusieurs boutiques — les exposer reviendrait à livrer la
+         | clientèle d'une boutique à une autre.
+         */
+        return order_detail::with(['carts.cart_items.product:id,name,price,id_shop'])
             ->whereHas('carts.cart_items.product', fn ($q) => $q->where('id_shop', $boutiqueId));
+    }
+
+    /**
+     * Le marchand confirme l'encaissement de sa part.
+     *
+     * La vérification d'appartenance est refaite ici : le filtre de la liste ne
+     * protège pas une méthode appelée avec un identifiant forgé.
+     */
+    public function marquerPayee($id)
+    {
+        $commande = $this->requeteDeBase()->findOrFail($id);
+        $commande->status_paiement = 'Success';
+        $commande->save();
+
+        $this->dispatch('notify', ['message' => 'Commande marquée payée !', 'type' => 'success']);
     }
 
     public function getCommandesProperty()
@@ -52,7 +75,17 @@ new class extends Component {
             'total' => $this->requeteDeBase()->count(),
             'en_cours' => $this->requeteDeBase()->whereIn('status', ['pending', 'want', 'take', 'process'])->count(),
             'livrees' => $this->requeteDeBase()->where('status', 'Success')->count(),
-            'ca' => (int) $this->requeteDeBase()->where('status', 'Success')->sum('price'),
+            /*
+             | Chiffre d'affaires calculé sur les lignes de la boutique, pas sur le
+             | montant des commandes : celui-ci englobe les articles des autres
+             | boutiques et gonflerait artificiellement le chiffre du marchand.
+             */
+            'ca' => (int) \DB::table('cart_items')
+                ->join('products', 'products.id', '=', 'cart_items.product_id')
+                ->join('order_details', 'order_details.id_cart', '=', 'cart_items.cart_id')
+                ->where('products.id_shop', $this->boutique->id)
+                ->where('order_details.status', 'Success')
+                ->sum(\DB::raw('COALESCE(cart_items.amount, cart_items.price * cart_items.quantity)')),
         ];
     }
 
@@ -107,19 +140,12 @@ new class extends Component {
 
             <div class="mt-4">
                 <x-ui.table target="search,statutFiltre,gotoPage,previousPage,nextPage"
-                    :headers="['Référence', 'Client', 'Vos articles', 'Montant total', 'Statut', 'Date']">
+                    :headers="['Référence', 'Vos articles', 'Vos articles (montant)', 'Statut', 'Paiement', 'Date']">
                     @forelse ($this->commandes as $commande)
                         @php $mesArticles = $this->articlesDeLaBoutique($commande); @endphp
                         <tr class="transition-colors hover:bg-gray-50">
                             <td class="whitespace-nowrap px-4 py-3 font-mono text-sm font-semibold text-gray-900">
                                 {{ $commande->ref ?: '#' . $commande->id }}
-                            </td>
-
-                            <td class="px-4 py-3">
-                                <p class="font-medium text-gray-900">{{ $commande->user?->name ?? '—' }}</p>
-                                @if ($commande->user?->phone)
-                                    <p class="font-mono text-xs text-gray-500">{{ $commande->user->phone }}</p>
-                                @endif
                             </td>
 
                             <td class="px-4 py-3 text-sm text-gray-700">
@@ -133,8 +159,11 @@ new class extends Component {
                                 @endforelse
                             </td>
 
+                            {{-- Montant de SES lignes, pas de la commande entière : le total
+                                 global appartient à une commande qui peut mêler plusieurs
+                                 boutiques, et ne le concerne pas. --}}
                             <td class="whitespace-nowrap px-4 py-3 font-semibold tabular-nums text-gray-900">
-                                {{ number_format((int) $commande->price, 0, ',', ' ') }} F
+                                {{ number_format($mesArticles->sum(fn ($a) => (int) ($a->amount ?: (($a->price ?? 0) * ($a->quantity ?? 1)))), 0, ',', ' ') }} F
                             </td>
 
                             <td class="whitespace-nowrap px-4 py-3">
@@ -158,6 +187,20 @@ new class extends Component {
                                 <x-ui.badge :tone="$tone">{{ $libelle }}</x-ui.badge>
                             </td>
 
+                            <td class="whitespace-nowrap px-4 py-3">
+                                <x-ui.badge :tone="$commande->status_paiement === 'Success' ? 'success' : 'danger'">
+                                    {{ $commande->status_paiement === 'Success' ? 'Payée' : 'Non payée' }}
+                                </x-ui.badge>
+
+                                @if ($commande->status_paiement !== 'Success')
+                                    <x-ui.button size="sm" variant="success" class="mt-1.5"
+                                                 wire:click="marquerPayee({{ $commande->id }})"
+                                                 wire:loading.attr="disabled">
+                                        Marquer payée
+                                    </x-ui.button>
+                                @endif
+                            </td>
+
                             <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-500">
                                 {{ $commande->created_at?->setTimezone('Africa/Douala')->format('d/m/Y H:i') ?? '—' }}
                             </td>
@@ -174,8 +217,8 @@ new class extends Component {
             </div>
 
             <p class="mt-4 text-xs text-gray-500">
-                Le montant affiché est celui de la commande entière, qui peut contenir des produits d'autres boutiques.
-                La colonne « Vos articles » ne liste que les vôtres.
+                Vous voyez les commandes contenant vos produits, et uniquement vos articles. Les coordonnées du client
+                et le contenu des autres boutiques ne vous sont pas communiqués : une commande peut en mêler plusieurs.
             </p>
         </div>
     @endvolt

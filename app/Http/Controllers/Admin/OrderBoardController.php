@@ -31,8 +31,12 @@ class OrderBoardController extends Controller
     /** Statuts considérés comme « à traiter ». */
     private const ACTIFS = ['pending', 'process', 'want', 'take'];
 
-    /** Statuts qui déclenchent et entretiennent la sonnerie. */
-    private const EN_ATTENTE = ['pending', 'want'];
+    /**
+     * Statuts qui déclenchent et entretiennent la sonnerie. « waiting » (colis
+     * prêt) en fait partie : un colis prêt que personne n'enlève doit continuer
+     * d'alerter.
+     */
+    private const EN_ATTENTE = ['pending', 'waiting', 'want'];
 
     /*
      | Heure du Cameroun (WAT, UTC+1).
@@ -83,6 +87,30 @@ class OrderBoardController extends Controller
      * ouverte. Cette action est donc elle aussi accessible sans authentification,
      * ce qui est un choix assumé et non un oubli.
      */
+    /**
+     * Statut de paiement. La colonne est un enum('pending','Success','failed') :
+     * on s'y tient, plutôt que d'inventer 'paid'/'unpaid' comme le faisait le
+     * tunnel de commande du site — valeurs que MySQL refusait.
+     */
+    private const PAIEMENTS_AUTORISES = ['pending', 'Success', 'failed'];
+
+    /**
+     * Marque une commande payée ou impayée depuis le mur.
+     */
+    public function updatePayment(Request $request, int $order): JsonResponse
+    {
+        $valide = $request->validate([
+            'status_paiement' => ['required', 'string', Rule::in(self::PAIEMENTS_AUTORISES)],
+        ]);
+
+        $commande = order_detail::findOrFail($order);
+        $commande->status_paiement = $valide['status_paiement'];
+        $commande->save();
+
+        return response()->json($this->payload($request))
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+
     public function updateStatus(Request $request, int $order): JsonResponse
     {
         $valide = $request->validate([
@@ -109,7 +137,8 @@ class OrderBoardController extends Controller
         $commandes = order_detail::with([
                 'user:id,name,phone,whatsapp,email',
                 'agent.user:id,name,phone,whatsapp',
-                'carts.cart_items.product:id,name,price',
+                'carts.cart_items.product:id,name,price,id_shop',
+                'carts.cart_items.product.shop:id,shop_name',
             ])
             /*
              | Tri strictement chronologique, de la plus récente à la plus ancienne.
@@ -215,6 +244,7 @@ class OrderBoardController extends Controller
             'ref' => $order->ref,
             'price' => (int) $order->price,
             'status' => $order->status,
+            'status_paiement' => $order->status_paiement,
             'address' => $order->address,
             'payment_method' => $order->payment_method,
             'customer' => $order->user?->name,
@@ -230,12 +260,20 @@ class OrderBoardController extends Controller
                 . $order->created_at?->setTimezone(self::FUSEAU)->format('H:i'),
             // Panier complet : le détail est consulté à la demande depuis le tableau,
             // et la liste est plafonnée à 12 commandes, donc le poids reste faible.
+            // La boutique de chaque article est exposée : un même panier peut mêler
+            // plusieurs boutiques, et le détail doit permettre de voir laquelle
+            // fournit quoi.
             'items' => $items->map(fn ($item) => [
                 'name' => $item->product?->name ?? 'Article',
                 'quantity' => (int) ($item->quantity ?? 1),
                 'unit_price' => (int) ($item->price ?? $item->product?->price ?? 0),
                 'amount' => (int) ($item->amount ?? 0),
+                'shop' => $item->product?->shop?->shop_name,
             ])->values(),
+            'shops' => $items->map(fn ($item) => $item->product?->shop?->shop_name)
+                ->filter()
+                ->unique()
+                ->values(),
             'items_count' => $items->count(),
             'agent' => $order->agent?->user ? [
                 'name' => $order->agent->user->name,
