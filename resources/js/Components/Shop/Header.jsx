@@ -83,6 +83,21 @@ export default function Header() {
                     </form>
 
                     <div className="ml-auto flex items-center gap-1 sm:gap-2">
+                        {/* Accès permanent à l'espace marchand : enfoui dans le menu compte,
+                            il restait introuvable pour ceux à qui il est destiné. */}
+                        {boutique && (
+                            <a
+                                href="/merchand"
+                                title={`Gérer ${boutique}`}
+                                className="flex shrink-0 items-center gap-2 rounded-full bg-emerald-600 px-3 py-2 text-sm font-bold text-white shadow-sm transition-all duration-300 hover:bg-emerald-700 hover:shadow-md active:scale-95 sm:px-4"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className="h-5 w-5 shrink-0">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614" />
+                                </svg>
+                                <span className="hidden sm:inline">Ma boutique</span>
+                            </a>
+                        )}
+
                         <button
                             type="button"
                             onClick={() => setCartOpen(true)}
