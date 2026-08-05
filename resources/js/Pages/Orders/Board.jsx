@@ -24,10 +24,11 @@ const CLE_SON = 'mur-commandes.son-active';
  * tant qu'au moins une commande s'y trouve. « take » et « process » signifient
  * qu'un agent s'en occupe, l'alerte s'arrête donc.
  */
-const STATUTS_EN_ATTENTE = ['pending', 'want'];
+const STATUTS_EN_ATTENTE = ['pending', 'waiting', 'want'];
 
 const STATUTS = {
     pending: { label: 'En attente', classe: 'bg-amber-100 text-amber-800 ring-amber-300' },
+    waiting: { label: 'Colis prêt', classe: 'bg-violet-100 text-violet-800 ring-violet-300' },
     want: { label: 'À prendre', classe: 'bg-orange-100 text-orange-800 ring-orange-300' },
     process: { label: 'En cours', classe: 'bg-sky-100 text-sky-800 ring-sky-300' },
     take: { label: 'Prise en charge', classe: 'bg-indigo-100 text-indigo-800 ring-indigo-300' },
@@ -43,12 +44,24 @@ const formatMontant = (valeur) => new Intl.NumberFormat('fr-FR').format(valeur ?
  * sur une commande annulée, encombre l'écran et invite à l'erreur.
  */
 const ACTIONS = {
+    /*
+     * « Colis prêt » place la commande en "waiting" : c'est ce changement qui
+     * alerte les agents sur leur téléphone qu'un colis attend d'être enlevé.
+     * Il vient en premier, c'est le geste le plus fréquent depuis le comptoir.
+     */
     pending: [
+        { statut: 'waiting', libelle: 'Colis prêt', variante: 'violet' },
+        { statut: 'process', libelle: 'Prendre', variante: 'sky' },
+        { statut: 'Success', libelle: 'Terminer', variante: 'emerald' },
+        { statut: 'failed', libelle: 'Annuler', variante: 'red' },
+    ],
+    waiting: [
         { statut: 'process', libelle: 'Prendre', variante: 'sky' },
         { statut: 'Success', libelle: 'Terminer', variante: 'emerald' },
         { statut: 'failed', libelle: 'Annuler', variante: 'red' },
     ],
     want: [
+        { statut: 'waiting', libelle: 'Colis prêt', variante: 'violet' },
         { statut: 'process', libelle: 'Prendre', variante: 'sky' },
         { statut: 'Success', libelle: 'Terminer', variante: 'emerald' },
         { statut: 'failed', libelle: 'Annuler', variante: 'red' },
@@ -66,6 +79,7 @@ const ACTIONS = {
 };
 
 const VARIANTES = {
+    violet: 'bg-violet-600 text-white hover:bg-violet-700',
     sky: 'bg-sky-600 text-white hover:bg-sky-700',
     emerald: 'bg-emerald-600 text-white hover:bg-emerald-700',
     red: 'bg-red-600 text-white hover:bg-red-700',

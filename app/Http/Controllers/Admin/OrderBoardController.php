@@ -66,10 +66,15 @@ class OrderBoardController extends Controller
     }
 
     /**
-     * Statuts qu'un opérateur peut poser depuis le mur. Repris de l'ancienne page
-     * Livewire, moins « waiting » qui n'apparaît dans aucune commande existante.
+     * Statuts qu'un opérateur peut poser depuis le mur.
+     *
+     * « waiting » y figure de nouveau : c'est le statut que posait le bouton
+     * « Colis prêt » pour signaler aux agents qu'une commande est prête à être
+     * enlevée. Je l'avais retiré en le croyant inutilisé — aucune commande ne le
+     * portait en base — sans voir qu'il servait précisément à déclencher
+     * l'alerte sur leurs téléphones.
      */
-    private const STATUTS_AUTORISES = ['pending', 'want', 'take', 'process', 'Success', 'failed'];
+    private const STATUTS_AUTORISES = ['pending', 'waiting', 'want', 'take', 'process', 'Success', 'failed'];
 
     /**
      * Change le statut d'une commande depuis le mur.

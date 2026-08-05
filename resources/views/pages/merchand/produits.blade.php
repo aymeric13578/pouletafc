@@ -116,7 +116,8 @@ new class extends Component {
 
         $donnees = collect($valide)->except('image')->all();
         $donnees['quantity'] = $donnees['stock_init'];
-        $donnees['category'] = Category::where('id', $this->id_category)->value('name');
+        // Pas de colonne "category" sur products : la catégorie tient dans
+        // id_category, et "category" n'est qu'une relation.
 
         if ($this->image) {
             $nom = hexdec(uniqid()) . '.' . $this->image->getClientOriginalExtension();
@@ -189,7 +190,9 @@ new class extends Component {
                                     </div>
                                 </div>
                             </td>
-                            <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{{ $produit->category ?: '—' }}</td>
+                            {{-- category est une relation, pas une colonne : l'afficher directement
+                                 imprimait le modèle Category sérialisé en JSON dans le tableau. --}}
+                            <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{{ $produit->category?->name ?? '—' }}</td>
                             <td class="whitespace-nowrap px-4 py-3 font-semibold tabular-nums text-gray-900">
                                 {{ number_format((int) $produit->price, 0, ',', ' ') }} F
                             </td>

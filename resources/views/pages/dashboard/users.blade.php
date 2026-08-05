@@ -114,8 +114,10 @@ new class extends Component {
         $this->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|max:255|unique:users,email' . ($this->editMode ? ',' . $this->userId : ''),
-            'password' => $this->editMode ? 'nullable|string|min:6|confirmed' : 'required|string|min:6|confirmed',
-            'password_confirmation' => $this->editMode ? 'nullable|string|min:6' : 'required|string|min:6',
+            // Minimum ramené à 4 caractères sur demande : les comptes d'agents et
+            // d'opérateurs sont saisis sur le terrain, au clavier d'un téléphone.
+            'password' => $this->editMode ? 'nullable|string|min:4|confirmed' : 'required|string|min:4|confirmed',
+            'password_confirmation' => $this->editMode ? 'nullable|string|min:4' : 'required|string|min:4',
             'role' => 'nullable|in:user,agent,admin,merchand,employee_afc',
             'city' => 'nullable|string|max:255',
             'phone' => 'nullable|numeric|digits_between:1,15',

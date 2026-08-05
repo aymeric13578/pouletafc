@@ -285,14 +285,49 @@ Contact service client : 697 526 980",$user->phone);
     
     
     
+    /**
+     * Commandes en attente proposées aux agents, limitées à la journée en cours.
+     *
+     * Sans borne de date, l'écran de l'application accumulait toutes les commandes
+     * jamais prises depuis l'ouverture du service : une liste sans fin, où les
+     * commandes du jour se noyaient parmi des mois d'anciennes.
+     */
     public function getAllOrder(Request $request)
     {
-        
-             
-             $order = order_detail::where('status', "pending")->with('carts')->with('user')->get();
-             if($order) return response()->json(['response' => 200, 'data'=> $order ]);
-             else return response()->json(['response' => 404]);
-        
+        [$debut, $fin] = $this->borneesDuJourCameroun();
+
+        /*
+         | « waiting » est inclus au même titre que « pending » : c'est le statut
+         | posé par le bouton « Colis prêt » du mur des commandes pour signaler
+         | qu'un colis attend d'être enlevé. Le filtrer sur « pending » seul aurait
+         | fait disparaître la commande de l'écran des agents au moment précis où
+         | elle devient prête.
+         */
+        $order = order_detail::whereIn('status', ['pending', 'waiting'])
+            ->whereBetween('created_at', [$debut, $fin])
+            ->with('carts')
+            ->with('user')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        if ($order) return response()->json(['response' => 200, 'data' => $order]);
+        else return response()->json(['response' => 404]);
+    }
+
+    /**
+     * Début et fin de la journée camerounaise, exprimés en UTC.
+     *
+     * Les dates sont stockées en UTC alors que le Cameroun est à UTC+1 : borner
+     * sur la journée du serveur ferait basculer la liste à une heure du matin
+     * heure locale, et masquerait les commandes passées entre minuit et une heure.
+     *
+     * @return array{0: \Illuminate\Support\Carbon, 1: \Illuminate\Support\Carbon}
+     */
+    private function borneesDuJourCameroun(): array
+    {
+        $debut = now()->setTimezone('Africa/Douala')->startOfDay();
+
+        return [$debut->copy()->utc(), $debut->copy()->endOfDay()->utc()];
     }
     
     
@@ -313,13 +348,29 @@ Contact service client : 697 526 980",$user->phone);
     
     
     
-    public function getAllOrderWithoutCondition()
+    /**
+     * Historique des commandes.
+     *
+     * Un agent ne doit y voir que les commandes qu'il a prises : la méthode
+     * renvoyait jusqu'ici l'intégralité des commandes de la plateforme, à tout le
+     * monde.
+     *
+     * Le filtre ne s'applique que si l'application transmet id_user, pour ne pas
+     * vider l'écran des clients existants qui appellent ce point d'entrée sans ce
+     * paramètre. Côté application, envoyer id_user suffit à activer le
+     * cloisonnement.
+     */
+    public function getAllOrderWithoutCondition(Request $request)
     {
-        $order = order_detail::where('status',"!=" ,"failed")->with('carts')->with('user')->orderBy('id','desc')->get();
-        
-         if($order) return response()->json(['response' => 200, 'data'=> $order ]);
-         else return response()->json(['response' => 404]);
-        
+        $order = order_detail::where('status', '!=', 'failed')
+            ->when($request->id_user, fn ($q) => $q->where('id_agent', $request->id_user))
+            ->with('carts')
+            ->with('user')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        if ($order) return response()->json(['response' => 200, 'data' => $order]);
+        else return response()->json(['response' => 404]);
     }
     
     

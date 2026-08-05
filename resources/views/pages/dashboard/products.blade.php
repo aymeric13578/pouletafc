@@ -442,6 +442,7 @@ new class extends Component {
                                 <th class="py-3 px-4 text-gray-800">Référence</th>
                                 <th class="py-3 px-4 text-gray-800">Nom</th>
                                 <th class="py-3 px-4 text-gray-800">Catégorie</th>
+                                <th class="py-3 px-4 text-gray-800">Boutique</th>
                                 <th class="py-3 px-4 text-gray-800">Prix (FCFA)</th>
                                 <th class="py-3 px-4 text-gray-800">Stock</th>
                                 <th class="py-3 px-4 text-gray-800">Statut</th>
@@ -454,6 +455,15 @@ new class extends Component {
                                     <td class="py-3 px-4">{{ $product->ref }}</td>
                                     <td class="py-3 px-4">{{ $product->name }}</td>
                                     <td class="py-3 px-4">{{ $product->category?->name ?? 'N/A' }}</td>
+                                    <td class="py-3 px-4">
+                                        @if ($product->shop)
+                                            <span class="inline-block rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-700">
+                                                {{ $product->shop->shop_name }}
+                                            </span>
+                                        @else
+                                            <span class="text-xs text-gray-400">Aucune</span>
+                                        @endif
+                                    </td>
                                     <td class="py-3 px-4">{{ number_format($product->price, 2, ',', ' ') }}</td>
                                     <td class="py-3 px-4">{{ $product->stock_init }}</td>
                                     <td class="py-3 px-4">
