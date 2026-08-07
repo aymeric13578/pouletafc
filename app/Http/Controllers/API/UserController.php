@@ -176,8 +176,19 @@ class UserController extends Controller
 
         $lastname = $request->input('lastname', '');
         $name = $request->input('name', $lastname ?: 'Client');
-        $phone = $request->input('phone');
-        $whatsapp = $request->input('whatsapp', $phone);
+
+        /*
+         * L'application client ne demande qu'un numéro WhatsApp et n'envoie
+         * jamais "phone" : le compte se créait donc sans numéro joignable, et
+         * le SMS de confirmation — conditionné à "phone" — n'était pas émis,
+         * alors que l'écran affichait « Entrez le code reçu par SMS ». Le
+         * numéro WhatsApp est un numéro mobile : il sert de numéro de contact
+         * quand aucun autre n'est fourni, ici comme pour les OTP ultérieurs.
+         */
+        $function = new Fonction();
+
+        $phone = $function->numeroContact($request->input('phone'), $request->input('whatsapp'));
+        $whatsapp = $function->numeroContact($request->input('whatsapp'), $request->input('phone'));
 
         try {
             $create = User::create([
@@ -186,8 +197,11 @@ class UserController extends Controller
                 'ref' => $ref,
                 'email' => $email,
                 'password' => Hash::make($password),
-                'whatsapp' => $whatsapp,
-                'phone' => $phone,
+                // Rester à null plutôt que chaîne vide : les recherches de compte
+                // se font par where('phone', $valeur), et une chaîne vide en base
+                // rapprocherait deux comptes sans numéro.
+                'whatsapp' => $whatsapp !== '' ? $whatsapp : null,
+                'phone' => $phone !== '' ? $phone : null,
                 'country' => $country ? $country->name : 'Cameroon',
                 'id_country' => $country ? $country->id : 37,
                 'country_code' => $country ? $country->phoneCode : '237',
@@ -216,9 +230,8 @@ class UserController extends Controller
                 }
             }
 
-            if ($phone) {
+            if ($phone !== '') {
                 try {
-                    $function = new Fonction();
                     $function->sendSms("Votre code de confirmation AFC :" . $confirmation_code, $phone);
                 } catch (\Throwable $e) {
                     Log::error("Échec envoi SMS inscription : " . $e->getMessage());
@@ -557,12 +570,22 @@ class UserController extends Controller
                 } catch (\Throwable $e) {
                     Log::error("Échec envoi OTP Mail : " . $e->getMessage());
                 }
-            } elseif ($method === 'sms' && $seachUser->phone) {
-                try {
-                    $function = new Fonction();
-                    $function->sendSms("Votre code de confirmation POULET AFC est " . $confirmation_code, $seachUser->phone);
-                } catch (\Throwable $e) {
-                    Log::error("Échec envoi OTP SMS : " . $e->getMessage());
+            } elseif ($method === 'sms') {
+                /*
+                 * Le compte est retrouvé par phone OU whatsapp, mais l'envoi ne
+                 * regardait que phone : les comptes créés depuis l'application
+                 * client, qui n'a jamais renseigné que le numéro WhatsApp,
+                 * étaient identifiés puis laissés sans code.
+                 */
+                $function = new Fonction();
+                $destinataire = $function->numeroContact($seachUser->phone, $seachUser->whatsapp);
+
+                if ($destinataire !== '') {
+                    try {
+                        $function->sendSms("Votre code de confirmation POULET AFC est " . $confirmation_code, $destinataire);
+                    } catch (\Throwable $e) {
+                        Log::error("Échec envoi OTP SMS : " . $e->getMessage());
+                    }
                 }
             }
 

@@ -125,8 +125,50 @@ public function getToken()
     
     
     
+    /**
+     * Ramène un numéro saisi librement à sa forme locale, sans indicatif.
+     *
+     * L'adresse envoyée à Orange est construite en préfixant "+237" : un numéro
+     * déjà saisi "+237690000000" ou "00237690000000" — ce que les clients tapent
+     * couramment dans le champ WhatsApp, libre de tout format — produisait
+     * "tel:+237237690000000", que l'opérateur rejette sans que rien ne le
+     * signale à l'utilisateur.
+     */
+    public function numeroLocal($contact)
+    {
+        $chiffres = preg_replace('/\D+/', '', (string) $contact);
+
+        if ($chiffres === '') {
+            return '';
+        }
+
+        if (str_starts_with($chiffres, '00237')) {
+            $chiffres = substr($chiffres, 5);
+        } elseif (str_starts_with($chiffres, '237') && strlen($chiffres) > 9) {
+            $chiffres = substr($chiffres, 3);
+        }
+
+        // Certains saisissent le numéro à la française, avec un 0 en tête.
+        return ltrim($chiffres, '0');
+    }
+
+    /**
+     * Numéro sur lequel joindre un compte par SMS.
+     *
+     * L'application client ne collecte qu'un numéro WhatsApp : sans ce repli,
+     * les comptes créés depuis cette application n'avaient aucun numéro et ne
+     * recevaient ni code d'inscription ni code de récupération.
+     */
+    public function numeroContact($phone, $whatsapp)
+    {
+        $numero = $this->numeroLocal($phone);
+
+        return $numero !== '' ? $numero : $this->numeroLocal($whatsapp);
+    }
+
     public function sendSms($message,$contact)
     {
+         $contact = $this->numeroLocal($contact);
          $curl = curl_init();
          $function = new Fonction();
          $getToken = $function->getToken();
