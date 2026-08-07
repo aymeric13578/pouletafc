@@ -92,6 +92,21 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
 
        Route::post('getLocations', 'GeolocalisationController@getLocations');
 
+       // Saisie des quartiers et lieux depuis l'application coursier.
+       // L'application émet ces appels en GET avec des paramètres d'URL : les
+       // deux verbes sont exposés, comme partout ailleurs dans cette API.
+       Route::get('getQuarters', 'GeolocalisationController@getQuarters');
+       Route::post('getQuarters', 'GeolocalisationController@getQuarters');
+
+       Route::get('createQuarter', 'GeolocalisationController@createQuarter');
+       Route::post('createQuarter', 'GeolocalisationController@createQuarter');
+
+       Route::get('createLocation', 'GeolocalisationController@createLocation');
+       Route::post('createLocation', 'GeolocalisationController@createLocation');
+
+       Route::get('getPlacesHistory', 'GeolocalisationController@getPlacesHistory');
+       Route::post('getPlacesHistory', 'GeolocalisationController@getPlacesHistory');
+
     //agent
     
      Route::get('updatePositionAgent', 'ClandoController@updatePositionAgent');
