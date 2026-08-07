@@ -71,21 +71,17 @@ jobs:
       - name: Add server to known_hosts
         run: |
           mkdir -p ~/.ssh
-          # Le serveur peut ignorer/laisser tomber le tout premier paquet d'une IP jamais vue
-          # (protection anti-scan côté hébergeur) : on retente plutôt que d'échouer direct.
-          for i in 1 2 3 4 5; do
-            if ssh-keyscan -T 10 -p "${{ env.DEPLOY_PORT }}" -H "${{ env.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/tmp/keyscan_err; then
-              echo "ssh-keyscan OK (tentative $i)"
-              break
-            fi
-            echo "ssh-keyscan tentative $i échouée :"
-            cat /tmp/keyscan_err
-            if [ "$i" -eq 5 ]; then
-              echo "ssh-keyscan a échoué après 5 tentatives" >&2
-              exit 1
-            fi
-            sleep 5
-          done
+          # Clés d'hôte figées plutôt que relevées à chaud. Un seul ssh-keyscan ouvre
+          # cinq connexions TCP, et la boucle de reprise en tentait cinq d'affilée :
+          # vingt-cinq connexions en quelques secondes depuis une IP jamais vue, soit
+          # le motif même que la protection anti-scan de l'hébergeur bloque — après
+          # quoi scp et ssh échouaient à leur tour. Ces clés sont publiques, et les
+          # épingler vérifie en prime l'identité du serveur.
+          {
+            echo '[209.16.158.105]:5022 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBIMOm8QHHSXneiyNliJJXnFnnhgMU3c8sJXSO6csfkxKegUvDE0isV5L0xLUspeK8BsJCbxp1nUZcX8RXR9mvgc='
+            echo '[209.16.158.105]:5022 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDeA9eJeZRXTS6X29nkQk/FxuLGUFGzZP2MwZoUjAtSXffUztALLVslFCeZhr1uk6v5qHzCKJWtHj/KAr8twmpVEhh0gKe8I/pMeFHUmzsw7MAInWtVvZqzSqOXxgukaH4zGQF9zNKdICRYGPWNOYvKnMiownuh/nMu3it6nM+y9aSwCUeLzYHeCQDE4rvuZEJNWdQ0PH8yQkjj8vQ9QA7nnI9G7spw3qK65SSIZnUqYB34hQ74RLYkLcVd5vmxG1G7jktVCOc6XPoxcZpj874STj782npt2wjXBSCI4Q1fg3LppKDfzzyyc6WixXB0TyeGCsXacv5+W54mRbaHl3vt/QhfAB7z2eubUudaGfN09ldsAoJFbB0lsFjKmDPw7+Hnh07+VV6BZedaVo83eBU9DK5zY+f8TLAYQJn8BLoGpv854TbZSVjhiARTJoU7wZVQvybF4mlvTrVeYk9x+nbgMRLaa25K9K4LPy56/XmcKP9SAdLpG3Hci/1IwdibXOk='
+            echo '[209.16.158.105]:5022 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIrOLR8T7kongCpfUuIneume8pLqSyhnhzr4pykSikXF'
+          } >> ~/.ssh/known_hosts
 
       - name: Upload release archive
         uses: appleboy/scp-action@v0.1.7
