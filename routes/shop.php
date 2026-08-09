@@ -45,6 +45,17 @@ Route::get('/commandes/flux', [\App\Http\Controllers\Admin\OrderBoardController:
 Route::post('/commandes/{order}/statut', [\App\Http\Controllers\Admin\OrderBoardController::class, 'updateStatus'])->name('orders.board.status');
 Route::post('/commandes/{order}/paiement', [\App\Http\Controllers\Admin\OrderBoardController::class, 'updatePayment'])->name('orders.board.payment');
 
+/*
+| Carte des courses clando, en accès libre pour la même raison que le mur des
+| commandes : l'écran tourne dans le local sans session ouverte.
+|
+| Même réserve, et elle pèse plus lourd ici : la page expose la position en direct
+| des agents en plus des coordonnées des clients. Si un garde-fou devient
+| nécessaire, le plus simple reste de déplacer la route derrière un segment secret.
+*/
+Route::get('/clando', [\App\Http\Controllers\Admin\ClandoBoardController::class, 'index'])->name('clando.board');
+Route::get('/clando/flux', [\App\Http\Controllers\Admin\ClandoBoardController::class, 'feed'])->name('clando.board.feed');
+
 Route::get('/download-app', [MobileAppController::class, 'show'])->name('shop.app.show');
 Route::get('/download-app/clando.apk', [MobileAppController::class, 'apk'])->name('shop.app.android.apk');
 
