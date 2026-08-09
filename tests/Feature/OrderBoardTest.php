@@ -43,7 +43,25 @@ class OrderBoardTest extends TestCase
         $response->assertJsonStructure(['orders', 'stats', 'pagination']);
         $this->assertSame('Success', $commande->fresh()->status);
 
-        $commande->update(['status' => $statutInitial]);
+        $this->restaurerStatut($commande->id, $statutInitial);
+    }
+
+    /**
+     * Repose un statut sans passer par le modèle chargé.
+     *
+     * $commande->update(['status' => $initial]) ne suffit pas : c'est le
+     * contrôleur qui a modifié la ligne, via sa propre instance. L'instance du
+     * test porte donc toujours l'ancien statut, Eloquent ne voit rien de modifié
+     * et n'émet aucune requête — la restauration ne se faisait jamais.
+     *
+     * Conséquence : chaque exécution convertissait pour de bon une commande
+     * « en attente » en « livrée ». Le test finissait par manger son propre jeu
+     * d'essai, jusqu'à ne plus trouver aucune commande à traiter et échouer sur
+     * un firstOrFail() incompréhensible.
+     */
+    private function restaurerStatut(int $id, string $statut): void
+    {
+        \App\Models\order_detail::where('id', $id)->update(['status' => $statut]);
     }
 
     public function test_un_statut_inconnu_est_refuse(): void
@@ -166,7 +184,7 @@ class OrderBoardTest extends TestCase
         $apres = collect($this->postJson("/commandes/{$commande->id}/statut", ['status' => 'process'])->json('orders'))
             ->search(fn ($o) => $o['id'] === $commande->id);
 
-        $commande->update(['status' => $statutInitial]);
+        $this->restaurerStatut($commande->id, $statutInitial);
 
         $this->assertSame($avant, $apres, 'La commande doit conserver sa position après un changement de statut.');
     }

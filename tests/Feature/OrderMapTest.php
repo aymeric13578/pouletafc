@@ -83,7 +83,7 @@ class OrderMapTest extends TestCase
         $this->assertEqualsWithDelta(4.05, $trouvee['boutique']['lat'], 0.001);
         $this->assertEqualsWithDelta(4.06, $trouvee['livraison']['lat'], 0.001);
 
-        $commande->update($etat);
+        order_detail::where('id', $commande->id)->update($etat);
     }
 
     public function test_une_coordonnee_a_zero_ne_produit_pas_de_point(): void
@@ -101,7 +101,7 @@ class OrderMapTest extends TestCase
         $this->assertNotNull($trouvee, 'La commande reste listée même sans point exploitable.');
         $this->assertNull($trouvee['livraison']);
 
-        $commande->update($etat);
+        order_detail::where('id', $commande->id)->update($etat);
     }
 
     public function test_une_commande_deja_prise_n_est_pas_attribuable(): void
@@ -127,7 +127,7 @@ class OrderMapTest extends TestCase
 
         $this->assertTrue($trouvee['attribuable']);
 
-        $commande->update($etat);
+        order_detail::where('id', $commande->id)->update($etat);
     }
 
     public function test_un_agent_sans_position_n_est_pas_place_sur_la_carte(): void

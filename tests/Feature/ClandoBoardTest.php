@@ -82,7 +82,7 @@ class ClandoBoardTest extends TestCase
         $this->assertNotNull($trouvee, 'La course doit rester listée même sans coordonnées exploitables.');
         $this->assertNull($trouvee['depart'], 'Un « 0 » ou une chaîne vide ne doit pas devenir un point sur la carte.');
 
-        $course->update($original);
+        Clando::where('id', $course->id)->update($original);
     }
 
     public function test_une_course_sans_agent_est_signalee_comme_en_attente(): void
@@ -100,7 +100,7 @@ class ClandoBoardTest extends TestCase
         $this->assertTrue($trouvee['active']);
         $this->assertSame('Demandée', $trouvee['status_label']);
 
-        $course->update($original);
+        Clando::where('id', $course->id)->update($original);
     }
 
     public function test_les_courses_de_coursier_sont_exclues(): void
@@ -121,7 +121,7 @@ class ClandoBoardTest extends TestCase
             'Une course de coursier ne doit pas apparaître sur la carte clando.',
         );
 
-        $course->update($original);
+        Clando::where('id', $course->id)->update($original);
     }
 
     public function test_un_agent_sans_position_n_est_pas_place_sur_la_carte(): void
@@ -172,8 +172,8 @@ class ClandoBoardTest extends TestCase
         $this->assertEqualsWithDelta(4.0611, $trouve['lat'], 0.0001);
         $this->assertEqualsWithDelta(9.7779, $trouve['lon'], 0.0001);
 
-        $course->update($etatCourse);
-        $agent->update($etatAgent);
+        Clando::where('id', $course->id)->update($etatCourse);
+        User::where('id', $agent->id)->update($etatAgent);
     }
 
     public function test_un_agent_hors_course_porte_son_dernier_point_connu(): void
@@ -206,7 +206,7 @@ class ClandoBoardTest extends TestCase
         foreach ($etatCourses as [$id, $statut]) {
             Clando::where('id', $id)->update(['status' => $statut]);
         }
-        $agent->update($etatAgent);
+        User::where('id', $agent->id)->update($etatAgent);
     }
 
     public function test_latest_id_ignore_les_filtres_d_affichage(): void

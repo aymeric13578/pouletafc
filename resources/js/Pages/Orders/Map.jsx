@@ -45,7 +45,18 @@ const couleurStatut = (statut) => STATUTS[statut]?.couleur ?? '#64748b';
 const jetonCsrf = () =>
     document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 
-export default function Map({ initial }) {
+/*
+ * Le composant ne s'appelle pas « Map », bien que le fichier soit Map.jsx.
+ *
+ * Une fonction nommée Map masque le Map natif de JavaScript dans tout le module :
+ * les `useRef(new Map())` ci-dessous instanciaient alors le composant lui-même,
+ * appelé comme constructeur sans props, et la page mourait sur « Cannot
+ * destructure property 'initial' of 'undefined' ».
+ *
+ * Le nom du fichier, lui, doit rester Map.jsx : Inertia résout les pages par
+ * chemin (./Pages/Orders/Map.jsx), jamais par le nom de la fonction exportée.
+ */
+export default function CarteLivraisons({ initial }) {
     const [donnees, setDonnees] = useState(initial);
     const [enLigne, setEnLigne] = useState(true);
     const [heure, setHeure] = useState(new Date());

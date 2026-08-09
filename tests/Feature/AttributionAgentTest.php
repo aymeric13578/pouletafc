@@ -86,7 +86,7 @@ class AttributionAgentTest extends TestCase
         // La réponse porte la carte à jour : l'écran n'attend pas le cycle suivant.
         $reponse->assertJsonStructure(['courses', 'agents', 'agents_disponibles', 'stats']);
 
-        $course->update($etatCourse);
+        Clando::where('id', $course->id)->update($etatCourse);
         Agent::where('id_user', $agent->id_user)->update(['freeStatus' => $freeStatus]);
     }
 
@@ -105,7 +105,7 @@ class AttributionAgentTest extends TestCase
         $this->assertFalse($reponse->json('attribution.ok'));
         $this->assertSame(999999, (int) $course->fresh()->id_agent, 'L\'agent en place ne doit pas être écrasé.');
 
-        $course->update($etatCourse);
+        Clando::where('id', $course->id)->update($etatCourse);
     }
 
     public function test_un_solde_insuffisant_refuse_l_attribution(): void
@@ -131,7 +131,7 @@ class AttributionAgentTest extends TestCase
             (int) Agent::where('id_user', $agent->id_user)->value('freeStatus'),
         );
 
-        $course->update($etatCourse);
+        Clando::where('id', $course->id)->update($etatCourse);
     }
 
     public function test_un_utilisateur_qui_n_est_pas_agent_est_refuse(): void
@@ -145,7 +145,7 @@ class AttributionAgentTest extends TestCase
         $this->assertStringContainsString("n'est pas un agent", $reponse->json('attribution.message'));
         $this->assertNull($course->fresh()->id_agent);
 
-        $course->update($etatCourse);
+        Clando::where('id', $course->id)->update($etatCourse);
     }
 
     public function test_l_identifiant_d_agent_est_obligatoire(): void
@@ -177,7 +177,7 @@ class AttributionAgentTest extends TestCase
         $this->assertSame('process', $frais->status);
         $this->assertSame(0, (int) Agent::where('id_user', $agent->id_user)->value('freeStatus'));
 
-        $commande->update($etat);
+        order_detail::where('id', $commande->id)->update($etat);
         Agent::where('id_user', $agent->id_user)->update(['freeStatus' => $freeStatus]);
     }
 
@@ -199,7 +199,7 @@ class AttributionAgentTest extends TestCase
 
         $this->assertSame((int) $occupant, (int) $commande->fresh()->id_agent);
 
-        $commande->update($etat);
+        order_detail::where('id', $commande->id)->update($etat);
     }
 
     public function test_la_liste_des_agents_distingue_service_et_disponibilite(): void
