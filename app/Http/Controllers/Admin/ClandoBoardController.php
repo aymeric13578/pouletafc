@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Clando;
 use App\Models\User;
+use App\Support\AttributionAgent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -90,6 +91,32 @@ class ClandoBoardController extends Controller
     }
 
     /**
+     * Attribue une course à un agent depuis la carte.
+     *
+     * Les règles sont celles de takeClandoCommand : l'agent doit exister et
+     * pouvoir couvrir la commission, la course ne doit pas être déjà prise. Le
+     * détail est dans AttributionAgent, partagé avec la carte des commandes.
+     */
+    public function assign(Request $request, int $course, AttributionAgent $attribution): JsonResponse
+    {
+        $valide = $request->validate([
+            'id_agent' => ['required', 'integer'],
+        ]);
+
+        $cible = Clando::findOrFail($course);
+
+        // Une course se règle sur la commission de l'agent, pas sur son prix :
+        // c'est ce que contrôle takeClandoCommand.
+        $resultat = $attribution->attribuer($cible, $valide['id_agent'], (float) $cible->commission_agent);
+
+        // La carte à jour accompagne la réponse : l'écran n'a pas à attendre le
+        // cycle suivant pour montrer le résultat du clic.
+        return response()->json($this->payload($request) + [
+            'attribution' => ['ok' => $resultat['ok'], 'message' => $resultat['message']],
+        ], $resultat['code'])->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function payload(Request $request): array
@@ -99,6 +126,7 @@ class ClandoBoardController extends Controller
         return [
             'courses' => $courses->map(fn (Clando $c) => $this->transform($c))->values(),
             'agents' => $this->agents($courses),
+            'agents_disponibles' => app(AttributionAgent::class)->agentsDisponibles(),
             'stats' => [
                 'actives' => $this->requeteDeBase()->whereIn('status', self::ACTIFS)->count(),
                 'en_attente' => $this->requeteDeBase()->whereIn('status', self::EN_ATTENTE)->count(),
@@ -288,6 +316,9 @@ class ClandoBoardController extends Controller
             'status_label' => self::STATUTS[$course->status] ?? $course->status,
             'active' => in_array($course->status, self::ACTIFS, true),
             'en_attente' => in_array($course->status, self::EN_ATTENTE, true),
+            // Une course déjà prise ne doit pas proposer de bouton d'attribution :
+            // l'écran s'appuie là-dessus, et le serveur le revérifie sous verrou.
+            'attribuable' => $course->id_agent === null,
             'price' => (int) $course->price,
             'distance' => $course->distance,
             'times' => $course->times,

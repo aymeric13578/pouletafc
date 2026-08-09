@@ -15,26 +15,28 @@ import {
 } from '../Shared/carte';
 
 /*
- * Carte des courses clando, en accès libre comme le mur des commandes.
+ * Carte des livraisons : activité des agents et points de livraison.
  *
- * Le socle Leaflet, l'alerte sonore et le choix d'agent sont partagés avec la
- * carte des livraisons (voir Shared/carte). Ne reste ici que ce qui est propre
- * aux courses : leurs statuts, leurs points, et la règle d'attribution.
+ * Le mur des commandes dit où en est une commande, jamais où elle va. Le
+ * comptoir voyait une adresse en texte sans pouvoir juger quel agent en était le
+ * plus proche. Cet écran répond à cette question, et permet de confier la
+ * commande dans la foulée.
+ *
+ * Trois points par commande, qui ne se confondent pas : la boutique d'où part le
+ * colis, le point de livraison où il va, et l'agent qui roule entre les deux.
  */
 
-// L'application pousse les positions toutes les 3 s : interroger plus vite ne
-// donnerait rien de neuf, plus lentement ferait sauter les marqueurs.
 const INTERVALLE_MS = 4000;
 const RAPPEL_SONORE_MS = 20000;
-const CLE_SON = 'carte-clando.son-active';
+const CLE_SON = 'carte-livraisons.son-active';
 
 const STATUTS = {
     pending: { couleur: '#f59e0b', classe: 'bg-amber-100 text-amber-800 ring-amber-300' },
+    waiting: { couleur: '#8b5cf6', classe: 'bg-violet-100 text-violet-800 ring-violet-300' },
     want: { couleur: '#ef4444', classe: 'bg-red-100 text-red-800 ring-red-300' },
     take: { couleur: '#6366f1', classe: 'bg-indigo-100 text-indigo-800 ring-indigo-300' },
     process: { couleur: '#0ea5e9', classe: 'bg-sky-100 text-sky-800 ring-sky-300' },
     Success: { couleur: '#10b981', classe: 'bg-emerald-100 text-emerald-800 ring-emerald-300' },
-    declin: { couleur: '#94a3b8', classe: 'bg-slate-100 text-slate-700 ring-slate-300' },
     failed: { couleur: '#dc2626', classe: 'bg-red-100 text-red-800 ring-red-300' },
 };
 
@@ -43,7 +45,7 @@ const couleurStatut = (statut) => STATUTS[statut]?.couleur ?? '#64748b';
 const jetonCsrf = () =>
     document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 
-export default function Board({ initial }) {
+export default function Map({ initial }) {
     const [donnees, setDonnees] = useState(initial);
     const [enLigne, setEnLigne] = useState(true);
     const [heure, setHeure] = useState(new Date());
@@ -51,7 +53,7 @@ export default function Board({ initial }) {
     const [filtreStatut, setFiltreStatut] = useState('actives');
     const [selection, setSelection] = useState(null);
     const [nouvelles, setNouvelles] = useState(new Set());
-    const [couches, setCouches] = useState({ agents: true, clients: true, destinations: true, trajets: true });
+    const [couches, setCouches] = useState({ agents: true, livraisons: true, boutiques: true, trajets: true });
     const [attribution, setAttribution] = useState(null);
     const [enCoursAttribution, setEnCoursAttribution] = useState(false);
     const [retour, setRetour] = useState(null);
@@ -59,8 +61,8 @@ export default function Board({ initial }) {
     const dernierIdRef = useRef(initial.latest_id ?? 0);
     const conteneurRef = useRef(null);
     const marqueursAgents = useRef(new Map());
-    const marqueursClients = useRef(new Map());
-    const marqueursDestinations = useRef(new Map());
+    const marqueursLivraisons = useRef(new Map());
+    const marqueursBoutiques = useRef(new Map());
     const tracesRef = useRef(new Map());
     const cadrageInitialRef = useRef(false);
 
@@ -74,12 +76,12 @@ export default function Board({ initial }) {
         return () => clearInterval(timer);
     }, []);
 
-    const courses = donnees.courses ?? [];
+    const orders = donnees.orders ?? [];
     const agents = donnees.agents ?? [];
     const agentsDisponibles = donnees.agents_disponibles ?? [];
     const stats = donnees.stats ?? {};
 
-    const nbEnAttente = useMemo(() => courses.filter((c) => c.en_attente).length, [courses]);
+    const nbEnAttente = useMemo(() => orders.filter((o) => o.en_attente).length, [orders]);
 
     useEffect(() => {
         if (nbEnAttente === 0) return undefined;
@@ -101,15 +103,13 @@ export default function Board({ initial }) {
             const idMax = charge.latest_id ?? 0;
 
             if (idMax > dernierIdRef.current) {
-                const fraiches = (charge.courses ?? [])
-                    .filter((c) => c.id > dernierIdRef.current)
-                    .map((c) => c.id);
+                const fraiches = (charge.orders ?? [])
+                    .filter((o) => o.id > dernierIdRef.current)
+                    .map((o) => o.id);
 
                 dernierIdRef.current = idMax;
                 setNouvelles((precedent) => new Set([...precedent, ...fraiches]));
 
-                // Une nouvelle demande lève le silence : un « couper le son »
-                // cliqué plus tôt ne doit pas masquer la suivante.
                 leverSilence();
                 jouer();
             }
@@ -122,7 +122,7 @@ export default function Board({ initial }) {
 
         const recuperer = async () => {
             try {
-                const reponse = await fetch('/clando/flux', {
+                const reponse = await fetch('/commandes/carte/flux', {
                     headers: { Accept: 'application/json' },
                     cache: 'no-store',
                 });
@@ -149,12 +149,12 @@ export default function Board({ initial }) {
     /* --------------------------------------------------------- attribution */
 
     const attribuer = useCallback(
-        async (courseId, agent) => {
+        async (orderId, agent) => {
             setEnCoursAttribution(true);
             setRetour(null);
 
             try {
-                const reponse = await fetch(`/clando/${courseId}/agent`, {
+                const reponse = await fetch(`/commandes/carte/${orderId}/agent`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -166,10 +166,7 @@ export default function Board({ initial }) {
 
                 const charge = await reponse.json();
 
-                // La réponse porte déjà la carte à jour, succès ou échec : on
-                // l'applique sans attendre le cycle suivant, sinon le clic semble
-                // ne rien faire pendant quatre secondes.
-                if (charge.courses) appliquer(charge);
+                if (charge.orders) appliquer(charge);
 
                 setRetour({
                     ok: reponse.ok && charge.attribution?.ok,
@@ -186,8 +183,6 @@ export default function Board({ initial }) {
         [appliquer],
     );
 
-    // Le message de retour s'efface seul : il documente un geste, il n'a pas à
-    // rester en travers de l'écran.
     useEffect(() => {
         if (!retour) return undefined;
         const timer = setTimeout(() => setRetour(null), 6000);
@@ -198,21 +193,21 @@ export default function Board({ initial }) {
 
     const termeRetarde = useDebounce(recherche.trim().toLowerCase(), 150);
 
-    const coursesFiltrees = useMemo(() => {
-        return courses.filter((c) => {
-            if (filtreStatut === 'actives' && !c.active) return false;
-            if (filtreStatut === 'attente' && !c.en_attente) return false;
-            if (filtreStatut === 'sans_agent' && !c.attribuable) return false;
-            if (!['actives', 'attente', 'sans_agent', 'toutes'].includes(filtreStatut) && c.status !== filtreStatut)
+    const ordersFiltrees = useMemo(() => {
+        return orders.filter((o) => {
+            if (filtreStatut === 'actives' && !o.active) return false;
+            if (filtreStatut === 'attente' && !o.en_attente) return false;
+            if (filtreStatut === 'sans_agent' && !o.attribuable) return false;
+            if (!['actives', 'attente', 'sans_agent', 'toutes'].includes(filtreStatut) && o.status !== filtreStatut)
                 return false;
 
             if (!termeRetarde) return true;
 
-            return [c.ref, c.destination, c.client?.name, c.agent?.name]
+            return [o.ref, o.address, o.customer?.name, o.agent?.name]
                 .filter(Boolean)
                 .some((v) => String(v).toLowerCase().includes(termeRetarde));
         });
-    }, [courses, filtreStatut, termeRetarde]);
+    }, [orders, filtreStatut, termeRetarde]);
 
     /* ------------------------------------------------------------ marqueurs */
 
@@ -225,7 +220,7 @@ export default function Board({ initial }) {
             `<div class="text-sm">
                 <div class="font-semibold">${echapper(a.name)}</div>
                 <div class="text-slate-500">${echapper(a.phone ?? '')}</div>
-                <div class="mt-1">${a.frais ? 'Suivi en direct · course ' + echapper(a.course_ref) : 'Dernier point connu (démarrage de journée)'}</div>
+                <div class="mt-1">${a.frais ? 'Suivi en direct · commande ' + echapper(a.commande_ref) : 'Dernier point connu (démarrage de journée)'}</div>
             </div>`;
 
         synchroniser(
@@ -241,83 +236,81 @@ export default function Board({ initial }) {
     }, [agents, couches.agents, synchroniser]);
 
     useEffect(() => {
-        const elements = couches.clients
-            ? coursesFiltrees.filter((c) => c.depart).map((c) => ({ ...c, cle: `client-${c.id}` }))
+        const elements = couches.livraisons
+            ? ordersFiltrees.filter((o) => o.livraison).map((o) => ({ ...o, cle: `livr-${o.id}` }))
             : [];
 
-        const contenu = (c) =>
+        const contenu = (o) =>
             `<div class="text-sm">
-                <div class="font-semibold">${echapper(c.client?.name ?? 'Client')}</div>
-                <div class="text-slate-500">${echapper(c.client?.phone ?? '')}</div>
-                <div class="mt-1">${echapper(c.ref)} · ${echapper(c.status_label)}</div>
-                <div>${formatMontant(c.price)} FCFA${c.destination ? ' · ' + echapper(c.destination) : ''}</div>
+                <div class="font-semibold">${echapper(o.customer?.name ?? 'Client')}</div>
+                <div class="text-slate-500">${echapper(o.customer?.phone ?? '')}</div>
+                <div class="mt-1">${echapper(o.ref)} · ${echapper(o.status_label)}</div>
+                <div>${echapper(o.address ?? 'Adresse non renseignée')}</div>
+                <div>${formatMontant(o.price)} FCFA</div>
             </div>`;
 
         synchroniser(
-            marqueursClients,
+            marqueursLivraisons,
             elements,
-            (c) =>
-                L.marker([c.depart.lat, c.depart.lon], {
-                    icon: iconePoint(couleurStatut(c.status), 'client', c.en_attente),
+            (o) =>
+                L.marker([o.livraison.lat, o.livraison.lon], {
+                    icon: iconePoint(couleurStatut(o.status), 'client', o.en_attente),
                     zIndexOffset: 400,
                 })
-                    .bindPopup(contenu(c))
-                    .on('click', () => setSelection(c.id)),
-            (marqueur, c) => {
-                marqueur.setLatLng([c.depart.lat, c.depart.lon]);
-                marqueur.setIcon(iconePoint(couleurStatut(c.status), 'client', c.en_attente));
-                marqueur.setPopupContent(contenu(c));
+                    .bindPopup(contenu(o))
+                    .on('click', () => setSelection(o.id)),
+            (marqueur, o) => {
+                marqueur.setLatLng([o.livraison.lat, o.livraison.lon]);
+                marqueur.setIcon(iconePoint(couleurStatut(o.status), 'client', o.en_attente));
+                marqueur.setPopupContent(contenu(o));
             },
         );
-    }, [coursesFiltrees, couches.clients, synchroniser]);
+    }, [ordersFiltrees, couches.livraisons, synchroniser]);
 
     useEffect(() => {
-        const elements = couches.destinations
-            ? coursesFiltrees.filter((c) => c.arrivee).map((c) => ({ ...c, cle: `dest-${c.id}` }))
+        const elements = couches.boutiques
+            ? ordersFiltrees.filter((o) => o.boutique).map((o) => ({ ...o, cle: `shop-${o.id}` }))
             : [];
 
         synchroniser(
-            marqueursDestinations,
+            marqueursBoutiques,
             elements,
-            (c) =>
-                L.marker([c.arrivee.lat, c.arrivee.lon], {
-                    icon: iconePoint(couleurStatut(c.status), 'lieu'),
-                    zIndexOffset: 300,
+            (o) =>
+                L.marker([o.boutique.lat, o.boutique.lon], {
+                    icon: iconePoint('#475569', 'boutique'),
+                    zIndexOffset: 200,
                 }).bindPopup(
-                    `<div class="text-sm"><div class="font-semibold">Destination</div><div>${echapper(c.destination ?? '—')}</div><div class="text-slate-500">${echapper(c.ref)}</div></div>`,
+                    `<div class="text-sm"><div class="font-semibold">Point de retrait</div><div class="text-slate-500">${echapper(o.ref)}</div></div>`,
                 ),
-            (marqueur, c) => {
-                marqueur.setLatLng([c.arrivee.lat, c.arrivee.lon]);
-                marqueur.setIcon(iconePoint(couleurStatut(c.status), 'lieu'));
-            },
+            (marqueur, o) => marqueur.setLatLng([o.boutique.lat, o.boutique.lon]),
         );
-    }, [coursesFiltrees, couches.destinations, synchroniser]);
+    }, [ordersFiltrees, couches.boutiques, synchroniser]);
 
     useEffect(() => {
         const elements = couches.trajets
-            ? coursesFiltrees.filter((c) => c.depart && c.arrivee).map((c) => ({ ...c, cle: `trace-${c.id}` }))
+            ? ordersFiltrees.filter((o) => o.boutique && o.livraison).map((o) => ({ ...o, cle: `trace-${o.id}` }))
             : [];
 
         synchroniser(
             tracesRef,
             elements,
-            (c) =>
+            (o) =>
                 L.polyline(
                     [
-                        [c.depart.lat, c.depart.lon],
-                        [c.arrivee.lat, c.arrivee.lon],
+                        [o.boutique.lat, o.boutique.lon],
+                        [o.livraison.lat, o.livraison.lon],
                     ],
-                    { color: couleurStatut(c.status), weight: 3, opacity: 0.6, dashArray: '6 8' },
+                    { color: couleurStatut(o.status), weight: 3, opacity: 0.6, dashArray: '6 8' },
                 ),
-            (trace, c) => {
+            (trace, o) => {
                 trace.setLatLngs([
-                    [c.depart.lat, c.depart.lon],
-                    [c.arrivee.lat, c.arrivee.lon],
+                    [o.boutique.lat, o.boutique.lon],
+                    [o.livraison.lat, o.livraison.lon],
                 ]);
-                trace.setStyle({ color: couleurStatut(c.status) });
+                trace.setStyle({ color: couleurStatut(o.status) });
             },
         );
-    }, [coursesFiltrees, couches.trajets, synchroniser]);
+    }, [ordersFiltrees, couches.trajets, synchroniser]);
 
     /* --------------------------------------------------------------- cadrage */
 
@@ -327,35 +320,35 @@ export default function Board({ initial }) {
 
         const points = [];
         agents.forEach((a) => a.lat !== null && a.lon !== null && points.push([a.lat, a.lon]));
-        coursesFiltrees.forEach((c) => {
-            if (c.depart) points.push([c.depart.lat, c.depart.lon]);
-            if (c.arrivee) points.push([c.arrivee.lat, c.arrivee.lon]);
+        ordersFiltrees.forEach((o) => {
+            if (o.livraison) points.push([o.livraison.lat, o.livraison.lon]);
+            if (o.boutique) points.push([o.boutique.lat, o.boutique.lon]);
         });
 
         if (points.length === 0) return;
 
         carte.fitBounds(L.latLngBounds(points), { padding: [60, 60], maxZoom: 15 });
-    }, [agents, carteRef, coursesFiltrees]);
+    }, [agents, carteRef, ordersFiltrees]);
 
     useEffect(() => {
         if (cadrageInitialRef.current) return;
-        if (agents.length === 0 && coursesFiltrees.length === 0) return;
+        if (agents.length === 0 && ordersFiltrees.length === 0) return;
 
         cadrageInitialRef.current = true;
         recadrer();
-    }, [agents.length, coursesFiltrees.length, recadrer]);
+    }, [agents.length, ordersFiltrees.length, recadrer]);
 
     useEffect(() => {
         const carte = carteRef.current;
         if (!carte || selection === null) return;
 
-        const course = courses.find((c) => c.id === selection);
-        if (!course) return;
+        const commande = orders.find((o) => o.id === selection);
+        if (!commande) return;
 
         const points = [];
-        if (course.depart) points.push([course.depart.lat, course.depart.lon]);
-        if (course.arrivee) points.push([course.arrivee.lat, course.arrivee.lon]);
-        if (course.agent_position) points.push([course.agent_position.lat, course.agent_position.lon]);
+        if (commande.livraison) points.push([commande.livraison.lat, commande.livraison.lon]);
+        if (commande.boutique) points.push([commande.boutique.lat, commande.boutique.lon]);
+        if (commande.agent_position) points.push([commande.agent_position.lat, commande.agent_position.lon]);
 
         if (points.length === 0) return;
 
@@ -365,26 +358,26 @@ export default function Board({ initial }) {
 
     const filtres = [
         { cle: 'actives', libelle: 'En cours' },
-        { cle: 'sans_agent', libelle: 'Sans agent' },
+        { cle: 'sans_agent', libelle: 'Sans livreur' },
         { cle: 'toutes', libelle: 'Toutes' },
     ];
 
     return (
         <>
-            <Head title="Carte clando" />
+            <Head title="Carte livraisons" />
 
             <div className="flex h-screen flex-col overflow-hidden bg-slate-100">
                 <header className="flex flex-wrap items-center gap-4 border-b border-slate-200 bg-white px-5 py-3 shadow-sm">
                     <div>
-                        <h1 className="text-xl font-bold tracking-tight text-slate-900">Carte clando</h1>
+                        <h1 className="text-xl font-bold tracking-tight text-slate-900">Carte livraisons</h1>
                         <p className="text-xs text-slate-500">
                             {donnees.server_date} · {donnees.server_time}
                         </p>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                        <Compteur libelle="Courses actives" valeur={stats.actives ?? 0} ton="sky" />
-                        <Compteur libelle="Sans agent" valeur={stats.en_attente ?? 0} ton="red" />
+                        <Compteur libelle="Commandes actives" valeur={stats.actives ?? 0} ton="sky" />
+                        <Compteur libelle="À prendre" valeur={stats.en_attente ?? 0} ton="red" />
                         <Compteur libelle="Agents en service" valeur={stats.agents_actifs ?? 0} ton="emerald" />
                         <Compteur libelle="Du jour" valeur={stats.du_jour ?? 0} />
                         <Compteur libelle="CA du jour" valeur={`${formatMontant(stats.ca_jour)} F`} />
@@ -392,16 +385,16 @@ export default function Board({ initial }) {
 
                     <div className="ml-auto flex items-center gap-2">
                         <a
-                            href="/commandes/carte"
-                            className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200"
-                        >
-                            Carte livraisons
-                        </a>
-                        <a
                             href="/commandes"
                             className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200"
                         >
                             Mur des commandes
+                        </a>
+                        <a
+                            href="/clando"
+                            className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                        >
+                            Carte clando
                         </a>
 
                         <span
@@ -448,7 +441,7 @@ export default function Board({ initial }) {
                                 type="search"
                                 value={recherche}
                                 onChange={(e) => setRecherche(e.target.value)}
-                                placeholder="Référence, client, agent, destination"
+                                placeholder="Référence, client, livreur, adresse"
                                 className="w-full rounded-lg border-slate-300 text-sm focus:border-slate-500 focus:ring-slate-500"
                             />
 
@@ -475,8 +468,8 @@ export default function Board({ initial }) {
                                 </p>
                                 {[
                                     { cle: 'agents', libelle: 'Agents' },
-                                    { cle: 'clients', libelle: 'Clients' },
-                                    { cle: 'destinations', libelle: 'Destinations' },
+                                    { cle: 'livraisons', libelle: 'Points de livraison' },
+                                    { cle: 'boutiques', libelle: 'Points de retrait' },
                                     { cle: 'trajets', libelle: 'Trajets' },
                                 ].map((c) => (
                                     <label
@@ -517,59 +510,59 @@ export default function Board({ initial }) {
                         )}
 
                         <div className="min-h-0 flex-1 overflow-y-auto">
-                            {coursesFiltrees.length === 0 ? (
-                                <p className="p-6 text-center text-sm text-slate-400">Aucune course</p>
+                            {ordersFiltrees.length === 0 ? (
+                                <p className="p-6 text-center text-sm text-slate-400">Aucune commande</p>
                             ) : (
                                 <ul className="divide-y divide-slate-100">
-                                    {coursesFiltrees.map((c) => (
-                                        <li key={c.id} className={nouvelles.has(c.id) ? 'bg-amber-50' : ''}>
+                                    {ordersFiltrees.map((o) => (
+                                        <li key={o.id} className={nouvelles.has(o.id) ? 'bg-amber-50' : ''}>
                                             <button
                                                 type="button"
-                                                onClick={() => setSelection(c.id === selection ? null : c.id)}
+                                                onClick={() => setSelection(o.id === selection ? null : o.id)}
                                                 className={`w-full px-4 py-3 text-left transition ${
-                                                    selection === c.id ? 'bg-slate-100' : 'hover:bg-slate-50'
+                                                    selection === o.id ? 'bg-slate-100' : 'hover:bg-slate-50'
                                                 }`}
                                             >
                                                 <div className="flex items-center justify-between gap-2">
                                                     <span className="truncate text-sm font-semibold text-slate-900">
-                                                        {c.client?.name ?? 'Client'}
+                                                        {o.customer?.name ?? 'Client'}
                                                     </span>
                                                     <span
                                                         className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ring-1 ${
-                                                            STATUTS[c.status]?.classe ??
+                                                            STATUTS[o.status]?.classe ??
                                                             'bg-slate-100 text-slate-700 ring-slate-300'
                                                         }`}
                                                     >
-                                                        {c.status_label}
+                                                        {o.status_label}
                                                     </span>
                                                 </div>
                                                 <p className="mt-0.5 truncate text-xs text-slate-500">
-                                                    {c.destination || 'Destination non renseignée'}
+                                                    {o.address || 'Adresse non renseignée'}
                                                 </p>
                                                 <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
-                                                    <span>{c.agent?.name ? `Agent : ${c.agent.name}` : 'Aucun agent'}</span>
+                                                    <span>{o.agent?.name ? `Livreur : ${o.agent.name}` : 'Aucun livreur'}</span>
                                                     <span className="tabular-nums">
-                                                        {formatMontant(c.price)} F · {c.created_label}
+                                                        {formatMontant(o.price)} F · {o.created_label}
                                                     </span>
                                                 </div>
                                             </button>
 
-                                            {c.attribuable && (
+                                            {o.attribuable && (
                                                 <div className="px-4 pb-3">
-                                                    {attribution === c.id ? (
+                                                    {attribution === o.id ? (
                                                         <ChoixAgent
                                                             agents={agentsDisponibles}
                                                             enCours={enCoursAttribution}
-                                                            surChoix={(agent) => attribuer(c.id, agent)}
+                                                            surChoix={(agent) => attribuer(o.id, agent)}
                                                             surAnnuler={() => setAttribution(null)}
                                                         />
                                                     ) : (
                                                         <button
                                                             type="button"
-                                                            onClick={() => setAttribution(c.id)}
+                                                            onClick={() => setAttribution(o.id)}
                                                             className="w-full rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700"
                                                         >
-                                                            Attribuer à un agent
+                                                            Attribuer à un livreur
                                                         </button>
                                                     )}
                                                 </div>
@@ -593,7 +586,10 @@ export default function Board({ initial }) {
                                 <span className="h-3 w-3 rounded-full bg-slate-400" /> Agent, dernier point connu
                             </p>
                             <p className="flex items-center gap-2">
-                                <span className="h-3 w-3 rounded-full bg-red-500" /> Demande sans agent
+                                <span className="h-3 w-3 rounded-full bg-slate-600" /> Point de retrait
+                            </p>
+                            <p className="flex items-center gap-2">
+                                <span className="h-3 w-3 rounded-full bg-red-500" /> Livraison sans livreur
                             </p>
                         </div>
 

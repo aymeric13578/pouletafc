@@ -55,6 +55,16 @@ Route::post('/commandes/{order}/paiement', [\App\Http\Controllers\Admin\OrderBoa
 */
 Route::get('/clando', [\App\Http\Controllers\Admin\ClandoBoardController::class, 'index'])->name('clando.board');
 Route::get('/clando/flux', [\App\Http\Controllers\Admin\ClandoBoardController::class, 'feed'])->name('clando.board.feed');
+Route::post('/clando/{course}/agent', [\App\Http\Controllers\Admin\ClandoBoardController::class, 'assign'])->name('clando.board.assign');
+
+/*
+| Carte des livraisons : activité des agents et points de livraison, atteinte
+| depuis un bouton du mur des commandes. Même accès libre que les deux écrans
+| précédents, pour la même raison.
+*/
+Route::get('/commandes/carte', [\App\Http\Controllers\Admin\OrderMapController::class, 'index'])->name('orders.map');
+Route::get('/commandes/carte/flux', [\App\Http\Controllers\Admin\OrderMapController::class, 'feed'])->name('orders.map.feed');
+Route::post('/commandes/carte/{order}/agent', [\App\Http\Controllers\Admin\OrderMapController::class, 'assign'])->name('orders.map.assign');
 
 Route::get('/download-app', [MobileAppController::class, 'show'])->name('shop.app.show');
 Route::get('/download-app/clando.apk', [MobileAppController::class, 'apk'])->name('shop.app.android.apk');
