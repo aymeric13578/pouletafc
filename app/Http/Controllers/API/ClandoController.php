@@ -150,12 +150,41 @@ class ClandoController extends Controller
     }
     
     
+    /**
+     * Courses à prendre, limitées à la journée en cours.
+     *
+     * La requête ne portait aucune borne de date : elle renvoyait toutes les
+     * courses restées « want » depuis l'ouverture du service. L'accueil de
+     * l'agent affichait ainsi des dizaines de demandes vieilles de plusieurs
+     * mois, jamais closes, au milieu desquelles les vraies passaient inaperçues.
+     *
+     * La journée est celle du Cameroun, convertie en UTC pour interroger la
+     * base : sans cette conversion, la liste basculerait à minuit UTC, soit une
+     * heure du matin à Garoua — les courses de la soirée disparaîtraient de
+     * l'écran des agents encore en service.
+     */
     public function getClandoWithoutAgent()
     {
-        $clando = Clando::where('id_agent','=',null)->where('status','want')->get();
+        $clando = Clando::where('id_agent','=',null)
+            ->where('status','want')
+            ->whereBetween('created_at', $this->bornesDuJour())
+            ->orderByDesc('id')
+            ->get();
 
         if($clando) return response()->json(['response' => 200, 'data'=> $clando]);
         else return response()->json(['response' => 404]);
+    }
+
+    /**
+     * Début et fin de la journée camerounaise, exprimés en UTC.
+     *
+     * @return array{0: \Illuminate\Support\Carbon, 1: \Illuminate\Support\Carbon}
+     */
+    private function bornesDuJour(): array
+    {
+        $debut = now()->setTimezone('Africa/Douala')->startOfDay();
+
+        return [$debut->copy()->utc(), $debut->copy()->endOfDay()->utc()];
     }
     
     

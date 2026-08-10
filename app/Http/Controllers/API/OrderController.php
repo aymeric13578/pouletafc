@@ -381,12 +381,41 @@ Contact service client : 697 526 980",$user->phone);
     
     
     
-     public function getAllWithoutSellerOrder(Request $request)
+    /**
+     * Commandes à prendre, limitées à la journée en cours.
+     *
+     * Deux défauts se cumulaient dans la requête précédente, et l'accueil de
+     * l'agent en portait la conséquence : une liste de dizaines de commandes où
+     * les vraies passaient inaperçues.
+     *
+     * D'abord aucune borne de date : toutes les commandes sans agent depuis
+     * l'ouverture du service remontaient, certaines vieilles de huit mois.
+     *
+     * Ensuite le filtre de statut. « != pending » écartait les commandes non
+     * encore préparées, mais laissait passer Success et failed : une commande
+     * déjà livrée, dont l'agent n'avait pas été enregistré, s'affichait comme du
+     * travail à prendre. On énumère donc les statuts qui signifient réellement
+     * « disponible » au lieu d'exclure le seul qui gênait.
+     *
+     * La journée est celle du Cameroun, convertie en UTC pour interroger la
+     * base : sinon la liste basculerait à minuit UTC, soit une heure du matin à
+     * Garoua, et les commandes du soir disparaîtraient des écrans encore ouverts.
+     */
+    public function getAllWithoutSellerOrder(Request $request)
     {
-             $order = order_detail::where('id_agent','=',null)->where('status','!=',"pending")->with('carts')->with('user')->get();
+            $debut = now()->setTimezone('Africa/Douala')->startOfDay();
+
+            $order = order_detail::where('id_agent','=',null)
+                ->whereIn('status', ['waiting', 'want', 'take', 'process'])
+                ->whereBetween('created_at', [$debut->copy()->utc(), $debut->copy()->endOfDay()->utc()])
+                ->with('carts')
+                ->with('user')
+                ->orderByDesc('id')
+                ->get();
+
              if($order) return response()->json(['response' => 200, 'data'=> $order]);
              else return response()->json(['response' => 404]);
-        
+
     }
     
          public function updatePositionAgentOrder(Request $request)
