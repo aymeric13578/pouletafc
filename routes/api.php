@@ -80,9 +80,18 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
             
         Route::get('financeAgent', 'FinanceController@getfinanceAgent');
     
+    // Reprise du suivi après fermeture de l'application.
+    //
+    // Répond « où cet utilisateur doit-il être ramené » : la course ou la
+    // livraison en cours, qu'il soit le client ou l'agent, avec de quoi rouvrir
+    // l'écran quitté. Sans elle, fermer l'application faisait perdre le suivi
+    // d'une course qui continuait pourtant côté serveur.
+    Route::get('getCourseEnCours', 'SuiviController@getCourseEnCours');
+    Route::post('getCourseEnCours', 'SuiviController@getCourseEnCours');
+
     // geolocalisation
-    
-    
+
+
        Route::post('getLocationAgent', 'GeolocalisationController@getLocationAgent');
     
        Route::get('getLocationAgent', 'GeolocalisationController@getLocationAgent');

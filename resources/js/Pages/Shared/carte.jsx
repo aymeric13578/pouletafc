@@ -12,8 +12,18 @@ import 'leaflet/dist/leaflet.css';
  * d'être appliquée une fois sur deux.
  */
 
-// Douala, tant qu'aucun point n'est disponible.
-export const CENTRE_DEFAUT = [4.0511, 9.7679];
+/*
+ * Garoua, tant qu'aucun point n'est disponible.
+ *
+ * J'avais mis Douala par réflexe. Les coordonnées des courses en base disent
+ * autre chose : elles se groupent autour de 9,30 N / 13,40 E, soit Garoua. Sans
+ * course ni agent à cadrer, l'écran s'ouvrait donc à sept cents kilomètres de la
+ * ville où le service opère.
+ *
+ * Le fuseau Africa/Douala des contrôleurs reste juste, lui : tout le Cameroun
+ * est à l'heure WAT.
+ */
+export const CENTRE_DEFAUT = [9.3017, 13.3921];
 export const ZOOM_DEFAUT = 12;
 
 export const formatMontant = (valeur) => new Intl.NumberFormat('fr-FR').format(valeur ?? 0);
