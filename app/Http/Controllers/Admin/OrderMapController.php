@@ -41,8 +41,11 @@ class OrderMapController extends Controller
 
     private const STATUTS = [
         'pending' => 'En attente',
-        'waiting' => 'Colis prêt',
-        'want' => 'À prendre',
+        // « Colis prêt » pose « want » : c'est le statut que guette la sonnerie
+        // des agents. « waiting » n'est plus posé, son libellé sert aux lignes
+        // qui le portent encore.
+        'waiting' => 'Colis prêt (ancien)',
+        'want' => 'Colis prêt',
         'process' => 'En cours',
         'take' => 'Prise en charge',
         'Success' => 'Livrée',

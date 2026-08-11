@@ -28,8 +28,11 @@ const STATUTS_EN_ATTENTE = ['pending', 'waiting', 'want'];
 
 const STATUTS = {
     pending: { label: 'En attente', classe: 'bg-amber-100 text-amber-800 ring-amber-300' },
-    waiting: { label: 'Colis prêt', classe: 'bg-violet-100 text-violet-800 ring-violet-300' },
-    want: { label: 'À prendre', classe: 'bg-orange-100 text-orange-800 ring-orange-300' },
+    // « waiting » n'est plus posé par personne : le bouton « Colis prêt » pose
+    // « want », le seul statut que guette la sonnerie des agents. Le libellé
+    // reste pour les quelques lignes qui le portent encore.
+    waiting: { label: 'Colis prêt (ancien)', classe: 'bg-violet-100 text-violet-800 ring-violet-300' },
+    want: { label: 'Colis prêt', classe: 'bg-orange-100 text-orange-800 ring-orange-300' },
     process: { label: 'En cours', classe: 'bg-sky-100 text-sky-800 ring-sky-300' },
     take: { label: 'Prise en charge', classe: 'bg-indigo-100 text-indigo-800 ring-indigo-300' },
     Success: { label: 'Livrée', classe: 'bg-emerald-100 text-emerald-800 ring-emerald-300' },
@@ -50,18 +53,18 @@ const ACTIONS = {
      * Il vient en premier, c'est le geste le plus fréquent depuis le comptoir.
      */
     pending: [
-        { statut: 'waiting', libelle: 'Colis prêt', variante: 'violet' },
+        { statut: 'want', libelle: 'Colis prêt', variante: 'violet' },
         { statut: 'process', libelle: 'Prendre', variante: 'sky' },
         { statut: 'Success', libelle: 'Terminer', variante: 'emerald' },
         { statut: 'failed', libelle: 'Annuler', variante: 'red' },
     ],
     waiting: [
+        { statut: 'want', libelle: 'Colis prêt', variante: 'violet' },
         { statut: 'process', libelle: 'Prendre', variante: 'sky' },
         { statut: 'Success', libelle: 'Terminer', variante: 'emerald' },
         { statut: 'failed', libelle: 'Annuler', variante: 'red' },
     ],
     want: [
-        { statut: 'waiting', libelle: 'Colis prêt', variante: 'violet' },
         { statut: 'process', libelle: 'Prendre', variante: 'sky' },
         { statut: 'Success', libelle: 'Terminer', variante: 'emerald' },
         { statut: 'failed', libelle: 'Annuler', variante: 'red' },

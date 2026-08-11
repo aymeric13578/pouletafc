@@ -14,11 +14,13 @@ use Tests\TestCase;
  * getActiveCommand est le seul déclencheur : l'application l'interroge en boucle
  * et ouvre une fenêtre sonore dès qu'il renvoie quelque chose.
  *
- * Il guettait les commandes en « want ». Or rien dans l'API ne pose ce statut
- * sur une commande — « Colis prêt » pose « waiting ». La sonnerie censée
- * prévenir qu'un colis attend ne partait donc jamais, tandis que la moindre
- * ligne oubliée en « want » sonnait sur tous les téléphones à chaque
- * redémarrage de l'application.
+ * « want » veut dire « à enlever », et c'est ce que pose le bouton « Colis prêt »
+ * du mur. La sonnerie part donc après le geste du comptoir, jamais à la prise de
+ * commande : une commande fraîche reste en « pending ».
+ *
+ * S'y ajoute une borne du jour : sans elle, une ligne oubliée dans ce statut
+ * sonnait sur tous les téléphones à chaque redémarrage de l'application, sa
+ * déduplication ne tenant qu'en mémoire.
  */
 class AlerteAgentTest extends TestCase
 {
@@ -74,20 +76,16 @@ class AlerteAgentTest extends TestCase
         $this->restaurerAgent($idAgent, $etatAgent);
     }
 
-    public function test_colis_pret_fait_enfin_sonner(): void
+    public function test_colis_pret_fait_sonner(): void
     {
-        /*
-         * L'inverse du défaut précédent : le geste censé alerter les agents
-         * n'alertait personne, puisque l'endpoint guettait « want » quand le
-         * bouton pose « waiting ».
-         */
+        // Le geste du comptoir pose « want » : c'est lui qui alerte les agents.
         [$idUser, $idAgent, $etatAgent] = $this->agentDisponible();
 
         $commande = order_detail::orderByDesc('id')->firstOrFail();
         $etat = $this->etatCommande($commande);
 
         DB::table('order_details')->where('id', $commande->id)->update([
-            'status' => 'waiting',
+            'status' => 'want',
             'id_agent' => null,
             'created_at' => now(),
         ]);
@@ -96,6 +94,40 @@ class AlerteAgentTest extends TestCase
 
         $this->assertSame(200, $charge['response']);
         $this->assertNotNull($charge['order_detail'] ?? null);
+        $this->assertSame($commande->ref, $charge['order_detail']['ref']);
+
+        DB::table('order_details')->where('id', $commande->id)->update($etat);
+        $this->restaurerAgent($idAgent, $etatAgent);
+    }
+
+    public function test_le_bouton_du_mur_declenche_reellement_la_sonnerie(): void
+    {
+        /*
+         * Chaîne complète plutôt que statut posé à la main : le bouton
+         * « Colis prêt » du mur passe par cet endpoint, et c'est ce statut-là
+         * qui doit réveiller les agents. Poser la valeur directement en base
+         * testerait ma propre hypothèse, pas le geste du comptoir.
+         */
+        [$idUser, $idAgent, $etatAgent] = $this->agentDisponible();
+
+        $commande = order_detail::orderByDesc('id')->firstOrFail();
+        $etat = $this->etatCommande($commande);
+
+        DB::table('order_details')->where('id', $commande->id)->update([
+            'status' => 'pending',
+            'id_agent' => null,
+            'created_at' => now(),
+        ]);
+
+        // Rien ne sonne tant que le comptoir n'a pas agi.
+        $this->getJson(self::URL . '?id_user=' . $idUser)->assertOk()->assertJson(['response' => 400]);
+
+        $this->postJson("/commandes/{$commande->id}/statut", ['status' => 'want'])->assertOk();
+
+        $this->assertSame('want', $commande->fresh()->status);
+
+        $charge = $this->getJson(self::URL . '?id_user=' . $idUser)->assertOk()->json();
+        $this->assertSame(200, $charge['response']);
         $this->assertSame($commande->ref, $charge['order_detail']['ref']);
 
         DB::table('order_details')->where('id', $commande->id)->update($etat);
@@ -111,7 +143,7 @@ class AlerteAgentTest extends TestCase
         $occupant = \App\Models\User::query()->value('id');
 
         DB::table('order_details')->where('id', $commande->id)->update([
-            'status' => 'waiting',
+            'status' => 'want',
             'id_agent' => $occupant,
             'created_at' => now(),
         ]);
@@ -137,7 +169,7 @@ class AlerteAgentTest extends TestCase
         $etat = $this->etatCommande($commande);
 
         DB::table('order_details')->where('id', $commande->id)->update([
-            'status' => 'waiting',
+            'status' => 'want',
             'id_agent' => null,
             'created_at' => now()->subDays(3),
         ]);

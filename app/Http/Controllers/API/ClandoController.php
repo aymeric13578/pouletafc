@@ -287,22 +287,18 @@ class ClandoController extends Controller
     /**
      * Ce qui doit faire sonner le téléphone d'un agent, maintenant.
      *
-     * Deux corrections ici, et elles vont dans des sens opposés.
+     * « want » signifie « à enlever » : c'est le statut que pose le bouton
+     * « Colis prêt » du mur, et c'est bien lui qu'il faut guetter. La sonnerie
+     * part donc après le geste du comptoir, jamais à la prise de commande — une
+     * commande fraîche reste en « pending » et ne réveille personne.
      *
-     * Les commandes étaient guettées sur le statut « want ». Or rien, nulle part
-     * dans l'API, ne pose ce statut sur une commande : le bouton « Colis prêt »
-     * du mur pose « waiting ». La sonnerie censée prévenir qu'un colis attend
-     * d'être enlevé ne se déclenchait donc jamais — le colis rejoignait
-     * seulement la liste de l'accueil, en silence. C'est « waiting » qu'il faut
-     * guetter, c'est-à-dire après le geste du comptoir, et pas avant.
+     * Les courses clando partagent ce statut pour la même raison : une demande
+     * de course est prête à être prise dès qu'elle est passée.
      *
-     * Les courses clando, elles, gardent « want » : une demande de course doit
-     * atteindre les agents dès qu'elle est passée, c'est tout l'objet du service.
-     *
-     * Ajout commun : la borne du jour. Sans elle, une ligne oubliée dans l'un de
-     * ces statuts sonnait sur tous les téléphones à chaque redémarrage de
-     * l'application, indéfiniment — la déduplication de l'application ne tient
-     * qu'en mémoire et repart à zéro à chaque lancement.
+     * Ajout : la borne du jour. Sans elle, une ligne oubliée dans ce statut
+     * sonnait sur tous les téléphones à chaque redémarrage de l'application,
+     * indéfiniment — sa déduplication ne tient qu'en mémoire et repart à zéro à
+     * chaque lancement.
      */
     public function getActiveCommand(Request $request)
     {
@@ -314,7 +310,7 @@ class ClandoController extends Controller
              ->whereBetween('created_at', $bornes)
              ->first();
 
-         $order_detail = order_detail::where('status',"waiting")
+         $order_detail = order_detail::where('status',"want")
              ->where('id_agent',null)
              ->whereBetween('created_at', $bornes)
              ->orderBy('id','desc')
