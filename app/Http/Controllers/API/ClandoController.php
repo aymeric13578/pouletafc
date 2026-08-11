@@ -59,12 +59,21 @@ class ClandoController extends Controller
                 'lonMyPosition' =>   $request->lonMyPosition,
                 'latDestination' => $request->latDestination,
                 'lonDestination'=> $request->lonDestination,
-                'status'=>'pending',
                 'price'=>$request->price,
                 'times'=>$request->times,
                 'distance'=>$request->distance,
                 'destinationName'=>$request->destinationName,
-                 'status'=>$request->status,
+                 /*
+                  | La clé 'status' était écrite deux fois dans ce tableau :
+                  | 'pending' d'abord, puis $request->status. En PHP la seconde
+                  | l'emporte, si bien que la première n'a jamais rien fait et que
+                  | le statut d'une demande de course était en réalité dicté par
+                  | l'appelant. On garde ce comportement — l'application envoie
+                  | 'want', c'est ce qui met la course devant les agents — mais on
+                  | l'écrit une seule fois, avec un repli explicite plutôt qu'un
+                  | statut nul si le champ venait à manquer.
+                  */
+                 'status'=>$request->input('status', 'want'),
                  'type'=>$request->type,
                  'commission_agent'=>$commission_agent
              
@@ -275,11 +284,41 @@ class ClandoController extends Controller
         
     }
     
+    /**
+     * Ce qui doit faire sonner le téléphone d'un agent, maintenant.
+     *
+     * Deux corrections ici, et elles vont dans des sens opposés.
+     *
+     * Les commandes étaient guettées sur le statut « want ». Or rien, nulle part
+     * dans l'API, ne pose ce statut sur une commande : le bouton « Colis prêt »
+     * du mur pose « waiting ». La sonnerie censée prévenir qu'un colis attend
+     * d'être enlevé ne se déclenchait donc jamais — le colis rejoignait
+     * seulement la liste de l'accueil, en silence. C'est « waiting » qu'il faut
+     * guetter, c'est-à-dire après le geste du comptoir, et pas avant.
+     *
+     * Les courses clando, elles, gardent « want » : une demande de course doit
+     * atteindre les agents dès qu'elle est passée, c'est tout l'objet du service.
+     *
+     * Ajout commun : la borne du jour. Sans elle, une ligne oubliée dans l'un de
+     * ces statuts sonnait sur tous les téléphones à chaque redémarrage de
+     * l'application, indéfiniment — la déduplication de l'application ne tient
+     * qu'en mémoire et repart à zéro à chaque lancement.
+     */
     public function getActiveCommand(Request $request)
     {
-         $order = Clando::where('status',"want")->where('id_agent',null)->first();
-         
-         $order_detail = order_detail::where('status',"want")->where('id_agent',null)->orderBy('id','desc')->first();
+         $debutDuJour = now()->setTimezone('Africa/Douala')->startOfDay();
+         $bornes = [$debutDuJour->copy()->utc(), $debutDuJour->copy()->endOfDay()->utc()];
+
+         $order = Clando::where('status',"want")
+             ->where('id_agent',null)
+             ->whereBetween('created_at', $bornes)
+             ->first();
+
+         $order_detail = order_detail::where('status',"waiting")
+             ->where('id_agent',null)
+             ->whereBetween('created_at', $bornes)
+             ->orderBy('id','desc')
+             ->first();
          
          
          
