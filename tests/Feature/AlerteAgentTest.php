@@ -156,6 +156,21 @@ class AlerteAgentTest extends TestCase
         $this->restaurerAgent($idAgent, $etatAgent);
     }
 
+    public function test_un_identifiant_qui_n_est_pas_un_agent_ne_fait_pas_planter_le_serveur(): void
+    {
+        /*
+         * Le test du compte agent commençait à « $agent->freeStatus » sans
+         * vérifier que la recherche avait trouvé quelque chose : un identifiant
+         * qui n'est pas un agent faisait répondre 500, une panne serveur là où
+         * la réponse attendue est « rien pour vous ».
+         */
+        $this->getJson(self::URL . '?id_user=999999')
+            ->assertOk()
+            ->assertJson(['response' => 400]);
+
+        $this->getJson(self::URL)->assertOk()->assertJson(['response' => 400]);
+    }
+
     public function test_un_colis_pret_d_hier_ne_sonne_plus(): void
     {
         /*

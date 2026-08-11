@@ -323,7 +323,14 @@ class ClandoController extends Controller
          $agent = Agent::where('id_user',$request->id_user)->first();
       
       
-          if($agent->freeStatus == 0  || $agent->in_activity == 0)
+          /*
+           | Le test du compte agent commençait à « $agent->freeStatus », sans
+           | vérifier que la recherche avait trouvé quelque chose. Un identifiant
+           | qui n'est pas un agent renvoie null, et la lecture de propriété sur
+           | null faisait répondre 500 — une panne serveur là où la réponse
+           | attendue est simplement « rien pour vous ».
+           */
+          if(!$agent || $agent->freeStatus == 0  || $agent->in_activity == 0)
              
              {
                  return response()->json(['response' => 400 ]);
