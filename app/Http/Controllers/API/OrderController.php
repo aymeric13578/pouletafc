@@ -56,9 +56,23 @@ class OrderController extends Controller
      
  
     $user = User::where('id',$request->user_id)->first();
-              
-    $lat = $user->latitude;
-    $lon = $user->longitude;
+
+    /*
+     | Point de livraison.
+     |
+     | On copiait ici users.latitude/longitude, c'est-à-dire la dernière position
+     | connue du téléphone du client — écrite une fois, quasiment jamais remise à
+     | jour. L'adresse choisie au panier n'était gardée qu'en texte et ses
+     | coordonnées jetées, alors que les lieux enregistrés par les agents les
+     | portent. Conséquence mesurée en production : 65 clients sur 74 avaient
+     | toujours le même point de livraison, quelle que soit l'adresse choisie.
+     |
+     | PointDeLivraison essaie, dans l'ordre : les coordonnées transmises par
+     | l'application, le lieu désigné par son identifiant, le lieu retrouvé par le
+     | nom de l'adresse choisie, puis seulement la position du téléphone.
+     */
+    [$lat, $lon, $origineDuPoint] = app(\App\Support\PointDeLivraison::class)
+        ->resoudre($request, $user);
               
      
      
@@ -92,8 +106,21 @@ class OrderController extends Controller
                 'commission_agent'=>$commission_agent,
                 'delivery_fees'=>$request->delivery_fees,
             ]);
-            
-            
+
+            /*
+             | Tracer les commandes dont l'adresse n'a pas pu être résolue : le
+             | point retenu est alors la position du téléphone, ou rien. C'est le
+             | signe que l'adresse choisie ne correspond à aucun lieu enregistré,
+             | et c'est cette liste qu'il faudra compléter côté terrain.
+             */
+            if (in_array($origineDuPoint, ['position_client', 'aucune'], true)) {
+                \Illuminate\Support\Facades\Log::info('Commande sans adresse résolue', [
+                    'ref' => $ref,
+                    'adresse' => $request->delivery_address,
+                    'origine_du_point' => $origineDuPoint,
+                ]);
+            }
+
             $agent = User::Where('id',$request->user_id)->first();
             
             $content = "Votre commande N° ".$ref.". a été reçu .Le service client poulet AFC vous contacteras d'ici quelques instants .... Merci de patienter.
