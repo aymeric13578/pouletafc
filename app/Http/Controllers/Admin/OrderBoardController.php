@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\order_detail;
+use App\Models\Parameter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -111,6 +112,89 @@ class OrderBoardController extends Controller
             ->header('Cache-Control', 'no-store, no-cache, must-revalidate');
     }
 
+    /**
+     * Corrige le panier d'une commande à partir d'un poids.
+     *
+     * Un poulet n'est pesé qu'à la préparation, et le montant commandé ne
+     * correspond presque jamais au poids réel. Jusqu'ici la commande restait
+     * figée sur le prix annoncé et l'écart se réglait de la main à la main, sans
+     * trace. Le comptoir saisit désormais le poids, le montant suit.
+     *
+     * Le tarif au kilo vient de la grille active, jamais du navigateur : sinon
+     * n'importe qui atteignant cette page — elle est en accès libre — fixerait
+     * le prix qu'il veut.
+     */
+    public function updateCart(Request $request, int $order): JsonResponse
+    {
+        $valide = $request->validate([
+            // Trois décimales : on pèse au gramme près, mais un poids nul ou
+            // négatif n'a pas de sens et viderait la commande.
+            'poids_kg' => ['required', 'numeric', 'min:0.001', 'max:1000'],
+        ]);
+
+        $commande = order_detail::findOrFail($order);
+
+        if (in_array($commande->status, ['Success', 'failed'], true)) {
+            return $this->reponseAvec($request, false, 'Cette commande est close, son montant ne peut plus changer.', 409);
+        }
+
+        $tarif = Parameter::active()?->price_per_kg;
+
+        if (! $tarif) {
+            return $this->reponseAvec(
+                $request,
+                false,
+                'Aucun prix au kilo n\'est réglé. Renseignez-le dans Configuration.',
+                422,
+            );
+        }
+
+        $poids = (float) $valide['poids_kg'];
+        $panier = (int) round($poids * $tarif);
+
+        $commande->update([
+            'poids_kg' => $poids,
+            'panier_price' => $panier,
+            // Le total suit la même règle qu'à la création de la commande :
+            // panier + frais de livraison.
+            'price' => $panier + (int) $commande->delivery_fees,
+        ]);
+
+        /*
+         | La commission de l'agent n'est délibérément pas recalculée.
+         |
+         | Elle a été figée à la création à partir du prix d'alors. La corriger
+         | ici modifierait ce qu'un agent touche sur une course qu'il a peut-être
+         | déjà acceptée, ce qui est une décision commerciale et non technique.
+         | À trancher avec l'exploitation si l'écart devient gênant.
+         */
+
+        return $this->reponseAvec(
+            $request,
+            true,
+            sprintf('Panier mis à jour : %s kg × %s F = %s F.',
+                rtrim(rtrim(number_format($poids, 3, ',', ' '), '0'), ','),
+                number_format($tarif, 0, ',', ' '),
+                number_format($panier, 0, ',', ' '),
+            ),
+            200,
+        );
+    }
+
+    /**
+     * Réponse d'une action du mur : le mur à jour, plus le compte rendu du geste.
+     *
+     * Renvoyer le mur évite au navigateur d'enchaîner une seconde requête, et
+     * surtout d'attendre les cinq secondes du cycle suivant — le bouton
+     * semblerait sans effet.
+     */
+    private function reponseAvec(Request $request, bool $ok, string $message, int $code): JsonResponse
+    {
+        return response()->json($this->payload($request) + [
+            'action' => ['ok' => $ok, 'message' => $message],
+        ], $code)->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+
     public function updateStatus(Request $request, int $order): JsonResponse
     {
         $valide = $request->validate([
@@ -188,6 +272,12 @@ class OrderBoardController extends Controller
              | quelqu'un consulte la page 3, la commande qui vient d'arriver n'y est
              | pas et la sonnerie ne partirait jamais.
              */
+            // Tarif au kilo en vigueur, pour que l'écran affiche le montant
+            // pendant la saisie du poids. null quand aucune grille ne le règle :
+            // le mur masque alors la correction au poids.
+            'price_per_kg' => Parameter::active()?->price_per_kg
+                ? (int) Parameter::active()->price_per_kg
+                : null,
             'latest_id' => (int) order_detail::max('id'),
             // Horodatage serveur, en heure du Cameroun : le navigateur d'une télé a
             // rarement une heure juste, et l'écart se voit tout de suite sur un
@@ -246,6 +336,24 @@ class OrderBoardController extends Controller
             'id' => $order->id,
             'ref' => $order->ref,
             'price' => (int) $order->price,
+            /*
+             | Décomposition du total.
+             |
+             | price vaut panier_price + delivery_fees depuis la création de la
+             | commande, mais l'écran n'affichait que la somme : impossible de
+             | dire au comptoir ce qui relevait des articles et ce qui relevait
+             | de la livraison, ni de vérifier un montant contesté.
+             |
+             | panier_price peut être nul sur les commandes anciennes, créées
+             | avant que la colonne soit renseignée : on retombe alors sur la
+             | soustraction plutôt que d'afficher zéro.
+             */
+            'panier_price' => (int) ($order->panier_price ?? max(0, $order->price - (int) $order->delivery_fees)),
+            'delivery_fees' => (int) $order->delivery_fees,
+            'poids_kg' => $order->poids_kg !== null ? (float) $order->poids_kg : null,
+            // Une commande livrée ou annulée ne se corrige plus : le montant a
+            // déjà été encaissé et la commission calculée dessus.
+            'panier_modifiable' => ! in_array($order->status, ['Success', 'failed'], true),
             'status' => $order->status,
             'status_paiement' => $order->status_paiement,
             /*

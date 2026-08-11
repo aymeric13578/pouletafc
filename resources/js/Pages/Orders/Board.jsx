@@ -159,9 +159,25 @@ function Compteur({ label, valeur, accent = 'text-gray-900' }) {
     );
 }
 
-function DetailCommande({ commande, onClose, onChangerStatut, enCours }) {
+function DetailCommande({ commande, onClose, onChangerStatut, onModifierPanier, retourPanier, prixKilo, enCours }) {
     const statut = STATUTS[commande.status] ?? { label: commande.status, classe: 'bg-gray-100 text-gray-700 ring-gray-300' };
     const totalArticles = commande.items.reduce((somme, article) => somme + article.quantity, 0);
+
+    const [poids, setPoids] = useState(commande.poids_kg != null ? String(commande.poids_kg) : '');
+    const [editionPanier, setEditionPanier] = useState(false);
+
+    // Le poids affiché suit la commande : rouvrir une autre fiche ne doit pas
+    // proposer la valeur saisie sur la précédente.
+    useEffect(() => {
+        setPoids(commande.poids_kg != null ? String(commande.poids_kg) : '');
+        setEditionPanier(false);
+    }, [commande.id, commande.poids_kg]);
+
+    const poidsSaisi = Number.parseFloat(poids.replace(',', '.'));
+    const poidsValide = Number.isFinite(poidsSaisi) && poidsSaisi > 0;
+    // Montant projeté pendant la saisie : le comptoir voit le prix avant de
+    // valider, plutôt que de découvrir le résultat après coup.
+    const panierProjete = poidsValide && prixKilo ? Math.round(poidsSaisi * prixKilo) : null;
 
     return (
         <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
@@ -291,14 +307,130 @@ function DetailCommande({ commande, onClose, onChangerStatut, enCours }) {
                                 </div>
                             )}
                         </div>
+
+                        {/* Correction du panier au poids réel.
+                            Un poulet n'est pesé qu'à la préparation : le montant commandé
+                            ne correspond presque jamais au poids servi, et l'écart se
+                            réglait jusqu'ici de la main à la main, sans trace. */}
+                        {commande.panier_modifiable && (
+                            <div className="mt-5 rounded-xl border border-gray-200 p-4">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <div>
+                                        <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                                            Modifier le panier
+                                        </p>
+                                        <p className="mt-1 text-sm text-gray-600">
+                                            {prixKilo
+                                                ? `Saisissez le poids pesé. Prix du kilo : ${formatMontant(prixKilo)} F.`
+                                                : 'Aucun prix au kilo n\'est réglé. Renseignez-le dans Configuration.'}
+                                        </p>
+                                    </div>
+
+                                    {!editionPanier && prixKilo && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditionPanier(true)}
+                                            className="rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-gray-700"
+                                        >
+                                            {commande.poids_kg != null ? 'Corriger le poids' : 'Saisir le poids'}
+                                        </button>
+                                    )}
+                                </div>
+
+                                {retourPanier && (
+                                    <p className={`mt-3 rounded-lg px-3 py-2 text-sm font-semibold ${
+                                        retourPanier.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-800'
+                                    }`}>
+                                        {retourPanier.message}
+                                    </p>
+                                )}
+
+                                {editionPanier && prixKilo && (
+                                    <div className="mt-4 flex flex-wrap items-end gap-3">
+                                        <div>
+                                            <label htmlFor="poids" className="block text-xs font-bold uppercase tracking-wider text-gray-500">
+                                                Poids (kg)
+                                            </label>
+                                            <input
+                                                id="poids"
+                                                type="number"
+                                                inputMode="decimal"
+                                                step="0.01"
+                                                min="0.001"
+                                                value={poids}
+                                                onChange={(e) => setPoids(e.target.value)}
+                                                autoFocus
+                                                className="mt-1 w-36 rounded-xl border-gray-300 text-lg font-bold tabular-nums focus:border-gray-500 focus:ring-gray-500"
+                                            />
+                                        </div>
+
+                                        <div className="pb-1">
+                                            <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                                                Nouveau panier
+                                            </p>
+                                            <p className="text-2xl font-extrabold tabular-nums text-gray-900">
+                                                {panierProjete != null ? `${formatMontant(panierProjete)} F` : '—'}
+                                            </p>
+                                        </div>
+
+                                        <div className="ml-auto flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setEditionPanier(false);
+                                                    setPoids(commande.poids_kg != null ? String(commande.poids_kg) : '');
+                                                }}
+                                                className="rounded-xl bg-gray-200 px-4 py-2.5 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-300"
+                                            >
+                                                Annuler
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={!poidsValide || enCours}
+                                                onClick={() => onModifierPanier(commande.id, poidsSaisi)}
+                                                className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                            >
+                                                Enregistrer
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-t border-gray-200 bg-gray-50 px-6 py-4">
-                        <div>
-                            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Total commande</p>
-                            <p className="text-3xl font-extrabold tabular-nums text-gray-900">
-                                {formatMontant(commande.price)} <span className="text-base font-bold text-gray-400">F</span>
-                            </p>
+                        {/* Décomposition du total : le mur n'affichait que la somme, sans
+                            moyen de dire au client ce qui relevait des articles et ce qui
+                            relevait de la livraison. */}
+                        <div className="flex flex-wrap items-end gap-6">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Panier</p>
+                                <p className="text-xl font-bold tabular-nums text-gray-700">
+                                    {formatMontant(commande.panier_price)} <span className="text-sm font-bold text-gray-400">F</span>
+                                </p>
+                                {commande.poids_kg != null && (
+                                    <p className="text-xs font-semibold text-gray-500">{commande.poids_kg} kg pesés</p>
+                                )}
+                            </div>
+
+                            <div className="pb-1 text-2xl font-bold text-gray-300">+</div>
+
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Livraison</p>
+                                <p className="text-xl font-bold tabular-nums text-gray-700">
+                                    {formatMontant(commande.delivery_fees)} <span className="text-sm font-bold text-gray-400">F</span>
+                                </p>
+                            </div>
+
+                            <div className="pb-1 text-2xl font-bold text-gray-300">=</div>
+
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Total commande</p>
+                                <p className="text-3xl font-extrabold tabular-nums text-gray-900">
+                                    {formatMontant(commande.price)} <span className="text-base font-bold text-gray-400">F</span>
+                                </p>
+                            </div>
                         </div>
 
                         <div className="flex flex-wrap gap-2">
@@ -329,6 +461,8 @@ export default function Board({ initial }) {
     const [enLigne, setEnLigne] = useState(true);
     const [nouvelles, setNouvelles] = useState(() => new Set());
     const [detailId, setDetailId] = useState(null);
+    // Compte rendu de la correction du panier : montant retenu, ou motif du refus.
+    const [retourPanier, setRetourPanier] = useState(null);
     const [veilleBloquee, setVeilleBloquee] = useState(false);
     // Commandes dont le changement de statut est en cours : leurs boutons sont
     // neutralisés le temps de l'aller-retour, pour éviter le double clic.
@@ -430,6 +564,28 @@ export default function Board({ initial }) {
         silenceRef.current = nouveau;
         setSilence(nouveau);
     };
+
+    /*
+     * Toucher une commande coupe la sonnerie.
+     *
+     * Quiconque appuie sur un bouton d'une commande s'en occupe : continuer à
+     * sonner ne lui apprend plus rien et l'oblige à viser « Couper le son » au
+     * milieu de son geste. Le silence est levé dès qu'une commande arrive (voir
+     * la boucle de récupération), donc la suivante sonnera bien.
+     */
+    const couperSonneriePourInteraction = useCallback(() => {
+        if (silenceRef.current) return;
+
+        silenceRef.current = true;
+        setSilence(true);
+
+        // Couper aussi le son en train de jouer : sinon la sonnerie en cours va
+        // au bout de ses quelques secondes après le clic.
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+        }
+    }, []);
 
     const passerEnPleinEcran = () => {
         if (document.fullscreenElement) {
@@ -535,6 +691,7 @@ export default function Board({ initial }) {
      * bouton semble ne rien faire.
      */
     const changerStatut = async (id, statut) => {
+        couperSonneriePourInteraction();
         setEnCours((precedent) => new Set([...precedent, id]));
 
         try {
@@ -571,8 +728,62 @@ export default function Board({ initial }) {
         }
     };
 
+    // Le compte rendu s'efface seul : il documente un geste, il n'a pas à rester
+    // en travers d'un écran qui tourne en continu.
+    useEffect(() => {
+        if (!retourPanier) return undefined;
+        const timer = setTimeout(() => setRetourPanier(null), 6000);
+        return () => clearTimeout(timer);
+    }, [retourPanier]);
+
+    /**
+     * Corrige le panier à partir du poids pesé.
+     *
+     * Le tarif au kilo n'est pas envoyé : le serveur le lit sur la grille
+     * active. Cette page est en accès libre, un prix venu du navigateur se
+     * ferait dicter par n'importe qui l'atteignant.
+     */
+    const modifierPanier = async (id, poidsKg) => {
+        couperSonneriePourInteraction();
+        setEnCours((precedent) => new Set([...precedent, id]));
+
+        try {
+            const reponse = await fetch(`/commandes/${id}/panier`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': jetonCsrf(),
+                },
+                body: JSON.stringify({ poids_kg: poidsKg }),
+            });
+
+            const charge = await reponse.json();
+
+            // La réponse porte le mur à jour, succès ou refus : on l'applique
+            // sans attendre le cycle suivant.
+            if (charge.orders) setDonnees(charge);
+            setEnLigne(true);
+
+            setRetourPanier({
+                ok: reponse.ok && charge.action?.ok,
+                message: charge.action?.message ?? 'Modification impossible.',
+            });
+        } catch {
+            setEnLigne(false);
+            setRetourPanier({ ok: false, message: 'Le serveur n\'a pas répondu.' });
+        } finally {
+            setEnCours((precedent) => {
+                const copie = new Set(precedent);
+                copie.delete(id);
+                return copie;
+            });
+        }
+    };
+
     /** Bascule payée / non payée. Même mécanique que le changement de statut. */
     const changerPaiement = async (id, statutPaiement) => {
+        couperSonneriePourInteraction();
         setEnCours((precedent) => new Set([...precedent, id]));
 
         try {
@@ -849,7 +1060,7 @@ export default function Board({ initial }) {
                                                 <td className="whitespace-nowrap px-4 py-4 text-center">
                                                     <button
                                                         type="button"
-                                                        onClick={() => setDetailId(commande.id)}
+                                                        onClick={() => { couperSonneriePourInteraction(); setDetailId(commande.id); }}
                                                         title="Voir le panier et les coordonnées"
                                                         className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-gray-500 transition-colors hover:bg-brand-50 hover:text-brand-700"
                                                     >
@@ -1017,6 +1228,9 @@ export default function Board({ initial }) {
                         commande={commandeDetail}
                         onClose={() => setDetailId(null)}
                         onChangerStatut={changerStatut}
+                        onModifierPanier={modifierPanier}
+                        retourPanier={retourPanier}
+                        prixKilo={donnees.price_per_kg ?? null}
                         enCours={enCours.has(commandeDetail.id)}
                     />
                 )}

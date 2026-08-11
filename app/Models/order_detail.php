@@ -45,7 +45,9 @@ class order_detail extends Model
         'commission_agent',
         'status_paiement',
         'delivery_fees',
-        'panier_price'
+        'panier_price',
+        // Poids retenu par le comptoir quand il corrige le panier au poids réel.
+        'poids_kg'
     ];
 
     public function carts()

@@ -32,6 +32,7 @@ new class extends Component {
     public $clando_agent_command = '';
     public $delivery_agent_commission = '';
     public $vip_percentage = '';
+    public $price_per_kg = '';
 
     public function getConfigurationsProperty()
     {
@@ -64,6 +65,7 @@ new class extends Component {
             $this->clando_agent_command = $reference->clando_agent_command ?? '';
             $this->delivery_agent_commission = $reference->delivery_agent_commission ?? '';
             $this->vip_percentage = $reference->vip_percentage ?? '';
+            $this->price_per_kg = $reference->price_per_kg ?? '';
 
             $this->showModal = true;
 
@@ -81,6 +83,7 @@ new class extends Component {
         $this->clando_agent_command = $configuration->clando_agent_command;
         $this->delivery_agent_commission = $configuration->delivery_agent_commission;
         $this->vip_percentage = $configuration->vip_percentage;
+        $this->price_per_kg = $configuration->price_per_kg;
 
         $this->showModal = true;
     }
@@ -213,6 +216,7 @@ new class extends Component {
                         'Comm. commande',
                         'Comm. livreur',
                         'VIP',
+                        'Prix/kg',
                         'Actions',
                     ]">
                     @forelse ($this->configurations as $configuration)
@@ -255,6 +259,11 @@ new class extends Component {
                             </td>
                             <td class="whitespace-nowrap px-4 py-3 tabular-nums font-semibold text-gray-900">
                                 {{ $configuration->vip_percentage }} %
+                            </td>
+                            {{-- Tiret plutôt que zéro quand le tarif n'est pas renseigné :
+                                 « 0 F » se lirait comme un poulet gratuit. --}}
+                            <td class="whitespace-nowrap px-4 py-3 tabular-nums font-semibold text-gray-900">
+                                {{ $configuration->price_per_kg ? number_format($configuration->price_per_kg, 0, ',', ' ') . ' F' : '—' }}
                             </td>
 
                             <td class="whitespace-nowrap px-4 py-3">
@@ -364,6 +373,19 @@ new class extends Component {
                                 <x-ui.input id="vip_percentage" type="number" min="0" max="100"
                                             wire:model="vip_percentage"
                                             :error="$errors->has('vip_percentage')" />
+                            </x-ui.field>
+
+                            {{-- Facultatif, à la différence des autres : les grilles déjà
+                                 enregistrées n'en portent pas, et l'exiger empêcherait de
+                                 rouvrir puis d'enregistrer une grille existante. Sans
+                                 tarif, le mur des commandes n'ouvre pas la correction
+                                 au poids. --}}
+                            <x-ui.field label="Prix du kilo" for="price_per_kg"
+                                        hint="sert au comptoir pour corriger un panier au poids réel"
+                                        :error="$errors->first('price_per_kg')">
+                                <x-ui.input id="price_per_kg" type="number" min="0"
+                                            wire:model="price_per_kg"
+                                            :error="$errors->has('price_per_kg')" />
                             </x-ui.field>
                         </div>
                     </div>

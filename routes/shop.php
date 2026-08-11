@@ -44,6 +44,8 @@ Route::get('/commandes', [\App\Http\Controllers\Admin\OrderBoardController::clas
 Route::get('/commandes/flux', [\App\Http\Controllers\Admin\OrderBoardController::class, 'feed'])->name('orders.board.feed');
 Route::post('/commandes/{order}/statut', [\App\Http\Controllers\Admin\OrderBoardController::class, 'updateStatus'])->name('orders.board.status');
 Route::post('/commandes/{order}/paiement', [\App\Http\Controllers\Admin\OrderBoardController::class, 'updatePayment'])->name('orders.board.payment');
+// Correction du panier au poids réel, le tarif au kilo venant de la grille active.
+Route::post('/commandes/{order}/panier', [\App\Http\Controllers\Admin\OrderBoardController::class, 'updateCart'])->name('orders.board.cart');
 
 /*
 | Carte des courses clando, en accès libre pour la même raison que le mur des

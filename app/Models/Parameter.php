@@ -32,6 +32,9 @@ class Parameter extends Model
         // Absent de la liste jusqu'ici : la colonne existait en base mais aucun
         // écran ne pouvait l'écrire, la commission des livreurs restait à 0.
         'delivery_agent_commission',
+        // Tarif au kilo, appliqué quand le comptoir corrige un panier au poids
+        // réel depuis le mur des commandes.
+        'price_per_kg',
         'status'
     ];
 
@@ -54,6 +57,14 @@ class Parameter extends Model
             'clando_agent_command' => 'required|integer|min:0|max:100',
             'delivery_agent_commission' => 'required|integer|min:0|max:100',
             'vip_percentage' => 'required|integer|min:0|max:100',
+            /*
+             | Tarif au kilo. Facultatif, contrairement aux autres : les grilles
+             | déjà enregistrées n'en portent pas, et exiger une valeur
+             | empêcherait de rouvrir puis d'enregistrer une grille existante.
+             | Sans tarif, le mur des commandes n'ouvre simplement pas la
+             | correction au poids.
+             */
+            'price_per_kg' => 'nullable|integer|min:0',
         ];
     }
 
