@@ -552,6 +552,25 @@ export default function Board({ initial }) {
                                                         {formatMontant(c.price)} F · {c.created_label}
                                                     </span>
                                                 </div>
+
+                                                {/*
+                                                  * Appréciation du client, une fois la course terminée.
+                                                  * Elle dormait en base sans être lisible nulle part :
+                                                  * une course mal vécue ne se voyait qu'au rappel du client.
+                                                  */}
+                                                {c.appreciation && (
+                                                    <div className="mt-1.5 rounded-lg bg-amber-50 px-2 py-1 text-left ring-1 ring-amber-200">
+                                                        <p className="text-xs font-semibold text-amber-800">
+                                                            <span className="mr-1">{c.appreciation.emoji}</span>
+                                                            {c.appreciation.libelle}
+                                                        </p>
+                                                        {c.appreciation.commentaire && (
+                                                            <p className="mt-0.5 line-clamp-2 text-[11px] italic text-slate-600">
+                                                                « {c.appreciation.commentaire} »
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </button>
 
                                             {c.attribuable && (

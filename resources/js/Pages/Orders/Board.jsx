@@ -319,6 +319,29 @@ function DetailCommande({ commande, onClose, onChangerStatut, onModifierPanier, 
                             </div>
                         )}
 
+                        {/*
+                          * Ce que le client a pensé de la prestation.
+                          *
+                          * L'appréciation n'était lisible nulle part : elle
+                          * dormait en base et le comptoir ne pouvait pas savoir
+                          * qu'une livraison s'était mal passée avant que le
+                          * client rappelle.
+                          */}
+                        {commande.appreciation && (
+                            <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                                <p className="text-xs font-bold uppercase tracking-wider text-amber-700">Appréciation du client</p>
+                                <p className="mt-2 flex items-center gap-2 text-lg font-bold text-gray-900">
+                                    <span className="text-2xl">{commande.appreciation.emoji}</span>
+                                    {commande.appreciation.libelle}
+                                </p>
+                                {commande.appreciation.commentaire && (
+                                    <p className="mt-2 whitespace-pre-wrap italic text-gray-700">
+                                        « {commande.appreciation.commentaire} »
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
                         {commande.agent && (
                             <div className="mt-5 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
                                 <p className="text-xs font-bold uppercase tracking-wider text-indigo-700">Agent assigné</p>

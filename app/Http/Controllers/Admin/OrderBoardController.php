@@ -264,6 +264,17 @@ class OrderBoardController extends Controller
             ->orderByDesc('id')
             ->paginate(self::PAR_PAGE, ['*'], 'page', $page);
 
+        /*
+         | Appréciations des commandes affichées, en une requête.
+         |
+         | Les résoudre ligne par ligne dans transform() ajouterait une requête
+         | par commande : sur une page de vingt, c'est vingt allers-retours pour
+         | un détail qui tient en une jointure.
+         */
+        $this->appreciations = \App\Models\Note::whereIn('id_order', $commandes->getCollection()->pluck('id'))
+            ->get()
+            ->keyBy('id_order');
+
         return [
             'orders' => $commandes->getCollection()->map(fn (order_detail $o) => $this->transform($o))->values(),
             'pagination' => [
@@ -353,6 +364,32 @@ class OrderBoardController extends Controller
     /**
      * @return array<string, mixed>
      */
+    /**
+     * Appréciations de la page courante, indexées par commande.
+     *
+     * @var \Illuminate\Support\Collection|null
+     */
+    private $appreciations = null;
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function appreciation(int $idCommande): ?array
+    {
+        $note = $this->appreciations?->get($idCommande);
+
+        if (! $note) {
+            return null;
+        }
+
+        return [
+            'note' => $note->note,
+            'libelle' => \App\Support\NotationAgent::LIBELLES[$note->note] ?? $note->note,
+            'emoji' => \App\Support\NotationAgent::EMOJIS[$note->note] ?? '',
+            'commentaire' => $note->comment,
+        ];
+    }
+
     private function transform(order_detail $order): array
     {
         $items = $order->carts?->cart_items ?? collect();
@@ -411,6 +448,12 @@ class OrderBoardController extends Controller
              */
             'depart' => $order->depart,
             'note' => $order->note,
+            /*
+             | Appréciation laissée par le client, distincte de « note » qui est
+             | le texte libre accompagnant une course. Deux choses différentes
+             | sous un nom voisin : celle-ci porte l'émoticône et le commentaire.
+             */
+            'appreciation' => $this->appreciation($order->id),
             'image_url' => $order->image ? url('upload/' . $order->image) : null,
             'payment_method' => $order->payment_method,
             /*

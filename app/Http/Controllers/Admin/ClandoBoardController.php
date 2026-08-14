@@ -125,6 +125,12 @@ class ClandoBoardController extends Controller
     {
         $courses = $this->coursesAffichees();
 
+        // Appréciations de la page courante, en une requête plutôt qu'une par
+        // course : le mur se rafraîchit en continu.
+        $this->appreciations = \App\Models\Note::whereIn('id_clando', $courses->pluck('id'))
+            ->get()
+            ->keyBy('id_clando');
+
         return [
             'courses' => $courses->map(fn (Clando $c) => $this->transform($c))->values(),
             'agents' => $this->agents($courses),
@@ -328,6 +334,13 @@ class ClandoBoardController extends Controller
     /**
      * @return array<string, mixed>
      */
+    /**
+     * Appréciations de la page courante, indexées par course.
+     *
+     * @var \Illuminate\Support\Collection|null
+     */
+    private $appreciations = null;
+
     private function transform(Clando $course): array
     {
         $depart = $this->point($course->latMyPosition, $course->lonMyPosition);
@@ -345,6 +358,8 @@ class ClandoBoardController extends Controller
             // l'écran s'appuie là-dessus, et le serveur le revérifie sous verrou.
             'attribuable' => $course->id_agent === null,
             'price' => (int) $course->price,
+            // Ce que le client a pensé de la course, une fois terminée.
+            'appreciation' => $this->appreciation($course->id),
             'distance' => $course->distance,
             'times' => $course->times,
             'vehicule' => $course->vehicule,
@@ -376,6 +391,25 @@ class ClandoBoardController extends Controller
      *
      * @return array{lat: float, lon: float}|null
      */
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function appreciation(int $idCourse): ?array
+    {
+        $note = $this->appreciations?->get($idCourse);
+
+        if (! $note) {
+            return null;
+        }
+
+        return [
+            'note' => $note->note,
+            'libelle' => \App\Support\NotationAgent::LIBELLES[$note->note] ?? $note->note,
+            'emoji' => \App\Support\NotationAgent::EMOJIS[$note->note] ?? '',
+            'commentaire' => $note->comment,
+        ];
+    }
+
     private function point($lat, $lon): ?array
     {
         $lat = $this->nombre($lat);
