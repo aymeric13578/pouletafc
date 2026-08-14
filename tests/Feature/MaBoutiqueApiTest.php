@@ -150,6 +150,27 @@ class MaBoutiqueApiTest extends TestCase
         $this->assertSame(0, $etrangers, 'Aucun produit d\'une autre boutique ne doit apparaître.');
     }
 
+    public function test_la_liste_porte_de_quoi_rouvrir_le_formulaire(): void
+    {
+        /*
+         * Catégorie et stock pré-remplissent le formulaire de modification.
+         * Sans eux, rouvrir un produit pour changer son prix effacerait sa
+         * catégorie et son stock.
+         */
+        $boutique = $this->boutique();
+
+        $produits = $this->getJson('/api/v1.0/getMyShopProducts?id_user=' . $boutique->id_user)
+            ->assertOk()
+            ->json('data');
+
+        if (! $produits) {
+            $this->markTestSkipped('Boutique sans produit.');
+        }
+
+        $this->assertArrayHasKey('id_category', $produits[0]);
+        $this->assertArrayHasKey('stock_init', $produits[0]);
+    }
+
     public function test_les_commandes_sont_celles_qui_contiennent_ses_produits(): void
     {
         $boutique = $this->boutique();
@@ -172,6 +193,139 @@ class MaBoutiqueApiTest extends TestCase
         foreach ($commandes as $commande) {
             $this->assertArrayNotHasKey('phone', $commande);
             $this->assertArrayNotHasKey('whatsapp', $commande);
+        }
+    }
+
+    public function test_le_marchand_cree_un_produit_en_attente_de_validation(): void
+    {
+        /*
+         * Un produit créé par un marchand n'apparaît pas au catalogue tant que
+         * l'équipe ne l'a pas validé. Même règle que sur le tableau de bord.
+         */
+        $boutique = $this->boutique();
+        $categorie = \App\Models\Category::query()->value('id');
+
+        if (! $categorie) {
+            $this->markTestSkipped('Aucune catégorie en base.');
+        }
+
+        $reponse = $this->post('/api/v1.0/saveMyShopProduct', [
+            'id_user' => $boutique->id_user,
+            'name' => 'Produit de test',
+            'id_category' => $categorie,
+            'price' => 2500,
+            'stock_init' => 10,
+            'description' => 'Créé par un test automatisé.',
+            'image' => UploadedFile::fake()->image('produit.jpg', 400, 400),
+        ]);
+
+        $reponse->assertOk()->assertJson(['response' => 200]);
+
+        $produit = \App\Models\Product::find($reponse->json('data.id'));
+
+        $this->assertNotNull($produit);
+        $this->assertSame($boutique->id, (int) $produit->id_shop);
+        $this->assertSame('pending', $produit->status);
+        $this->assertStringStartsWith('PROD-', $produit->ref);
+        // La vitrine lit img, l'application lit product_image1 : n'en remplir
+        // qu'un laisse le produit sans image d'un côté.
+        $this->assertSame($produit->img, $produit->product_image1);
+        $this->assertNotNull($produit->img);
+
+        if ($produit->img) {
+            @unlink(public_path('upload/' . basename($produit->img)));
+        }
+        DB::table('products')->where('id', $produit->id)->delete();
+    }
+
+    public function test_une_creation_sans_image_est_refusee(): void
+    {
+        $boutique = $this->boutique();
+        $categorie = \App\Models\Category::query()->value('id');
+
+        $this->postJson('/api/v1.0/saveMyShopProduct', [
+            'id_user' => $boutique->id_user,
+            'name' => 'Sans image',
+            'id_category' => $categorie,
+            'price' => 1000,
+            'stock_init' => 1,
+            'description' => 'Test',
+        ])->assertStatus(422);
+    }
+
+    public function test_le_marchand_ne_modifie_pas_le_produit_d_une_autre_boutique(): void
+    {
+        /*
+         * La portée est le point sensible : un produit se retrouve par
+         * where('id_shop')->find(), jamais par find() seul, qui accepterait
+         * n'importe quel identifiant.
+         */
+        $boutique = $this->boutique();
+        $categorie = \App\Models\Category::query()->value('id');
+
+        $etranger = \App\Models\Product::where('id_shop', '!=', $boutique->id)
+            ->whereNotNull('id_shop')
+            ->first();
+
+        if (! $etranger) {
+            $this->markTestSkipped('Aucun produit rattaché à une autre boutique.');
+        }
+
+        $nomInitial = $etranger->name;
+
+        $this->postJson('/api/v1.0/saveMyShopProduct', [
+            'id_user' => $boutique->id_user,
+            'id_product' => $etranger->id,
+            'name' => 'Tentative de détournement',
+            'id_category' => $categorie,
+            'price' => 1,
+            'stock_init' => 1,
+            'description' => 'Test',
+        ])->assertOk()->assertJson(['response' => 404]);
+
+        $this->assertSame($nomInitial, $etranger->fresh()->name);
+    }
+
+    public function test_une_modification_sans_nouvelle_image_garde_l_ancienne(): void
+    {
+        $boutique = $this->boutique();
+        $categorie = \App\Models\Category::query()->value('id');
+
+        $produit = \App\Models\Product::where('id_shop', $boutique->id)->first();
+
+        if (! $produit) {
+            $this->markTestSkipped('Boutique sans produit.');
+        }
+
+        $etat = $produit->only(['name', 'price', 'description', 'id_category', 'stock_init']);
+        $imageInitiale = $produit->product_image1;
+
+        $this->postJson('/api/v1.0/saveMyShopProduct', [
+            'id_user' => $boutique->id_user,
+            'id_product' => $produit->id,
+            'name' => 'Nom modifié par test',
+            'id_category' => $categorie,
+            'price' => 3300,
+            'stock_init' => 7,
+            'description' => 'Description modifiée.',
+        ])->assertOk()->assertJson(['response' => 200]);
+
+        $frais = $produit->fresh();
+        $this->assertSame('Nom modifié par test', $frais->name);
+        $this->assertSame($imageInitiale, $frais->product_image1, "L'image ne doit pas être perdue.");
+
+        DB::table('products')->where('id', $produit->id)->update($etat);
+    }
+
+    public function test_les_categories_sont_proposees_au_marchand(): void
+    {
+        $data = $this->getJson('/api/v1.0/getShopCategories')->assertOk()->json('data');
+
+        $this->assertIsArray($data);
+
+        if ($data) {
+            $this->assertArrayHasKey('id', $data[0]);
+            $this->assertArrayHasKey('name', $data[0]);
         }
     }
 

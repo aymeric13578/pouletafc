@@ -88,6 +88,8 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
     Route::post('updateMyShop', 'MaBoutiqueController@updateMyShop');
     Route::get('getMyShopProducts', 'MaBoutiqueController@getMyShopProducts');
     Route::get('getMyShopOrders', 'MaBoutiqueController@getMyShopOrders');
+    Route::get('getShopCategories', 'MaBoutiqueController@getCategories');
+    Route::post('saveMyShopProduct', 'MaBoutiqueController@saveMyShopProduct');
 
     // Demande de course coursier depuis l'application cliente.
     //

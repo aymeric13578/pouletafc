@@ -142,7 +142,7 @@ class MaBoutiqueController extends Controller
 
         $produits = Product::where('id_shop', $boutique->id)
             ->orderByDesc('id')
-            ->get(['id', 'name', 'description', 'price', 'product_image1', 'ref', 'status', 'id_category']);
+            ->get(['id', 'name', 'description', 'price', 'product_image1', 'ref', 'status', 'id_category', 'stock_init']);
 
         return response()->json([
             'response' => 200,
@@ -154,6 +154,10 @@ class MaBoutiqueController extends Controller
                 'ref' => $p->ref,
                 'status' => $p->status,
                 'image' => $p->product_image1,
+                // Catégorie et stock servent à pré-remplir le formulaire de
+                // modification : sans eux, rouvrir un produit les effacerait.
+                'id_category' => $p->id_category,
+                'stock_init' => $p->stock_init,
             ])->values(),
         ]);
     }
@@ -193,6 +197,109 @@ class MaBoutiqueController extends Controller
                 // fichier client. Même réserve que sur le tableau de bord.
                 'client' => $o->user?->name,
             ])->values(),
+        ]);
+    }
+
+    /**
+     * Catégories proposées au marchand quand il crée un produit.
+     *
+     * id_category est contrôlé à l'enregistrement : sans cette liste,
+     * l'application devrait deviner des identifiants.
+     */
+    public function getCategories(): JsonResponse
+    {
+        return response()->json([
+            'response' => 200,
+            'data' => \App\Models\Category::orderBy('name')->get(['id', 'name']),
+        ]);
+    }
+
+    /**
+     * Crée ou modifie un produit de la boutique de l'appelant.
+     *
+     * Les règles sont celles de l'écran marchand du tableau de bord, reprises
+     * à l'identique : mêmes champs obligatoires, même statut d'attente à la
+     * création, et surtout la même portée — un produit se retrouve par
+     * where('id_shop')->findOrFail(), jamais par findOrFail seul, qui
+     * accepterait le produit de n'importe quelle boutique.
+     */
+    public function saveMyShopProduct(Request $request): JsonResponse
+    {
+        $boutique = $this->boutiqueDe($request->input('id_user'));
+
+        if (! $boutique) {
+            return response()->json([
+                'response' => 404,
+                'message' => "Aucune boutique n'est rattachée à ce compte.",
+            ]);
+        }
+
+        $modification = $request->filled('id_product');
+
+        $valide = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'id_category' => ['required', 'exists:categories,id'],
+            'price' => ['required', 'numeric', 'min:0'],
+            'stock_init' => ['required', 'integer', 'min:0'],
+            'description' => ['required', 'string'],
+            // L'image n'est exigée qu'à la création : une modification qui n'y
+            // touche pas garde celle déjà en place.
+            'image' => [$modification ? 'nullable' : 'required', 'image', 'mimes:jpeg,png,jpg,webp', 'max:4096'],
+        ]);
+
+        $donnees = collect($valide)->except('image')->all();
+        $donnees['quantity'] = $donnees['stock_init'];
+
+        if ($request->hasFile('image')) {
+            $nom = hexdec(uniqid()) . '.' . $request->file('image')->getClientOriginalExtension();
+
+            try {
+                $request->file('image')->move(public_path('upload'), $nom);
+                /*
+                 | img et product_image1 doivent désigner le même fichier : la
+                 | vitrine lit l'un, l'application mobile l'autre. N'en remplir
+                 | qu'un laisse le produit sans image d'un côté.
+                 */
+                $donnees['img'] = url('upload/' . $nom);
+                $donnees['product_image1'] = $donnees['img'];
+            } catch (\Throwable $e) {
+                Log::warning('Image de produit non enregistrée : ' . $e->getMessage());
+            }
+        }
+
+        if ($modification) {
+            $produit = Product::where('id_shop', $boutique->id)
+                ->find((int) $request->input('id_product'));
+
+            if (! $produit) {
+                return response()->json([
+                    'response' => 404,
+                    'message' => "Ce produit n'appartient pas à votre boutique.",
+                ]);
+            }
+
+            $produit->update($donnees);
+
+            return response()->json([
+                'response' => 200,
+                'message' => 'Produit modifié.',
+                'data' => ['id' => $produit->id],
+            ]);
+        }
+
+        $donnees['id_shop'] = $boutique->id;
+        $donnees['ref'] = 'PROD-' . strtoupper(substr(uniqid(), -6));
+        $donnees['slug'] = str($donnees['name'])->slug()->toString();
+        // Un produit créé par un marchand attend la validation de l'équipe
+        // avant d'apparaître au catalogue.
+        $donnees['status'] = 'pending';
+
+        $produit = Product::create($donnees);
+
+        return response()->json([
+            'response' => 200,
+            'message' => 'Produit créé. Il sera visible après validation par Poulet AFC.',
+            'data' => ['id' => $produit->id],
         ]);
     }
 
