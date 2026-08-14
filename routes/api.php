@@ -80,6 +80,15 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
             
         Route::get('financeAgent', 'FinanceController@getfinanceAgent');
     
+    // Espace boutique dans l'application, pendant du module « Ma boutique » du
+    // tableau de bord. Un marchand connecté depuis son téléphone n'avait aucun
+    // moyen de voir sa vitrine ni ses commandes.
+    Route::get('getMyShop', 'MaBoutiqueController@getMyShop');
+    Route::post('getMyShop', 'MaBoutiqueController@getMyShop');
+    Route::post('updateMyShop', 'MaBoutiqueController@updateMyShop');
+    Route::get('getMyShopProducts', 'MaBoutiqueController@getMyShopProducts');
+    Route::get('getMyShopOrders', 'MaBoutiqueController@getMyShopOrders');
+
     // Demande de course coursier depuis l'application cliente.
     //
     // L'écran poste vers cette route depuis des mois, mais elle n'avait jamais
