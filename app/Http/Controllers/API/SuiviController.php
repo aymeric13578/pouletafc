@@ -84,6 +84,57 @@ class SuiviController extends Controller
     }
 
     /**
+     * « Qu'est-ce qui a bougé sur mes commandes ? »
+     *
+     * getCourseEnCours répond à une autre question — « où me ramener ? » — et ne
+     * renvoie donc qu'une seule chose, la plus récente, en faisant passer le rôle
+     * d'agent avant celui de client. Pour prévenir un client qu'un agent vient de
+     * prendre sa commande, il faut au contraire tout ce qu'il a en cours : sinon
+     * une deuxième commande prise pendant qu'une première tourne encore ne
+     * déclencherait jamais rien.
+     *
+     * L'application compare cette liste à ce qu'elle a déjà annoncé et sonne pour
+     * ce qui vient d'être pris. Le serveur ne garde donc aucune trace de ce qui a
+     * été notifié : c'est le téléphone qui sait ce qu'il a affiché, et lui seul.
+     */
+    public function getSuivisClient(Request $request): JsonResponse
+    {
+        $idUser = $request->input('id_user');
+
+        if (! $idUser) {
+            return response()->json([
+                'response' => 400,
+                'message' => 'Identifiant utilisateur manquant',
+                'data' => [],
+            ]);
+        }
+
+        $depuis = now()->subHours(self::HEURES_DE_VALIDITE);
+
+        $courses = Clando::with('agent.user:id,name,phone,whatsapp,actual_lat_position_agent,actual_lon_position_agent,position_updated_at')
+            ->where('id_user', $idUser)
+            ->whereIn('status', self::CLANDO_ACTIFS)
+            ->where('created_at', '>=', $depuis)
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (Clando $course) => $this->transformerClando($course, 'client'));
+
+        $livraisons = order_detail::with('agent.user:id,name,phone,whatsapp,actual_lat_position_agent,actual_lon_position_agent,position_updated_at')
+            ->where('id_user', $idUser)
+            ->whereIn('status', self::ORDER_ACTIFS)
+            ->where('created_at', '>=', $depuis)
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (order_detail $commande) => $this->transformerCommande($commande, 'client'));
+
+        return response()->json([
+            'response' => 200,
+            // Liste vide et non erreur : la plupart du temps le client n'attend rien.
+            'data' => $courses->concat($livraisons)->values(),
+        ]);
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     private function courseAgent($idUser, $depuis): ?array
@@ -103,7 +154,7 @@ class SuiviController extends Controller
      */
     private function courseClient($idUser, $depuis): ?array
     {
-        $course = Clando::with('agent.user:id,name,phone,whatsapp')
+        $course = Clando::with('agent.user:id,name,phone,whatsapp,actual_lat_position_agent,actual_lon_position_agent,position_updated_at')
             ->where('id_user', $idUser)
             ->whereIn('status', self::CLANDO_ACTIFS)
             ->where('created_at', '>=', $depuis)
@@ -133,7 +184,7 @@ class SuiviController extends Controller
      */
     private function livraisonClient($idUser, $depuis): ?array
     {
-        $commande = order_detail::with('agent.user:id,name,phone,whatsapp')
+        $commande = order_detail::with('agent.user:id,name,phone,whatsapp,actual_lat_position_agent,actual_lon_position_agent,position_updated_at')
             ->where('id_user', $idUser)
             ->whereIn('status', self::ORDER_ACTIFS)
             ->where('created_at', '>=', $depuis)
@@ -181,12 +232,7 @@ class SuiviController extends Controller
             'prise_en_charge' => $course->destinationName ?? 'Point de départ',
             'vehicule' => $course->vehicule,
             'matricule' => $course->matricule_vehicule,
-            'agent' => $course->agent?->user ? [
-                'id' => $course->agent->user->id,
-                'name' => $course->agent->user->name,
-                'phone' => $course->agent->user->phone,
-                'whatsapp' => $course->agent->user->whatsapp,
-            ] : null,
+            'agent' => $this->agent($course->agent?->user),
             'client' => $course->users ? [
                 'id' => $course->users->id,
                 'name' => $course->users->name,
@@ -225,12 +271,7 @@ class SuiviController extends Controller
             'times' => '0 min',
             'price' => (float) $commande->price,
             'prise_en_charge' => $commande->shop_name ?? 'Point de départ inconnu',
-            'agent' => $commande->agent?->user ? [
-                'id' => $commande->agent->user->id,
-                'name' => $commande->agent->user->name,
-                'phone' => $commande->agent->user->phone,
-                'whatsapp' => $commande->agent->user->whatsapp,
-            ] : null,
+            'agent' => $this->agent($commande->agent?->user),
             'client' => $commande->user ? [
                 'id' => $commande->user->id,
                 'name' => $commande->user->name,
@@ -238,6 +279,37 @@ class SuiviController extends Controller
                 'whatsapp' => $commande->user->whatsapp,
             ] : null,
             'created_at' => $commande->created_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Fiche de l'agent, position comprise.
+     *
+     * La position voyage avec le nom : sans elle, l'écran de suivi ouvert depuis
+     * une notification afficherait un agent nommé mais introuvable sur la carte,
+     * le temps d'un second appel.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function agent(?\App\Models\User $agent): ?array
+    {
+        if (! $agent) {
+            return null;
+        }
+
+        return [
+            'id' => $agent->id,
+            'name' => $agent->name,
+            'phone' => $agent->phone,
+            'whatsapp' => $agent->whatsapp,
+            'lat' => $this->nombre($agent->actual_lat_position_agent),
+            'lon' => $this->nombre($agent->actual_lon_position_agent),
+            /*
+             | Une position vieille de plusieurs heures est pire qu'aucune : elle
+             | montre l'agent figé loin de là où il est. L'écran affiche le point
+             | seulement si la date le permet.
+             */
+            'position_datee' => $agent->position_updated_at?->toIso8601String(),
         ];
     }
 

@@ -111,6 +111,9 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
     // d'une course qui continuait pourtant côté serveur.
     Route::get('getCourseEnCours', 'SuiviController@getCourseEnCours');
     Route::post('getCourseEnCours', 'SuiviController@getCourseEnCours');
+    // Ce que le client a en cours, pour être prévenu dès qu'un agent le prend.
+    Route::get('getSuivisClient', 'SuiviController@getSuivisClient');
+    Route::post('getSuivisClient', 'SuiviController@getSuivisClient');
 
     // geolocalisation
 
