@@ -44,7 +44,10 @@ class User extends Authenticatable
         'latitude',
         'in_activity',
         'actual_lat_position_agent',
-        'actual_lon_position_agent'
+        'actual_lon_position_agent',
+        // Horodatage du dernier relevé : les cartes s'en servent pour ne pas
+        // présenter un point vieux de plusieurs semaines comme du direct.
+        'position_updated_at'
     ];
 
     /**
@@ -65,6 +68,13 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        /*
+         | Sans cette conversion, position_updated_at revient sous forme de
+         | chaîne et les cartes tombent en 500 en lui demandant une comparaison
+         | de dates. Le défaut ne se voit qu'à l'exécution : rien ne le signale
+         | à l'écriture.
+         */
+        'position_updated_at' => 'datetime',
     ];
     public function country()
     {

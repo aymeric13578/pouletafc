@@ -110,6 +110,12 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
     // geolocalisation
 
 
+       // Position d'un agent, envoyée en continu tant qu'il est en service.
+       // Sans elle, la position n'était écrite qu'au démarrage de la journée et
+       // les agents restaient figés sur les cartes.
+       Route::get('updateAgentPosition', 'GeolocalisationController@updateAgentPosition');
+       Route::post('updateAgentPosition', 'GeolocalisationController@updateAgentPosition');
+
        Route::post('getLocationAgent', 'GeolocalisationController@getLocationAgent');
     
        Route::get('getLocationAgent', 'GeolocalisationController@getLocationAgent');

@@ -181,7 +181,7 @@ class OrderMapController extends Controller
         }
 
         return $this->requeteAgentsActifs()
-            ->get(['id', 'name', 'phone', 'whatsapp', 'actual_lat_position_agent', 'actual_lon_position_agent'])
+            ->get(['id', 'name', 'phone', 'whatsapp', 'actual_lat_position_agent', 'actual_lon_position_agent', 'position_updated_at'])
             ->map(function (User $u) use ($enLivraison) {
                 $suivi = $enLivraison[$u->id] ?? null;
 
@@ -192,13 +192,36 @@ class OrderMapController extends Controller
                     'whatsapp' => $u->whatsapp,
                     'lat' => $suivi['lat'] ?? $this->nombre($u->actual_lat_position_agent),
                     'lon' => $suivi['lon'] ?? $this->nombre($u->actual_lon_position_agent),
-                    'frais' => $suivi !== null,
+                    /*
+                     | Un point est « frais » s'il vient d'une course en cours,
+                     | ou s'il a été relevé il y a moins de deux minutes.
+                     |
+                     | Auparavant seul le premier cas comptait, si bien qu'un
+                     | agent en service mais sans course apparaissait comme suivi
+                     | alors que sa position datait parfois de plusieurs semaines.
+                     */
+                    'frais' => $suivi !== null || $this->positionRecente($u->position_updated_at),
+                    'position_datee' => $u->position_updated_at
+                        ? $u->position_updated_at->setTimezone(self::FUSEAU)->format('d/m H:i')
+                        : null,
                     'commande_ref' => $suivi['commande_ref'] ?? null,
                 ];
             })
             ->filter(fn (array $a) => $a['lat'] !== null && $a['lon'] !== null)
             ->values()
             ->all();
+    }
+
+    /**
+     * Une position relevée il y a moins de deux minutes vaut du direct.
+     *
+     * L'application pousse toutes les trente secondes tant que l'agent est en
+     * service : deux minutes laissent passer trois envois manqués — un tunnel,
+     * un changement de réseau — sans faire clignoter le marqueur.
+     */
+    private function positionRecente($horodatage): bool
+    {
+        return $horodatage !== null && $horodatage->greaterThan(now()->subMinutes(2));
     }
 
     private function requeteAgentsActifs()

@@ -48,6 +48,47 @@ class GeolocalisationController extends Controller
      }
 
      /**
+      * Position d'un agent, transmise en continu tant qu'il est en service.
+      *
+      * Jusqu'ici la position n'était écrite qu'une fois, au démarrage de la
+      * journée par takeDay, puis plus jamais hors d'une course — et seulement
+      * depuis l'écran de la course. Un agent en service mais sans course restait
+      * donc figé à son point du matin sur les cartes, parfois pendant des
+      * semaines : trois agents « en service » portaient des positions datant du
+      * 4 juillet, du 5 juillet et du 5 août.
+      *
+      * L'horodatage accompagne le point : sans lui, les cartes ne peuvent pas
+      * distinguer un relevé de dix secondes d'un relevé de six semaines.
+      */
+     public function updateAgentPosition(Request $request)
+     {
+         $idUser = $request->input('id_user');
+         $lat = $request->input('lat', $request->input('latitude'));
+         $lon = $request->input('lon', $request->input('longitude'));
+
+         if (! $idUser || ! is_numeric($lat) || ! is_numeric($lon)) {
+             return response()->json([
+                 'response' => 400,
+                 'message' => 'Identifiant ou coordonnées manquants',
+             ]);
+         }
+
+         // Un zéro tombe au large du golfe de Guinée : c'est « rien de relevé »,
+         // pas une position, et l'écrire ferait sauter le marqueur sur la carte.
+         if ((float) $lat === 0.0 || (float) $lon === 0.0) {
+             return response()->json(['response' => 400, 'message' => 'Coordonnées nulles']);
+         }
+
+         $modifiees = User::where('id', $idUser)->update([
+             'actual_lat_position_agent' => (float) $lat,
+             'actual_lon_position_agent' => (float) $lon,
+             'position_updated_at' => now(),
+         ]);
+
+         return response()->json(['response' => $modifiees ? 200 : 404]);
+     }
+
+     /**
       * Liste des lieux de livraison enregistrés, avec leur quartier.
       *
       * L'application mobile appelait déjà cette route pour remplir la recherche

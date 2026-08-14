@@ -25,10 +25,12 @@ use Inertia\Response;
  *  - pendant une course, l'application pousse la position dans
  *    clando.latAgent/lonAgent toutes les trois secondes. C'est la seule source
  *    réellement temps réel du projet ;
- *  - hors course, le dernier point connu est celui posé au démarrage de la
- *    journée par takeDay, dans users.actual_lat_position_agent/lon. Il ne bouge
- *    plus jusqu'à la course suivante, et la carte doit le dire plutôt que de
- *    laisser croire à un suivi continu.
+ *  - hors course, l'application pousse la position toutes les trente secondes
+ *    tant que l'agent est en service, dans users.actual_lat_position_agent/lon
+ *    avec son horodatage. Auparavant ce point n'était écrit qu'au démarrage de
+ *    la journée et ne bougeait plus : trois agents « en service » portaient des
+ *    positions vieilles de plusieurs semaines. La carte distingue désormais un
+ *    relevé récent d'un point dormant.
  *
  * L'endpoint API getLocationAgent existant ne pouvait pas servir : il lit ces
  * colonnes sur la table agents, où l'application n'écrit jamais, et renvoie donc
@@ -229,7 +231,7 @@ class ClandoBoardController extends Controller
         }
 
         return $this->requeteAgentsActifs()
-            ->get(['id', 'name', 'phone', 'whatsapp', 'actual_lat_position_agent', 'actual_lon_position_agent'])
+            ->get(['id', 'name', 'phone', 'whatsapp', 'actual_lat_position_agent', 'actual_lon_position_agent', 'position_updated_at'])
             ->map(function (User $u) use ($enCourse) {
                 $suivi = $enCourse[$u->id] ?? null;
 
@@ -245,7 +247,18 @@ class ClandoBoardController extends Controller
                     'lon' => $lon,
                     // Vrai seulement si le point vient d'une course en cours, donc
                     // rafraîchi toutes les trois secondes.
-                    'frais' => $suivi !== null,
+                    /*
+                     | Un point est « frais » s'il vient d'une course en cours,
+                     | ou s'il a été relevé il y a moins de deux minutes.
+                     |
+                     | Auparavant seul le premier cas comptait, si bien qu'un
+                     | agent en service mais sans course apparaissait comme suivi
+                     | alors que sa position datait parfois de plusieurs semaines.
+                     */
+                    'frais' => $suivi !== null || $this->positionRecente($u->position_updated_at),
+                    'position_datee' => $u->position_updated_at
+                        ? $u->position_updated_at->setTimezone(self::FUSEAU)->format('d/m H:i')
+                        : null,
                     'course_ref' => $suivi['course_ref'] ?? null,
                 ];
             })
@@ -257,6 +270,18 @@ class ClandoBoardController extends Controller
     }
 
     /** Agents ayant démarré leur journée. */
+    /**
+     * Une position relevée il y a moins de deux minutes vaut du direct.
+     *
+     * L'application pousse toutes les trente secondes tant que l'agent est en
+     * service : deux minutes laissent passer trois envois manqués — un tunnel,
+     * un changement de réseau — sans faire clignoter le marqueur.
+     */
+    private function positionRecente($horodatage): bool
+    {
+        return $horodatage !== null && $horodatage->greaterThan(now()->subMinutes(2));
+    }
+
     private function requeteAgentsActifs()
     {
         return User::query()->where('role', 'agent')->where('in_activity', 1);

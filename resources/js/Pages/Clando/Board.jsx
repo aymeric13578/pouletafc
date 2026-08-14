@@ -225,7 +225,7 @@ export default function Board({ initial }) {
             `<div class="text-sm">
                 <div class="font-semibold">${echapper(a.name)}</div>
                 <div class="text-slate-500">${echapper(a.phone ?? '')}</div>
-                <div class="mt-1">${a.frais ? 'Suivi en direct · course ' + echapper(a.course_ref) : 'Dernier point connu (démarrage de journée)'}</div>
+                <div class="mt-1">${a.frais ? 'Suivi en direct' + (a.course_ref ? ' · course ' + echapper(a.course_ref) : '') : 'Position dormante' + (a.position_datee ? ' · relevée le ' + echapper(a.position_datee) : '')}</div>
             </div>`;
 
         synchroniser(
@@ -590,7 +590,7 @@ export default function Board({ initial }) {
                                 <span className="h-3 w-3 rounded-full bg-emerald-500" /> Agent suivi en direct
                             </p>
                             <p className="flex items-center gap-2">
-                                <span className="h-3 w-3 rounded-full bg-slate-400" /> Agent, dernier point connu
+                                <span className="h-3 w-3 rounded-full bg-slate-400" /> Agent, position dormante
                             </p>
                             <p className="flex items-center gap-2">
                                 <span className="h-3 w-3 rounded-full bg-red-500" /> Demande sans agent

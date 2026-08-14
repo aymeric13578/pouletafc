@@ -231,7 +231,7 @@ export default function CarteLivraisons({ initial }) {
             `<div class="text-sm">
                 <div class="font-semibold">${echapper(a.name)}</div>
                 <div class="text-slate-500">${echapper(a.phone ?? '')}</div>
-                <div class="mt-1">${a.frais ? 'Suivi en direct · commande ' + echapper(a.commande_ref) : 'Dernier point connu (démarrage de journée)'}</div>
+                <div class="mt-1">${a.frais ? 'Suivi en direct' + (a.commande_ref ? ' · commande ' + echapper(a.commande_ref) : '') : 'Position dormante' + (a.position_datee ? ' · relevée le ' + echapper(a.position_datee) : '')}</div>
             </div>`;
 
         synchroniser(
@@ -594,7 +594,7 @@ export default function CarteLivraisons({ initial }) {
                                 <span className="h-3 w-3 rounded-full bg-emerald-500" /> Agent suivi en direct
                             </p>
                             <p className="flex items-center gap-2">
-                                <span className="h-3 w-3 rounded-full bg-slate-400" /> Agent, dernier point connu
+                                <span className="h-3 w-3 rounded-full bg-slate-400" /> Agent, position dormante
                             </p>
                             <p className="flex items-center gap-2">
                                 <span className="h-3 w-3 rounded-full bg-slate-600" /> Point de retrait
