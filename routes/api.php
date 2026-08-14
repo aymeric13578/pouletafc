@@ -155,6 +155,14 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
       
       //note
       
+            // Détail des appréciations : ce que l'agent lit dans son application,
+            // et l'administrateur dans le tableau de bord.
+            Route::get('getNotesAgent', 'NoteController@getNotesAgent');
+            Route::post('getNotesAgent', 'NoteController@getNotesAgent');
+            // Barème en vigueur, pour que les applications affichent les mêmes
+            // émoticônes et les mêmes points que le tableau de bord.
+            Route::get('getBaremeNotation', 'NoteController@getBaremeNotation');
+            Route::post('getBaremeNotation', 'NoteController@getBaremeNotation');
             Route::get('getAgentNote', 'NoteController@getAgentNote');
             Route::post('getAgentNote', 'NoteController@getAgentNote');
       

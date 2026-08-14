@@ -3,19 +3,25 @@
 use function Laravel\Folio\{name};
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
-use App\Models\Clando;
+use App\Models\Note;
 use App\Models\order_detail;
+use App\Support\NotationAgent;
 
-name('dashboard.coursiers');
+name('dashboard.courses');
 
 /*
-| Courses de coursier : un colis à déposer.
+| Courses : un colis à porter d'un point à un autre.
 |
-| Même mécanique qu'une course Clando, à ceci près qu'un colis est transporté et
-| que la course naît d'une commande (createclandoorder). Elles se reconnaissent à
-| leur id_order renseigné ; les trajets sans colis relèvent de l'écran Clando.
+| Cet écran cherchait ses courses dans la table clando, parmi les lignes
+| « delivery_type = delivery ». Il n'en existe aucune : toutes les lignes clando
+| sont des trajets, et l'écran restait vide depuis sa création.
 |
-| Le service n'avait aucun écran : ni ici, ni ailleurs.
+| Une demande de course part de l'application cliente, passe par
+| CoursierController@storeDeliveryOrder, et crée un order_detail — pas un clando.
+| Elle se reconnaît à l'absence de panier et à la présence d'un point de départ,
+| exactement comme sur le mur des commandes et dans l'historique de
+| l'application. Trois écrans, une seule règle : dès qu'elles divergent, la même
+| course se met à exister ici et pas là.
 */
 new class extends Component {
     use WithPagination;
@@ -25,6 +31,7 @@ new class extends Component {
 
     public const STATUTS = [
         'pending' => 'En attente',
+        'waiting' => 'Colis prêt',
         'want' => 'Demandée',
         'take' => 'Prise en charge',
         'process' => 'En cours',
@@ -34,27 +41,32 @@ new class extends Component {
     ];
 
     /**
-     * Courses de coursier, reconnues par delivery_type « delivery ».
+     * Les courses, et rien qu'elles.
      *
-     * C'est createclandoorder qui pose cette valeur. id_order, qu'on aurait pu
-     * croire suffisant, n'est renseigné sur aucune course en base : s'y fier
-     * laissait cet écran vide.
+     * Le point de départ est ce qui sépare une course d'une commande sans
+     * panier : sur les données réelles, la moitié des commandes sans panier
+     * n'ont aucun départ et ne sont donc pas des courses.
      */
     protected function requeteDeBase()
     {
-        return Clando::query()->where('delivery_type', 'delivery');
+        return order_detail::query()
+            ->whereNull('id_cart')
+            ->whereNotNull('depart')
+            ->where('depart', '!=', '');
     }
 
     public function getCoursesProperty()
     {
         return $this->requeteDeBase()
-            ->with(['users:id,name,phone', 'agent.user:id,name,phone'])
+            ->with(['user:id,name,phone', 'agent.user:id,name,phone'])
             ->when($this->search, function ($q) {
                 $terme = '%' . $this->search . '%';
                 $q->where(function ($sub) use ($terme) {
                     $sub->where('ref', 'like', $terme)
-                        ->orWhere('destinationName', 'like', $terme)
-                        ->orWhereHas('users', fn ($r) => $r->where('name', 'like', $terme));
+                        ->orWhere('address', 'like', $terme)
+                        ->orWhere('depart', 'like', $terme)
+                        ->orWhere('delivery_code', 'like', $terme)
+                        ->orWhereHas('user', fn ($r) => $r->where('name', 'like', $terme));
                 });
             })
             ->when($this->statutFiltre, fn ($q) => $q->where('status', $this->statutFiltre))
@@ -63,25 +75,30 @@ new class extends Component {
     }
 
     /**
-     * Commandes d'origine des courses affichées, chargées en une requête.
+     * Appréciations des courses affichées, chargées en une requête.
      *
-     * clando.id_order ne porte pas de relation Eloquent : on résout donc les
-     * commandes séparément plutôt que d'en interroger une par ligne.
+     * L'administrateur doit lire la note et le commentaire là où il regarde la
+     * course, sans avoir à ouvrir un autre écran pour les retrouver.
      */
-    public function getCommandesProperty()
+    public function getAppreciationsProperty()
     {
-        return order_detail::whereIn('id', $this->courses->pluck('id_order')->filter())
-            ->get(['id', 'ref', 'address', 'price', 'status'])
-            ->keyBy('id');
+        return Note::with('client:id,name')
+            ->whereIn('id_order', $this->courses->pluck('id'))
+            ->get()
+            ->keyBy('id_order');
     }
 
     public function getStatsProperty(): array
     {
+        $notes = Note::whereIn('id_order', $this->requeteDeBase()->select('id'))->pluck('note')->countBy()->toArray();
+        $bilan = NotationAgent::bilan($notes);
+
         return [
             'total' => $this->requeteDeBase()->count(),
-            'en_cours' => $this->requeteDeBase()->whereIn('status', ['pending', 'want', 'take', 'process'])->count(),
+            'en_cours' => $this->requeteDeBase()->whereIn('status', ['pending', 'waiting', 'want', 'take', 'process'])->count(),
             'livrees' => $this->requeteDeBase()->where('status', 'Success')->count(),
-            'ca' => (int) $this->requeteDeBase()->where('status', 'Success')->sum('price'),
+            'note' => $bilan['sur_cinq'],
+            'notees' => $bilan['nombre'],
         ];
     }
 
@@ -103,10 +120,10 @@ new class extends Component {
 };
 ?>
 
-<x-layouts.app title="Coursiers">
+<x-layouts.app title="Courses">
     @volt
         <div>
-            <x-ui.page-header title="Coursiers" subtitle="Colis à déposer, rattachés à une commande" />
+            <x-ui.page-header title="Courses" subtitle="Colis portés d'un point à un autre, à la demande d'un client" />
 
             <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <x-ui.stat label="Courses" :value="$this->stats['total']" tone="brand"
@@ -118,13 +135,14 @@ new class extends Component {
                 <x-ui.stat label="Livrées" :value="$this->stats['livrees']" tone="success"
                     icon="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 
-                <x-ui.stat label="Chiffre d'affaires"
-                    :value="number_format($this->stats['ca'], 0, ',', ' ') . ' F'" tone="accent"
-                    icon="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <x-ui.stat label="Satisfaction"
+                    :value="$this->stats['note'] === null ? '—' : $this->stats['note'] . ' / 5'"
+                    :hint="$this->stats['notees'] . ' course(s) notée(s)'" tone="accent"
+                    icon="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
             </div>
 
             <div class="mt-6 flex flex-wrap items-center gap-3">
-                <x-ui.search model="search" placeholder="Référence, destination ou client…" />
+                <x-ui.search model="search" placeholder="Référence, départ, destination ou client…" />
 
                 <x-ui.select wire:model.live="statutFiltre" class="w-auto min-w-[12rem]">
                     <option value="">Tous les statuts</option>
@@ -136,33 +154,27 @@ new class extends Component {
 
             <div class="mt-4">
                 <x-ui.table target="search,statutFiltre,gotoPage,previousPage,nextPage"
-                    :headers="['Référence', 'Commande', 'Client', 'Destination', 'Agent', 'Prix', 'Statut']">
+                    :headers="['Référence', 'Trajet', 'Client', 'Agent', 'Appréciation', 'Prix', 'Statut']">
                     @forelse ($this->courses as $course)
-                        @php $commande = $this->commandes[$course->id_order] ?? null; @endphp
+                        @php $appreciation = $this->appreciations[$course->id] ?? null; @endphp
                         <tr class="transition-colors hover:bg-gray-50">
                             <td class="whitespace-nowrap px-4 py-3 font-mono text-sm font-semibold text-gray-900">
                                 {{ $course->ref ?: '#' . $course->id }}
-                            </td>
-
-                            <td class="whitespace-nowrap px-4 py-3">
-                                @if ($commande)
-                                    <p class="font-mono text-xs text-brand-700">{{ $commande->ref }}</p>
-                                    <p class="text-xs text-gray-500">{{ number_format((int) $commande->price, 0, ',', ' ') }} F</p>
-                                @else
-                                    {{-- Une course peut pointer vers une commande supprimée. --}}
-                                    <span class="text-xs text-gray-400">Commande introuvable</span>
-                                @endif
-                            </td>
-
-                            <td class="px-4 py-3">
-                                <p class="font-medium text-gray-900">{{ $course->users?->name ?? '—' }}</p>
-                                @if ($course->users?->phone)
-                                    <p class="font-mono text-xs text-gray-500">{{ $course->users->phone }}</p>
+                                @if ($course->delivery_code)
+                                    <p class="mt-0.5 text-[11px] font-normal text-gray-400">code {{ $course->delivery_code }}</p>
                                 @endif
                             </td>
 
                             <td class="max-w-xs px-4 py-3 text-sm text-gray-600">
-                                {{ $course->destinationName ?: ($commande->address ?? '—') }}
+                                <p><span class="text-gray-400">De</span> {{ $course->depart }}</p>
+                                <p><span class="text-gray-400">À</span> {{ $course->address ?: '—' }}</p>
+                            </td>
+
+                            <td class="px-4 py-3">
+                                <p class="font-medium text-gray-900">{{ $course->user?->name ?? '—' }}</p>
+                                @if ($course->user?->phone)
+                                    <p class="font-mono text-xs text-gray-500">{{ $course->user->phone }}</p>
+                                @endif
                             </td>
 
                             <td class="px-4 py-3 text-sm">
@@ -171,6 +183,20 @@ new class extends Component {
                                     <p class="font-mono text-xs text-gray-500">{{ $course->agent->user->phone }}</p>
                                 @else
                                     <span class="text-gray-400">Non attribuée</span>
+                                @endif
+                            </td>
+
+                            <td class="max-w-xs px-4 py-3 text-sm">
+                                @if ($appreciation)
+                                    <p class="text-base" title="{{ \App\Support\NotationAgent::LIBELLES[$appreciation->note] ?? '' }}">
+                                        {{ \App\Support\NotationAgent::EMOJIS[$appreciation->note] ?? '' }}
+                                        <span class="align-middle text-xs text-gray-600">{{ \App\Support\NotationAgent::LIBELLES[$appreciation->note] ?? $appreciation->note }}</span>
+                                    </p>
+                                    @if ($appreciation->comment)
+                                        <p class="mt-0.5 text-xs italic text-gray-500">« {{ $appreciation->comment }} »</p>
+                                    @endif
+                                @else
+                                    <span class="text-xs text-gray-400">Pas encore notée</span>
                                 @endif
                             </td>
 
@@ -183,7 +209,7 @@ new class extends Component {
                                     $tone = match ($course->status) {
                                         'Success' => 'success',
                                         'failed', 'declin' => 'danger',
-                                        'pending', 'want' => 'warning',
+                                        'pending', 'waiting', 'want' => 'warning',
                                         default => 'info',
                                     };
                                 @endphp
@@ -202,8 +228,8 @@ new class extends Component {
                             </td>
                         </tr>
                     @empty
-                        <x-ui.empty :colspan="7" title="Aucune course de coursier"
-                            message="Les demandes de coursier passées depuis l'application apparaîtront ici." />
+                        <x-ui.empty :colspan="7" title="Aucune course"
+                            message="Les demandes de course passées depuis l'application apparaîtront ici." />
                     @endforelse
                 </x-ui.table>
 

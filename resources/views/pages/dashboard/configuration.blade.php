@@ -34,6 +34,17 @@ new class extends Component {
     public $vip_percentage = '';
     public $price_per_kg = '';
 
+    /*
+    | Barème de notation : ce que vaut chaque appréciation laissée par un client.
+    | Ces points étaient écrits en dur dans le calcul du score des agents ; les
+    | changer demandait de toucher au code.
+    */
+    public $note_points_verybad = '';
+    public $note_points_bad = '';
+    public $note_points_average = '';
+    public $note_points_good = '';
+    public $note_points_excellent = '';
+
     public function getConfigurationsProperty()
     {
         return Parameter::orderByRaw("status = '" . Parameter::ACTIF . "' DESC")
@@ -67,6 +78,14 @@ new class extends Component {
             $this->vip_percentage = $reference->vip_percentage ?? '';
             $this->price_per_kg = $reference->price_per_kg ?? '';
 
+            foreach (\App\Models\Parameter::APPRECIATIONS as $appreciation) {
+                $champ = 'note_points_' . $appreciation;
+                // Une grille de référence antérieure au barème n'en porte pas :
+                // on retombe sur les points historiques plutôt que sur zéro.
+                $this->$champ = $reference->$champ
+                    ?? \App\Models\Parameter::POINTS_PAR_DEFAUT[$appreciation];
+            }
+
             $this->showModal = true;
 
             return;
@@ -84,6 +103,12 @@ new class extends Component {
         $this->delivery_agent_commission = $configuration->delivery_agent_commission;
         $this->vip_percentage = $configuration->vip_percentage;
         $this->price_per_kg = $configuration->price_per_kg;
+
+        foreach (\App\Models\Parameter::APPRECIATIONS as $appreciation) {
+            $champ = 'note_points_' . $appreciation;
+            $this->$champ = $configuration->$champ
+                ?? \App\Models\Parameter::POINTS_PAR_DEFAUT[$appreciation];
+        }
 
         $this->showModal = true;
     }
@@ -387,6 +412,30 @@ new class extends Component {
                                             wire:model="price_per_kg"
                                             :error="$errors->has('price_per_kg')" />
                             </x-ui.field>
+                        </div>
+                    </div>
+
+                    {{-- Barème de notation --}}
+                    <div>
+                        <h3 class="text-sm font-bold text-gray-900">Barème de notation</h3>
+                        <p class="mt-1 text-xs text-gray-500">
+                            Points attribués à chaque appréciation laissée par un client.
+                            Le score d'un agent est la somme de ses points ; sa note sur 5
+                            en est la moyenne, ramenée sur cette échelle. Les valeurs
+                            peuvent être négatives et décimales.
+                        </p>
+
+                        <div class="mt-4 grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
+                            @foreach (\App\Models\Parameter::APPRECIATIONS as $appreciation)
+                                @php $champ = 'note_points_' . $appreciation; @endphp
+                                <x-ui.field
+                                    :label="\App\Support\NotationAgent::EMOJIS[$appreciation] . ' ' . \App\Support\NotationAgent::LIBELLES[$appreciation]"
+                                    :for="$champ" :error="$errors->first($champ)">
+                                    <x-ui.input :id="$champ" type="number" step="0.5" min="-10" max="10"
+                                                wire:model="{{ $champ }}"
+                                                :error="$errors->has($champ)" />
+                                </x-ui.field>
+                            @endforeach
                         </div>
                     </div>
 

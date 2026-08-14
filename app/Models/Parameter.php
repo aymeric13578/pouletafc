@@ -35,8 +35,59 @@ class Parameter extends Model
         // Tarif au kilo, appliqué quand le comptoir corrige un panier au poids
         // réel depuis le mur des commandes.
         'price_per_kg',
+        /*
+         | Barème de notation : ce que vaut chaque appréciation laissée par un
+         | client. Auparavant écrit en dur dans NoteController, donc incorrigible
+         | sans toucher au code.
+         */
+        'note_points_verybad',
+        'note_points_bad',
+        'note_points_average',
+        'note_points_good',
+        'note_points_excellent',
         'status'
     ];
+
+    /**
+     * Les cinq appréciations, de la pire à la meilleure.
+     *
+     * L'ordre compte : il fixe celui des colonnes de configuration comme celui
+     * des émoticônes dans les deux applications.
+     */
+    public const APPRECIATIONS = ['verybad', 'bad', 'average', 'good', 'excellent'];
+
+    /** Barème historique, appliqué tant qu'aucune grille active n'en porte. */
+    public const POINTS_PAR_DEFAUT = [
+        'verybad' => -2.0,
+        'bad' => -1.0,
+        'average' => 1.0,
+        'good' => 1.5,
+        'excellent' => 2.0,
+    ];
+
+    /**
+     * Points attribués à chaque appréciation par cette grille.
+     *
+     * @return array<string, float>
+     */
+    public function pointsDeNotation(): array
+    {
+        $points = [];
+
+        foreach (self::APPRECIATIONS as $appreciation) {
+            $colonne = 'note_points_' . $appreciation;
+            $valeur = $this->getAttribute($colonne);
+
+            // Une grille enregistrée avant l'ajout du barème n'a rien dans ces
+            // colonnes : on retombe sur l'ancien barème plutôt que de compter
+            // zéro partout, ce qui remettrait tous les agents à plat.
+            $points[$appreciation] = $valeur === null
+                ? self::POINTS_PAR_DEFAUT[$appreciation]
+                : (float) $valeur;
+        }
+
+        return $points;
+    }
 
     /**
      * Règles de saisie d'une grille. Portées par le modèle plutôt que par
@@ -65,6 +116,17 @@ class Parameter extends Model
              | correction au poids.
              */
             'price_per_kg' => 'nullable|integer|min:0',
+            /*
+             | Points par appréciation. Décimaux et signés, contrairement au
+             | reste : « bien » valait 1,5 dans l'ancien barème, et une mauvaise
+             | prestation doit pouvoir retirer des points. Les bornes évitent
+             | seulement les valeurs absurdes.
+             */
+            'note_points_verybad' => 'nullable|numeric|min:-10|max:10',
+            'note_points_bad' => 'nullable|numeric|min:-10|max:10',
+            'note_points_average' => 'nullable|numeric|min:-10|max:10',
+            'note_points_good' => 'nullable|numeric|min:-10|max:10',
+            'note_points_excellent' => 'nullable|numeric|min:-10|max:10',
         ];
     }
 
@@ -75,6 +137,12 @@ class Parameter extends Model
             'integer' => 'Entrez un nombre entier',
             'min' => 'La valeur ne peut pas être négative',
             'max' => 'Un pourcentage ne peut pas dépasser 100',
+            'numeric' => 'Entrez un nombre',
+            'note_points_verybad.min' => 'Un barème va de -10 à 10',
+            'note_points_bad.min' => 'Un barème va de -10 à 10',
+            'note_points_average.min' => 'Un barème va de -10 à 10',
+            'note_points_good.min' => 'Un barème va de -10 à 10',
+            'note_points_excellent.min' => 'Un barème va de -10 à 10',
         ];
     }
 
