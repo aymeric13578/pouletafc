@@ -13,7 +13,30 @@ return [
     |
     */
 
-    'default' => env('MAIL_MAILER', 'smtp'),
+    /*
+    | Transport par défaut.
+    |
+    | Le .env du serveur porte encore les valeurs d'exemple de Laravel —
+    | MAIL_HOST=mailpit sur le port 1025, l'outil de développement, qui n'existe
+    | pas en production. Chaque envoi échouait donc en silence : l'inscription
+    | attrape l'exception et la journalise, si bien que le compte se créait sans
+    | que le message ne parte jamais.
+    |
+    | Ce .env n'est pas versionné et n'est pas réécrit par le déploiement. On
+    | reconnaît donc ici la configuration de développement pour lui préférer le
+    | serveur de courrier local de l'hébergement, qui n'exige aucun identifiant.
+    | Renseigner un vrai SMTP dans le .env du serveur reprend aussitôt la main.
+    */
+    'default' => (function () {
+        $mailer = env('MAIL_MAILER', 'smtp');
+        $host = env('MAIL_HOST');
+
+        if ($mailer === 'smtp' && in_array($host, ['mailpit', 'localhost', '127.0.0.1', null], true)) {
+            return 'sendmail';
+        }
+
+        return $mailer;
+    })(),
 
     /*
     |--------------------------------------------------------------------------
@@ -108,7 +131,17 @@ return [
     */
 
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
+        /*
+         | Même raison que pour le transport : le .env du serveur fixe encore
+         | « hello@example.com ». La plupart des serveurs receveurs refusent ou
+         | classent en indésirable un message venu de example.com, si bien que
+         | même un envoi techniquement réussi n'arrivait pas.
+         */
+        'address' => (function () {
+            $adresse = env('MAIL_FROM_ADDRESS', 'noreply@pouletafc.com');
+
+            return $adresse === 'hello@example.com' ? 'noreply@pouletafc.com' : $adresse;
+        })(),
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 

@@ -125,8 +125,30 @@ public function getToken()
     
     
     
+    /**
+     * Numéro au format attendu par l'API Orange : neuf chiffres, sans indicatif.
+     *
+     * L'envoi préfixe « +237 » au contact reçu. Un numéro déjà saisi avec son
+     * indicatif — le champ de l'application est une simple zone de texte, sans
+     * contrôle — produisait « +237+237690… » ou « +237237690… », que l'opérateur
+     * ne remet à personne. Six numéros en base sont dans ce cas.
+     */
+    public function numeroLocal($contact)
+    {
+        $chiffres = preg_replace('/[^0-9]/', '', (string) $contact);
+
+        // Un numéro camerounais fait neuf chiffres : au-delà, l'indicatif est
+        // en tête et on le retire.
+        if (strlen($chiffres) > 9 && str_starts_with($chiffres, '237')) {
+            $chiffres = substr($chiffres, 3);
+        }
+
+        return $chiffres;
+    }
+
     public function sendSms($message,$contact)
     {
+         $contact = $this->numeroLocal($contact);
          $curl = curl_init();
          $function = new Fonction();
          $getToken = $function->getToken();

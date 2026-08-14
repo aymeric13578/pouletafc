@@ -46,26 +46,30 @@ const formatMontant = (valeur) => new Intl.NumberFormat('fr-FR').format(valeur ?
  * ont un sens : proposer « Terminer » sur une commande déjà livrée, ou « Prendre »
  * sur une commande annulée, encombre l'écran et invite à l'erreur.
  */
+/*
+ * « Prendre » a été retiré : il posait « process », c'est-à-dire « un agent s'en
+ * occupe ». Or c'est l'agent qui se saisit d'une commande depuis son téléphone,
+ * ou un opérateur depuis la carte des livraisons, où l'attribution désigne
+ * nommément le livreur. Le poser depuis le mur marquait la commande comme prise
+ * sans que personne ne la porte, et la faisait sortir des listes des agents.
+ */
 const ACTIONS = {
     /*
-     * « Colis prêt » place la commande en "waiting" : c'est ce changement qui
+     * « Colis prêt » place la commande en "want" : c'est ce changement qui
      * alerte les agents sur leur téléphone qu'un colis attend d'être enlevé.
      * Il vient en premier, c'est le geste le plus fréquent depuis le comptoir.
      */
     pending: [
         { statut: 'want', libelle: 'Colis prêt', variante: 'violet' },
-        { statut: 'process', libelle: 'Prendre', variante: 'sky' },
         { statut: 'Success', libelle: 'Terminer', variante: 'emerald' },
         { statut: 'failed', libelle: 'Annuler', variante: 'red' },
     ],
     waiting: [
         { statut: 'want', libelle: 'Colis prêt', variante: 'violet' },
-        { statut: 'process', libelle: 'Prendre', variante: 'sky' },
         { statut: 'Success', libelle: 'Terminer', variante: 'emerald' },
         { statut: 'failed', libelle: 'Annuler', variante: 'red' },
     ],
     want: [
-        { statut: 'process', libelle: 'Prendre', variante: 'sky' },
         { statut: 'Success', libelle: 'Terminer', variante: 'emerald' },
         { statut: 'failed', libelle: 'Annuler', variante: 'red' },
     ],

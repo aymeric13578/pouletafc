@@ -176,8 +176,50 @@ class UserController extends Controller
 
         $lastname = $request->input('lastname', '');
         $name = $request->input('name', $lastname ?: 'Client');
-        $phone = $request->input('phone');
-        $whatsapp = $request->input('whatsapp', $phone);
+
+        /*
+         | Numéro de téléphone.
+         |
+         | L'application n'a qu'un seul champ, intitulé WhatsApp, et n'envoie donc
+         | jamais « phone ». La colonne restait vide sur tous les comptes créés
+         | depuis le mobile : impossible d'appeler un client, et le SMS de
+         | confirmation, conditionné à ce champ, ne partait pas.
+         |
+         | Les deux colonnes reçoivent la même valeur quand une seule est
+         | transmise : c'est bien le même numéro, l'application ne demande le
+         | second qu'aux comptes saisis depuis le tableau de bord.
+         */
+        $phone = trim((string) $request->input('phone', ''));
+        $whatsapp = trim((string) $request->input('whatsapp', ''));
+
+        $phone = $phone !== '' ? $phone : $whatsapp;
+        $whatsapp = $whatsapp !== '' ? $whatsapp : $phone;
+
+        if ($phone === '') {
+            return response()->json([
+                "response" => 400,
+                "message" => "Le numéro de téléphone est obligatoire"
+            ]);
+        }
+
+        if (!$email) {
+            return response()->json([
+                "response" => 400,
+                "message" => "L'adresse e-mail est obligatoire"
+            ]);
+        }
+
+        /*
+         | Un numéro déjà pris identifie un compte existant aussi sûrement qu'un
+         | e-mail : sans ce contrôle, deux comptes portaient le même numéro et le
+         | code de confirmation partait vers celui qu'on ne voulait pas.
+         */
+        if (User::where('phone', $phone)->orWhere('whatsapp', $phone)->exists()) {
+            return response()->json([
+                "response" => 400,
+                "message" => "Ce numéro est déjà associé à un compte"
+            ]);
+        }
 
         try {
             $create = User::create([
