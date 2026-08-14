@@ -6,6 +6,23 @@ on:
       - main
   workflow_dispatch:
 
+# Un seul déploiement à la fois.
+#
+# Sans ce garde-fou, trois poussées rapprochées lançaient trois déploiements
+# concurrents sur les mêmes dossiers. Chacun fait « mv pouletafc pouletafc_old »
+# puis extrait dans « pouletafc » : le second déplaçait le dossier sous les pieds
+# du premier, en pleine extraction, et tar échouait sur chaque chemin avec
+# « Cannot mkdir: No such file or directory ». Le site restait alors sur une
+# release incomplète.
+#
+# cancel-in-progress est volontairement à false : interrompre un déploiement au
+# milieu de la bascule des fichiers est précisément ce qu'on cherche à éviter.
+# Les exécutions s'enchaînent donc, la dernière poussée étant appliquée en
+# dernier — ce qui est l'ordre voulu.
+concurrency:
+  group: deploiement-production
+  cancel-in-progress: false
+
 env:
   DEPLOY_HOST: 209.16.158.105
   DEPLOY_PORT: 5022
