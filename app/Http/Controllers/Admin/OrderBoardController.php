@@ -357,12 +357,22 @@ class OrderBoardController extends Controller
             'status' => $order->status,
             'status_paiement' => $order->status_paiement,
             /*
-             | Nature de la demande. Un coursier n'est pas une commande à part : c'est
-             | une commande à laquelle une course de dépôt de colis a été rattachée.
-             | L'écran doit les distinguer, les gestes du comptoir n'étant pas les
-             | mêmes selon qu'on prépare un panier ou qu'on remet un paquet.
+             | Nature de la demande. Les gestes du comptoir ne sont pas les mêmes
+             | selon qu'on prépare un panier ou qu'on remet un paquet.
+             |
+             | Deux signes, car il y a deux façons dont une course de coursier
+             | naît. L'ancienne rattache un enregistrement clando à la commande.
+             | La nouvelle, celle de l'écran « commander une course », crée
+             | directement une commande sans panier : c'est l'absence de panier
+             | qui la trahit, une commande de produits en ayant toujours un.
+             |
+             | Sans ce second critère, toutes les demandes passées depuis
+             | l'application arrivaient sur le mur étiquetées « commande », et le
+             | comptoir cherchait un panier qui n'existait pas.
              */
-            'type' => $order->coursier ? 'coursier' : 'commande',
+            'type' => ($order->coursier || ($order->id_cart === null && $order->depart !== null))
+                ? 'coursier'
+                : 'commande',
             'coursier' => $order->coursier ? [
                 'ref' => $order->coursier->ref,
                 'status' => $order->coursier->status,

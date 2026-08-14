@@ -195,6 +195,49 @@ class CoursierTest extends TestCase
         $this->assertSame(690123456, (int) order_detail::where('ref', $ref)->value('phone_customer'));
     }
 
+    public function test_le_mur_distingue_une_course_de_coursier_d_une_commande(): void
+    {
+        /*
+         * Le mur ne reconnaissait un coursier qu'à la présence d'une course
+         * clando rattachée. Les demandes passées depuis l'écran « commander une
+         * course » n'en créent pas : elles arrivaient donc étiquetées
+         * « commande », et le comptoir cherchait un panier inexistant.
+         *
+         * Le signe distinctif est l'absence de panier : une commande de produits
+         * en a toujours un.
+         */
+        $reponse = $this->postJson(self::URL, $this->charge());
+        $ref = $reponse->json('data.ref');
+        $this->retenir($ref);
+
+        $charge = $this->getJson('/commandes/flux')->assertOk()->json();
+        $trouvee = collect($charge['orders'])->firstWhere('ref', $ref);
+
+        $this->assertNotNull($trouvee);
+        $this->assertSame('coursier', $trouvee['type']);
+    }
+
+    public function test_une_commande_avec_panier_reste_une_commande(): void
+    {
+        $avecPanier = order_detail::whereNotNull('id_cart')->orderByDesc('id')->first();
+
+        if (! $avecPanier) {
+            $this->markTestSkipped('Aucune commande avec panier en base.');
+        }
+
+        $etat = ['status' => $avecPanier->status];
+        DB::table('order_details')->where('id', $avecPanier->id)->update(['status' => 'pending']);
+
+        $charge = $this->getJson('/commandes/flux')->assertOk()->json();
+        $trouvee = collect($charge['orders'])->firstWhere('ref', $avecPanier->ref);
+
+        if ($trouvee) {
+            $this->assertSame('commande', $trouvee['type']);
+        }
+
+        DB::table('order_details')->where('id', $avecPanier->id)->update($etat);
+    }
+
     public function test_la_course_apparait_sur_le_mur_des_commandes(): void
     {
         // Une course coursier doit se voir au comptoir comme une commande.

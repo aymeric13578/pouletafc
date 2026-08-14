@@ -626,8 +626,31 @@ Contact service client : 697 526 980",$user->phone);
         
         
          $order = order_detail::where('ref',$request->ref)->first();
-         
-         if($order->delivery_code == $request->delivery_code)
+
+         if (! $order) {
+             return response()->json(['response' => 400, 'message' => 'Commande introuvable']);
+         }
+
+         /*
+          | Code de livraison transmis par l'application.
+          |
+          | Elle envoie « code » ; on ne lisait que « delivery_code », qui valait
+          | donc toujours null. La comparaison échouait à chaque tentative et
+          | aucun agent ne pouvait terminer une livraison : l'écran répondait
+          | « code incorrect !!! 3 essai restants » quel que soit le code saisi.
+          |
+          | Les deux noms sont acceptés : les téléphones déjà installés envoient
+          | « code », et rien ne garantit qu'ils seront tous mis à jour.
+          */
+         $codeSaisi = $request->input('code', $request->input('delivery_code'));
+
+         /*
+          | Comparaison sur des chaînes nettoyées. delivery_code est un varchar
+          | rempli tantôt par rand(0,10000), tantôt par l'application : « 0420 »
+          | et « 420 » désignent le même code, et une comparaison lâche les
+          | aurait aussi confondus avec n'importe quelle chaîne non numérique.
+          */
+         if ($codeSaisi !== null && trim((string) $order->delivery_code) === trim((string) $codeSaisi))
          {
              $update =$order->update([
                 
@@ -654,7 +677,13 @@ Contact service client : 697 526 980",$user->phone);
          }
          
          
-          return response()->json(['response' => 400 , 'message'=> 'code incorrect !!! 3 essai restants']);
+          /*
+           | L'ancien message annonçait « 3 essai restants » alors qu'aucun
+           | décompte n'existe côté serveur : rien n'est compté, rien n'est
+           | bloqué. Annoncer un quota imaginaire fait croire à l'agent qu'il
+           | risque d'être verrouillé.
+           */
+          return response()->json(['response' => 400 , 'message'=> 'Code de livraison incorrect']);
     }
     
     
