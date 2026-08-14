@@ -217,6 +217,7 @@ class OrderBoardController extends Controller
     private function payload(Request $request): array
     {
         $page = max(1, (int) $request->query('page', 1));
+        $recherche = trim((string) $request->query('recherche', ''));
 
         $commandes = order_detail::with([
                 'user:id,name,phone,whatsapp,email',
@@ -237,6 +238,29 @@ class OrderBoardController extends Controller
              | de l'écran. Une ligne sur laquelle on vient de cliquer doit rester là
              | où elle est.
              */
+            /*
+             | Recherche.
+             |
+             | Le mur affiche douze commandes par page ; retrouver une commande
+             | citée au téléphone obligeait à parcourir la pagination à la main.
+             | La recherche porte sur ce qu'un client donne spontanément : sa
+             | référence, son nom, son numéro ou son adresse.
+             |
+             | Elle s'applique en base et non sur la page affichée : chercher
+             | dans les douze commandes visibles n'aurait servi à rien.
+             */
+            ->when($recherche !== '', function ($q) use ($recherche) {
+                $terme = '%' . $recherche . '%';
+
+                $q->where(function ($sous) use ($terme) {
+                    $sous->where('ref', 'like', $terme)
+                        ->orWhere('address', 'like', $terme)
+                        ->orWhere('delivery_code', 'like', $terme)
+                        ->orWhereHas('user', fn ($u) => $u->where('name', 'like', $terme)
+                            ->orWhere('phone', 'like', $terme)
+                            ->orWhere('whatsapp', 'like', $terme));
+                });
+            })
             ->orderByDesc('id')
             ->paginate(self::PAR_PAGE, ['*'], 'page', $page);
 
@@ -282,6 +306,7 @@ class OrderBoardController extends Controller
             // Horodatage serveur, en heure du Cameroun : le navigateur d'une télé a
             // rarement une heure juste, et l'écart se voit tout de suite sur un
             // affichage permanent.
+            'recherche' => $recherche,
             'server_time' => now()->setTimezone(self::FUSEAU)->format('H:i:s'),
             'server_date' => now()->setTimezone(self::FUSEAU)->locale('fr')->translatedFormat('l j F Y'),
         ];
@@ -388,6 +413,17 @@ class OrderBoardController extends Controller
             'note' => $order->note,
             'image_url' => $order->image ? url('upload/' . $order->image) : null,
             'payment_method' => $order->payment_method,
+            /*
+             | Détails que le comptoir réclame sur une course de coursier : le
+             | code que le destinataire devra donner, le numéro saisi au moment
+             | de la demande — souvent celui du destinataire, pas du compte — et
+             | la nature du colis. Sans eux, la fiche ne disait pas ce qu'il y
+             | avait à enlever ni à qui le remettre.
+             */
+            'delivery_code' => $order->delivery_code,
+            'phone_customer' => $order->phone_customer,
+            'delivery_type' => $order->delivery_type,
+            'reception_mode' => $order->reception_mode,
             'customer' => $order->user?->name,
             'phone' => $order->user?->phone,
             'whatsapp' => $order->user?->whatsapp,

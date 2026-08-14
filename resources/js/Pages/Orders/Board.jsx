@@ -271,15 +271,48 @@ function DetailCommande({ commande, onClose, onChangerStatut, onModifierPanier, 
                                         </a>
                                     )}
 
-                                    <div className="min-w-0 flex-1 space-y-1 text-sm">
-                                        {commande.depart && (
-                                            <p>
-                                                <span className="font-semibold text-gray-700">Départ : </span>
-                                                <span className="text-gray-900">{commande.depart}</span>
-                                            </p>
-                                        )}
+                                    <div className="min-w-0 flex-1 space-y-2 text-sm">
+                                        <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+                                            {commande.depart && (
+                                                <p>
+                                                    <span className="font-semibold text-gray-700">Départ : </span>
+                                                    <span className="text-gray-900">{commande.depart}</span>
+                                                </p>
+                                            )}
+                                            {commande.address && (
+                                                <p>
+                                                    <span className="font-semibold text-gray-700">Remise à : </span>
+                                                    <span className="text-gray-900">{commande.address}</span>
+                                                </p>
+                                            )}
+                                            {commande.delivery_type && (
+                                                <p>
+                                                    <span className="font-semibold text-gray-700">Type de colis : </span>
+                                                    <span className="text-gray-900">{commande.delivery_type}</span>
+                                                </p>
+                                            )}
+                                            {commande.phone_customer && (
+                                                <p>
+                                                    <span className="font-semibold text-gray-700">Contact remise : </span>
+                                                    <span className="font-mono text-gray-900">{commande.phone_customer}</span>
+                                                </p>
+                                            )}
+                                            {/* Le code que le destinataire devra donner à l'agent :
+                                                sans lui, le comptoir ne peut pas dépanner un client
+                                                qui l'a perdu. */}
+                                            {commande.delivery_code && (
+                                                <p>
+                                                    <span className="font-semibold text-gray-700">Code de remise : </span>
+                                                    <span className="font-mono text-lg font-bold text-violet-800">{commande.delivery_code}</span>
+                                                </p>
+                                            )}
+                                        </div>
+
                                         {commande.note && (
-                                            <p className="whitespace-pre-wrap text-gray-700">{commande.note}</p>
+                                            <div className="rounded-lg bg-white/70 px-3 py-2">
+                                                <p className="text-xs font-bold uppercase tracking-wider text-violet-700">Consignes</p>
+                                                <p className="mt-1 whitespace-pre-wrap text-gray-800">{commande.note}</p>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
@@ -502,6 +535,16 @@ function DetailCommande({ commande, onClose, onChangerStatut, onModifierPanier, 
 export default function Board({ initial }) {
     const [donnees, setDonnees] = useState(initial);
     const [page, setPage] = useState(initial.pagination?.current_page ?? 1);
+    /*
+     * Recherche.
+     *
+     * Elle part au serveur : le mur n'affiche que douze commandes à la fois, et
+     * filtrer côté navigateur n'aurait cherché que dans celles-là. La valeur est
+     * retardée pour ne pas déclencher une requête à chaque touche.
+     */
+    const [recherche, setRecherche] = useState('');
+    const rechercheRef = useRef('');
+    const [rechercheAppliquee, setRechercheAppliquee] = useState('');
     const [sonActif, setSonActif] = useState(false);
     const [silence, setSilence] = useState(false);
     const [enLigne, setEnLigne] = useState(true);
@@ -682,7 +725,7 @@ export default function Board({ initial }) {
 
         const recuperer = async () => {
             try {
-                const reponse = await fetch(`/commandes/flux?page=${pageRef.current}`, {
+                const reponse = await fetch(`/commandes/flux?page=${pageRef.current}&recherche=${encodeURIComponent(rechercheRef.current)}`, {
                     headers: { Accept: 'application/json' },
                     cache: 'no-store',
                 });
@@ -729,7 +772,22 @@ export default function Board({ initial }) {
             annule = true;
             clearInterval(timer);
         };
-    }, [jouerAlerte, page]);
+    }, [jouerAlerte, page, rechercheAppliquee]);
+
+    /*
+     * La saisie n'est transmise qu'après une pause : sans ce délai, taper
+     * « bonaberi » lancerait huit requêtes et huit reconstructions du tableau.
+     */
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            rechercheRef.current = recherche.trim();
+            pageRef.current = 1;
+            setPage(1);
+            setRechercheAppliquee(recherche.trim());
+        }, 350);
+
+        return () => clearTimeout(timer);
+    }, [recherche]);
 
     /*
      * Changement de statut. La réponse contient déjà le mur à jour : on l'applique
@@ -977,6 +1035,32 @@ export default function Board({ initial }) {
                             </svg>
                             Carte des livraisons
                         </a>
+
+                        {/* Retrouver une commande citée au téléphone : sans ce champ
+                            il fallait parcourir la pagination à la main. */}
+                        <div className="relative">
+                            <input
+                                type="search"
+                                value={recherche}
+                                onChange={(e) => setRecherche(e.target.value)}
+                                placeholder="Référence, client, téléphone, adresse…"
+                                className="w-72 rounded-xl border-gray-300 py-3 pl-10 pr-4 text-base focus:border-sky-500 focus:ring-sky-500"
+                            />
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                                 className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                            </svg>
+                            {recherche && (
+                                <button
+                                    type="button"
+                                    onClick={() => setRecherche('')}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400 hover:text-gray-700"
+                                    title="Effacer"
+                                >
+                                    ✕
+                                </button>
+                            )}
+                        </div>
 
                         <Compteur label="Aujourd'hui" valeur={stats.du_jour} />
                         <Compteur label="À traiter" valeur={stats.actives} accent="text-amber-600" />

@@ -219,7 +219,21 @@ Contact service client : 697 526 980",$user->phone);
              }
              
              
-             if($order) return response()->json(['response' => 200, 'data'=> $order  , 'code_agent'=>$codeLiveur, 'info_agent'=>$code]);
+             /*
+              | L'écran de course de l'agent lit cette réponse. La colonne
+              | « image » ne contient qu'un nom de fichier : sans l'URL complète,
+              | l'application ne pouvait pas afficher la photo du colis, et
+              | l'agent partait enlever un paquet qu'il n'avait jamais vu.
+              */
+             $colis = $order->isNotEmpty() ? $order[0] : null;
+
+             if($order) return response()->json([
+                 'response' => 200,
+                 'data'=> $order,
+                 'code_agent'=>$codeLiveur,
+                 'info_agent'=>$code,
+                 'image_url' => $colis && $colis->image ? url('upload/' . $colis->image) : null,
+             ]);
              else return response()->json(['response' => 404]);
         
          }
