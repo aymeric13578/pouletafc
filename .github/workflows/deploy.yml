@@ -75,6 +75,22 @@ jobs:
         run: |
           # L'archive doit être écrite hors de "." : sinon tar détecte que le dossier
           # source change pendant qu'il le lit (le fichier archive apparaît/grossit).
+          # Ce qui suit ne part pas, et chaque exclusion a sa raison :
+          #
+          #  - public/upload : 76 Mo d'images envoyées depuis le back-office et
+          #    l'application. Elles vivent sur le serveur, où l'étape 5 bis les
+          #    restaure depuis la sauvegarde ; les transporter à chaque
+          #    déploiement était le premier poste de l'envoi, sans rien apporter.
+          #    Elles restent versionnées, donc récupérables si le serveur les perd.
+          #
+          #  - template : 27 Mo de maquettes HTML d'un thème acheté
+          #    (agent_add.html, boutique_list.html…). Aucune vue, aucune route,
+          #    aucun contrôleur ne les référence — les seules occurrences de
+          #    « template/ » dans le code sont des commentaires laissés par
+          #    l'outil qui a aspiré le thème.
+          #
+          #  - le dump SQL et les logs : 5,7 Mo qui n'ont rien à faire dans une
+          #    release.
           tar -czf "/tmp/${{ env.ARCHIVE_NAME }}" \
             --exclude='.git' \
             --exclude='node_modules' \
@@ -82,6 +98,11 @@ jobs:
             --exclude='tests' \
             --exclude='.env' \
             --exclude='database/database.sqlite' \
+            --exclude='public/upload' \
+            --exclude='template' \
+            --exclude='*.sql' \
+            --exclude='storage/logs/*.log' \
+            --exclude='.phpunit.result.cache' \
             .
           mv "/tmp/${{ env.ARCHIVE_NAME }}" "${{ env.ARCHIVE_NAME }}"
 
