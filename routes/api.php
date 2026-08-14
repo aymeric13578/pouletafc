@@ -89,6 +89,11 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
     Route::get('getMyShopProducts', 'MaBoutiqueController@getMyShopProducts');
     Route::get('getMyShopOrders', 'MaBoutiqueController@getMyShopOrders');
     Route::get('getShopCategories', 'MaBoutiqueController@getCategories');
+    // Onglet « Boutiques » de l'application : ces deux routes n'existaient pas,
+    // l'écran répondait donc « aucune boutique » à tous les marchands.
+    Route::get('verifiedShopUser', 'MaBoutiqueController@verifiedShopUser');
+    Route::post('verifiedShopUser', 'MaBoutiqueController@verifiedShopUser');
+    Route::get('getShopStats', 'MaBoutiqueController@getShopStats');
     Route::post('saveMyShopProduct', 'MaBoutiqueController@saveMyShopProduct');
 
     // Demande de course coursier depuis l'application cliente.

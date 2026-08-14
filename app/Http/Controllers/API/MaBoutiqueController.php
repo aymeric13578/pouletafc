@@ -203,6 +203,78 @@ class MaBoutiqueController extends Controller
     }
 
     /**
+     * Vérifie si ce compte tient une boutique — format attendu par l'onglet
+     * « Boutiques » de l'application.
+     *
+     * Cet écran appelle verifiedShopUser depuis toujours, et la route n'a jamais
+     * existé : l'appel répondait 404, l'application tombait dans sa branche
+     * d'erreur et affichait « Vous ne possédez pas encore de boutique » à tous
+     * les marchands, y compris à ceux qui en tiennent une.
+     *
+     * La forme de la réponse est celle que l'écran sait lire, et elle est
+     * inhabituelle : « code » à 100 pour un succès, et « message » contenant la
+     * liste des boutiques sous forme de chaîne JSON, que l'application décode
+     * elle-même. On s'y conforme plutôt que de toucher au client déjà installé.
+     */
+    public function verifiedShopUser(Request $request): JsonResponse
+    {
+        $boutique = $this->boutiqueDe($request->input('id_user'));
+
+        if (! $boutique) {
+            return response()->json([
+                'code' => 404,
+                'message' => '[]',
+            ]);
+        }
+
+        return response()->json([
+            'code' => 100,
+            'message' => json_encode([[
+                'id' => $boutique->id,
+                'shop_name' => $boutique->shop_name,
+                'ref' => $boutique->ref,
+                'city' => $boutique->city,
+                'address' => $boutique->address,
+                'phone1' => $boutique->phone1,
+                'phone2' => $boutique->phone2,
+                'email1' => $boutique->email1,
+                'description' => $boutique->description,
+                'status' => $boutique->status,
+                'logo' => $boutique->logo ? url('upload/' . $boutique->logo) : null,
+                'banner' => $boutique->banner ? url('upload/' . $boutique->banner) : null,
+                'product_count' => Product::where('id_shop', $boutique->id)->count(),
+            ]], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ]);
+    }
+
+    /**
+     * Compteurs de la boutique, pour l'écran de gestion.
+     *
+     * Même sort que verifiedShopUser : l'écran interroge cette route, qui
+     * n'existait pas. Les compteurs restaient donc à zéro même sur une boutique
+     * active. Elle attend « response » à 100, et non 200.
+     */
+    public function getShopStats(Request $request): JsonResponse
+    {
+        $idBoutique = (int) $request->input('shop_id');
+
+        if (! $idBoutique || ! Shop::whereKey($idBoutique)->exists()) {
+            return response()->json(['response' => 404, 'data' => null]);
+        }
+
+        return response()->json([
+            'response' => 100,
+            'data' => [
+                'nombre_produits' => Product::where('id_shop', $idBoutique)->count(),
+                'nombre_commandes' => $this->commandesDe($idBoutique)->count(),
+                'commandes_en_attente' => $this->commandesDe($idBoutique)
+                    ->whereIn('status', ['pending', 'want', 'take', 'process'])
+                    ->count(),
+            ],
+        ]);
+    }
+
+    /**
      * Catégories proposées au marchand quand il crée un produit.
      *
      * id_category est contrôlé à l'enregistrement : sans cette liste,

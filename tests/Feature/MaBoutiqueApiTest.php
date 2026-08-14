@@ -329,6 +329,63 @@ class MaBoutiqueApiTest extends TestCase
         }
     }
 
+    public function test_l_onglet_boutiques_reconnait_enfin_un_marchand(): void
+    {
+        /*
+         * L'écran appelle verifiedShopUser depuis toujours ; la route n'a jamais
+         * existé. L'appel répondait 404, l'application tombait dans sa branche
+         * d'erreur et affichait « Vous ne possédez pas encore de boutique » à
+         * tous les marchands, y compris à ceux qui en tiennent une.
+         */
+        $boutique = $this->boutique();
+
+        $reponse = $this->getJson('/api/v1.0/verifiedShopUser?id_user=' . $boutique->id_user)->assertOk();
+
+        // Forme inhabituelle mais imposée par le client déjà installé : « code »
+        // à 100, et la liste des boutiques sous forme de chaîne JSON.
+        $this->assertSame(100, $reponse->json('code'));
+
+        $liste = json_decode($reponse->json('message'), true);
+
+        $this->assertIsArray($liste);
+        $this->assertNotEmpty($liste);
+        $this->assertSame($boutique->id, $liste[0]['id']);
+        $this->assertSame($boutique->shop_name, $liste[0]['shop_name']);
+        $this->assertArrayHasKey('product_count', $liste[0]);
+    }
+
+    public function test_un_compte_sans_boutique_recoit_une_liste_vide(): void
+    {
+        $sansBoutique = User::whereNotIn('id', Shop::whereNotNull('id_user')->pluck('id_user'))->value('id');
+
+        $reponse = $this->getJson('/api/v1.0/verifiedShopUser?id_user=' . $sansBoutique)->assertOk();
+
+        $this->assertNotSame(100, $reponse->json('code'));
+        $this->assertSame([], json_decode($reponse->json('message'), true));
+    }
+
+    public function test_les_compteurs_de_la_boutique_sont_servis(): void
+    {
+        // L'écran attend « response » à 100, et non 200 : sans cette valeur les
+        // compteurs restaient à zéro même sur une boutique active.
+        $boutique = $this->boutique();
+
+        $reponse = $this->getJson('/api/v1.0/getShopStats?shop_id=' . $boutique->id)->assertOk();
+
+        $this->assertSame(100, $reponse->json('response'));
+
+        foreach (['nombre_produits', 'nombre_commandes', 'commandes_en_attente'] as $compteur) {
+            $this->assertIsInt($reponse->json('data.' . $compteur), $compteur);
+        }
+    }
+
+    public function test_une_boutique_inconnue_ne_renvoie_pas_de_compteurs(): void
+    {
+        $this->getJson('/api/v1.0/getShopStats?shop_id=999999')
+            ->assertOk()
+            ->assertJson(['response' => 404]);
+    }
+
     public function test_le_logo_envoye_est_range_avec_les_autres_images(): void
     {
         $boutique = $this->boutique();
