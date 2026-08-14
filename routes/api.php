@@ -80,6 +80,13 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
             
         Route::get('financeAgent', 'FinanceController@getfinanceAgent');
     
+    // Demande de course coursier depuis l'application cliente.
+    //
+    // L'écran poste vers cette route depuis des mois, mais elle n'avait jamais
+    // été écrite : le serveur répondait « méthode non autorisée » et aucune
+    // demande de coursier n'aboutissait.
+    Route::post('storeDeliveryOrder', 'CoursierController@storeDeliveryOrder');
+
     // Reprise du suivi après fermeture de l'application.
     //
     // Répond « où cet utilisateur doit-il être ramené » : la course ou la

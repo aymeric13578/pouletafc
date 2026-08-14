@@ -369,6 +369,14 @@ class OrderBoardController extends Controller
                 'destination' => $order->coursier->destinationName,
             ] : null,
             'address' => $order->address,
+            /*
+             | Éléments propres à une course coursier : point de départ, photo du
+             | colis et note du client. La photo n'était pas exposée, si bien que
+             | le comptoir ne pouvait pas voir ce qu'il devait faire enlever.
+             */
+            'depart' => $order->depart,
+            'note' => $order->note,
+            'image_url' => $order->image ? url('upload/' . $order->image) : null,
             'payment_method' => $order->payment_method,
             'customer' => $order->user?->name,
             'phone' => $order->user?->phone,

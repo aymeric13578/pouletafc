@@ -47,7 +47,17 @@ class order_detail extends Model
         'delivery_fees',
         'panier_price',
         // Poids retenu par le comptoir quand il corrige le panier au poids réel.
-        'poids_kg'
+        'poids_kg',
+        // Champs d'une course coursier : point de départ, photo du colis et note
+        // libre rassemblant expéditeur, destinataire et instructions de remise.
+        'depart',
+        'image',
+        'note',
+        'reception_mode',
+        'phone_customer',
+        'email_customer',
+        'shop_id',
+        'date'
     ];
 
     public function carts()

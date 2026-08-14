@@ -247,6 +247,45 @@ function DetailCommande({ commande, onClose, onChangerStatut, onModifierPanier, 
                             </div>
                         </div>
 
+                        {/* Colis d'une course coursier : photo, point de départ et
+                            consignes du client. Sans la photo, le comptoir ne pouvait
+                            pas voir ce qu'il devait faire enlever. */}
+                        {(commande.image_url || commande.note || commande.depart) && (
+                            <div className="mt-5 rounded-xl border border-violet-200 bg-violet-50 p-4">
+                                <p className="text-xs font-bold uppercase tracking-wider text-violet-700">Colis</p>
+
+                                <div className="mt-3 flex flex-wrap gap-4">
+                                    {commande.image_url && (
+                                        <a
+                                            href={commande.image_url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="shrink-0"
+                                            title="Ouvrir la photo en grand"
+                                        >
+                                            <img
+                                                src={commande.image_url}
+                                                alt="Photo du colis"
+                                                className="h-32 w-32 rounded-xl object-cover ring-1 ring-violet-300"
+                                            />
+                                        </a>
+                                    )}
+
+                                    <div className="min-w-0 flex-1 space-y-1 text-sm">
+                                        {commande.depart && (
+                                            <p>
+                                                <span className="font-semibold text-gray-700">Départ : </span>
+                                                <span className="text-gray-900">{commande.depart}</span>
+                                            </p>
+                                        )}
+                                        {commande.note && (
+                                            <p className="whitespace-pre-wrap text-gray-700">{commande.note}</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {commande.agent && (
                             <div className="mt-5 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
                                 <p className="text-xs font-bold uppercase tracking-wider text-indigo-700">Agent assigné</p>
