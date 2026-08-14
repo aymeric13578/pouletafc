@@ -19,17 +19,39 @@ class NotationAgentTest extends TestCase
     private const AGENT = 90001;
     private const CLIENT = 90002;
 
+    /**
+     * Barème d'origine, remis en place à la fin.
+     *
+     * Ces tests modifient la grille active. Sans restauration, ils laissaient
+     * derrière eux un barème inventé — et le test suivant, qui supposait qu'une
+     * appréciation moyenne rapporte des points, échouait pour une raison
+     * n'ayant rien à voir avec ce qu'il vérifiait.
+     *
+     * @var array<string, float>|null
+     */
+    private ?array $baremeInitial = null;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         Note::where('id_agent', self::AGENT)->delete();
         NotationAgent::oublierBareme();
+        $this->baremeInitial = Parameter::active()?->pointsDeNotation();
     }
 
     protected function tearDown(): void
     {
         Note::where('id_agent', self::AGENT)->delete();
+
+        if ($this->baremeInitial) {
+            Parameter::active()?->update(
+                collect($this->baremeInitial)
+                    ->mapWithKeys(fn ($points, $cle) => ['note_points_' . $cle => $points])
+                    ->toArray()
+            );
+        }
+
         NotationAgent::oublierBareme();
 
         parent::tearDown();
