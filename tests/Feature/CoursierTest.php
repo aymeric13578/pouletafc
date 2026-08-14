@@ -165,6 +165,23 @@ class CoursierTest extends TestCase
         $this->postJson(self::URL, $this->charge(['latDestination' => 'ici']))->assertStatus(422);
     }
 
+    public function test_une_erreur_de_saisie_revient_en_json_meme_sans_en_tete_accept(): void
+    {
+        /*
+         * L'application poste avec MultipartRequest, qui ne pose aucun en-tête
+         * Accept. Sans garde, Laravel en conclut qu'il parle à un navigateur et
+         * répond par une redirection : l'application recevait du HTML, jsonDecode
+         * levait une exception, et l'utilisateur voyait « erreur » sans jamais
+         * savoir quel champ était en cause.
+         */
+        $reponse = $this->call('POST', self::URL, ['ref' => 'TEST'], [], [], [
+            'CONTENT_TYPE' => 'multipart/form-data',
+        ]);
+
+        $this->assertSame(422, $reponse->getStatusCode(), 'Une redirection ici casse l\'application.');
+        $this->assertJson($reponse->getContent());
+    }
+
     public function test_un_numero_avec_indicatif_ne_deborde_pas_de_la_colonne(): void
     {
         /*

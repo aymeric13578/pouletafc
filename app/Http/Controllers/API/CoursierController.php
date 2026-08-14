@@ -28,6 +28,8 @@ class CoursierController extends Controller
 
     public function storeDeliveryOrder(Request $request): JsonResponse
     {
+        $this->exigerReponseJson($request);
+
         $valide = $request->validate([
             'id_user' => ['required'],
             'latitude' => ['required', 'numeric'],
@@ -194,5 +196,19 @@ class CoursierController extends Controller
             'failed', 'echec' => 'failed',
             default => 'pending',
         };
+    }
+
+    /**
+     * Impose une réponse JSON, quel que soit l'en-tête Accept de l'appelant.
+     *
+     * L'application envoie ses formulaires avec MultipartRequest, qui ne pose
+     * aucun en-tête Accept. Laravel en conclut qu'il parle à un navigateur et
+     * répond à un échec de validation par une redirection : l'application
+     * recevait du HTML, jsonDecode levait une exception, et l'utilisateur voyait
+     * « erreur » sans jamais savoir quel champ était en cause.
+     */
+    private function exigerReponseJson(Request $request): void
+    {
+        $request->headers->set('Accept', 'application/json');
     }
 }
