@@ -405,4 +405,56 @@ class MaBoutiqueApiTest extends TestCase
         @unlink(public_path('upload/' . $nouveau));
         DB::table('shops')->where('id', $boutique->id)->update(['logo' => $ancien]);
     }
+    /*
+     | Les compteurs voyagent avec la boutique : l'écran boutique de
+     | l'application les affiche dès le premier appel, sans second aller-retour.
+     */
+    public function test_la_boutique_porte_les_compteurs_du_tableau_de_bord(): void
+    {
+        $boutique = $this->boutique();
+
+        $stats = $this->getJson('/api/v1.0/getMyShop?id_user=' . $boutique->id_user)
+            ->assertOk()
+            ->json('data.stats');
+
+        foreach (['produits', 'commandes', 'en_cours', 'a_valider', 'stock_faible', 'valeur_stock'] as $compteur) {
+            $this->assertArrayHasKey($compteur, $stats, "Compteur manquant : $compteur");
+            $this->assertIsInt($stats[$compteur]);
+        }
+
+        $attendus = DB::table('products')->where('id_shop', $boutique->id)
+            ->selectRaw('COUNT(*) total, SUM(status = "pending") attente, SUM(stock_init < 10) faible, SUM(price * stock_init) valeur')
+            ->first();
+
+        $this->assertSame((int) $attendus->total, $stats['produits']);
+        $this->assertSame((int) $attendus->attente, $stats['a_valider']);
+        $this->assertSame((int) $attendus->faible, $stats['stock_faible']);
+        $this->assertSame((int) $attendus->valeur, $stats['valeur_stock']);
+    }
+
+    /*
+     | Deux appelants, deux identifiants : l'application connaît l'utilisateur
+     | connecté, la vitrine publique connaît la boutique.
+     */
+    public function test_les_compteurs_repondent_aussi_a_id_user(): void
+    {
+        $boutique = $this->boutique();
+
+        $parBoutique = $this->getJson('/api/v1.0/getShopStats?shop_id=' . $boutique->id);
+        $parUtilisateur = $this->getJson('/api/v1.0/getShopStats?id_user=' . $boutique->id_user);
+
+        $parUtilisateur->assertOk()->assertJsonPath('response', 100);
+        $this->assertSame(
+            $parBoutique->json('data'),
+            $parUtilisateur->json('data'),
+            'Les deux identifiants doivent décrire la même boutique.'
+        );
+    }
+
+    /** Sans identifiant exploitable, la réponse reste un 404 applicatif. */
+    public function test_les_compteurs_refusent_une_requete_sans_identifiant(): void
+    {
+        $this->getJson('/api/v1.0/getShopStats')->assertJsonPath('response', 404);
+    }
+
 }

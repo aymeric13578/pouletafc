@@ -71,6 +71,17 @@ class MaBoutiqueController extends Controller
                     'en_cours' => $this->commandesDe($boutique->id)
                         ->whereIn('status', ['pending', 'want', 'take', 'process'])
                         ->count(),
+                    /*
+                     | Les trois compteurs que l'espace marchand du tableau de
+                     | bord affiche déjà. Le marchand doit lire la même chose sur
+                     | son téléphone et sur son ordinateur : deux comptes
+                     | différents pour la même boutique jettent le doute sur les
+                     | deux. Ils voyagent avec la boutique plutôt que dans un
+                     | second appel, l'écran n'ayant rien à afficher sans elle.
+                     */
+                    'a_valider' => (clone $produits)->where('status', 'pending')->count(),
+                    'stock_faible' => (clone $produits)->where('stock_init', '<', 10)->count(),
+                    'valeur_stock' => (int) (clone $produits)->sum(\DB::raw('price * stock_init')),
                 ],
             ],
         ]);
@@ -256,20 +267,41 @@ class MaBoutiqueController extends Controller
      */
     public function getShopStats(Request $request): JsonResponse
     {
+        /*
+         | Deux appelants, deux identifiants : l'écran boutique de l'application
+         | connaît l'utilisateur connecté, la vitrine publique connaît la
+         | boutique. Accepter les deux évite à l'appelant un aller-retour
+         | supplémentaire juste pour traduire l'un en l'autre.
+         */
         $idBoutique = (int) $request->input('shop_id');
+
+        if (! $idBoutique && $request->filled('id_user')) {
+            $idBoutique = (int) Shop::where('id_user', (int) $request->input('id_user'))->value('id');
+        }
 
         if (! $idBoutique || ! Shop::whereKey($idBoutique)->exists()) {
             return response()->json(['response' => 404, 'data' => null]);
         }
 
+        $produits = Product::where('id_shop', $idBoutique);
+
         return response()->json([
             'response' => 100,
             'data' => [
-                'nombre_produits' => Product::where('id_shop', $idBoutique)->count(),
+                'nombre_produits' => (clone $produits)->count(),
                 'nombre_commandes' => $this->commandesDe($idBoutique)->count(),
                 'commandes_en_attente' => $this->commandesDe($idBoutique)
                     ->whereIn('status', ['pending', 'want', 'take', 'process'])
                     ->count(),
+                /*
+                 | Les trois compteurs que l'espace marchand du tableau de bord
+                 | affiche déjà. Le marchand doit lire la même chose sur son
+                 | téléphone et sur son ordinateur : deux comptes différents pour
+                 | la même boutique jettent le doute sur les deux.
+                 */
+                'produits_en_attente' => (clone $produits)->where('status', 'pending')->count(),
+                'stock_faible' => (clone $produits)->where('stock_init', '<', 10)->count(),
+                'valeur_stock' => (int) (clone $produits)->sum(\DB::raw('price * stock_init')),
             ],
         ]);
     }
