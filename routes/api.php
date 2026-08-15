@@ -164,7 +164,6 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
     Route::post('getProductComplements', 'ComplementController@getProductComplements');
     Route::get('getCartComplements', 'ComplementController@getCartComplements');
     Route::post('getCartComplements', 'ComplementController@getCartComplements');
-    Route::post('addComplementToCart', 'ComplementController@addComplementToCart');
 
      //note
       
