@@ -101,8 +101,11 @@ class PageProduitsCartesTest extends TestCase
         $source = file_get_contents(base_path('resources/views/pages/dashboard/products.blade.php'));
 
         $this->assertStringContainsString('@unless ($product->is_complement)', $source);
+
+        // Le garde-fou vit maintenant dans la boucle du rattachement groupé :
+        // on saute le complément qui serait sa propre cible.
         $this->assertStringContainsString(
-            "reject(fn (int \$id) => \$id === (int) \$complement->id)",
+            "if ((int) \$idProduit === (int) \$complement->id) {",
             $source,
             'Le garde-fou contre l\'auto-rattachement a disparu.'
         );
@@ -152,8 +155,17 @@ class PageProduitsCartesTest extends TestCase
         $this->assertSame(2, $poulet->fresh()->complements()->count());
         $this->assertSame(2, $poisson->fresh()->complements()->count());
 
-        $reponse = $this->actingAs($this->staff())->get(self::URL);
-        $reponse->assertSee('wire:model.live="complementsARattacher"', false);
+        // La barre groupée n'est rendue qu'une fois des produits cochés : on
+        // vérifie dans la source que le choix y est bien multiple.
+        $source = file_get_contents(base_path('resources/views/pages/dashboard/products.blade.php'));
+
+        $this->assertStringContainsString('wire:model.live="complementsARattacher"', $source);
+        $this->assertStringContainsString('type="checkbox"', $source);
+        $this->assertStringNotContainsString(
+            'complementARattacher"',
+            $source,
+            'Le choix unique doit avoir disparu au profit du choix multiple.'
+        );
     }
 
     /*
