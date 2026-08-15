@@ -106,11 +106,17 @@ class ComplementsApiTest extends TestCase
 
         $this->panier = Cart::create(['user_id' => $this->client->id, 'total_amount' => 0]);
 
+        /*
+         | Lignes composées par la règle partagée plutôt qu'à la main : la table
+         | porte en production des colonnes obligatoires que le schéma des
+         | migrations ignore. Les contourner ici masquerait justement le défaut
+         | qui a fait échouer l'ajout d'un produit au comptoir.
+         */
         foreach ([$poulet, $poisson] as $plat) {
-            CartItem::create([
-                'cart_id' => $this->panier->id, 'product_id' => $plat->id,
-                'quantity' => 1, 'amount' => $plat->price,
-            ]);
+            CartItem::create(
+                app(\App\Support\PanierDeCommande::class)
+                    ->donneesDeLigne($this->panier->id, $this->client->id, $plat, 1)
+            );
         }
 
         $data = $this->getJson('/api/v1.0/getCartComplements?id_user=' . $this->client->id)

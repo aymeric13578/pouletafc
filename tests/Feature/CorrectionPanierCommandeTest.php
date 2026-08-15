@@ -164,10 +164,12 @@ class CorrectionPanierCommandeTest extends TestCase
         $autrePanier = Cart::create(['user_id' => $this->commande->id_user, 'total_amount' => 0]);
         $poulet = $this->produit('Poulet', 3000);
 
-        $ligneEtrangere = CartItem::create([
-            'cart_id' => $autrePanier->id, 'product_id' => $poulet->id,
-            'quantity' => 1, 'amount' => 3000,
-        ]);
+        // Composée par la règle partagée : une ligne fabriquée à la main
+        // omettrait les colonnes obligatoires en production.
+        $ligneEtrangere = CartItem::create(
+            app(\App\Support\PanierDeCommande::class)
+                ->donneesDeLigne($autrePanier->id, $this->commande->id_user, $poulet, 1)
+        );
 
         try {
             $this->deleteJson(route('orders.board.item.remove', [$this->commande->id, $ligneEtrangere->id]))

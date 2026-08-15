@@ -7,7 +7,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class CartItem extends Model
 {
-    protected $fillable = ['product_id','cart_id', 'quantity', 'price','amount','user_id'];
+    /*
+    | « status » manquait à cette liste alors que CartController le passe à
+    | chaque ajout au panier : il était donc silencieusement écarté, et la
+    | colonne restait à sa valeur par défaut. Ajouté pour que ce qui est écrit
+    | soit ce qui est demandé.
+    */
+    protected $fillable = ['product_id', 'cart_id', 'quantity', 'price', 'amount', 'user_id', 'status'];
 
     // Relation avec le modèle User
     public function user()

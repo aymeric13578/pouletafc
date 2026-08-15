@@ -73,19 +73,71 @@ class PanierDeCommande
         if ($ligne) {
             $ligne->update(['quantity' => (int) $ligne->quantity + $quantite]);
         } else {
-            $ligne = CartItem::create([
-                'cart_id' => $commande->id_cart,
-                'product_id' => $produit->id,
-                // Prix figé à l'ajout, comme au panier du client : il ne doit
-                // pas suivre les changements de tarif ultérieurs.
-                'amount' => (int) $produit->price,
-                'quantity' => $quantite,
-            ]);
+            $ligne = CartItem::create(
+                $this->donneesDeLigne($commande->id_cart, $commande->id_user, $produit, $quantite)
+            );
         }
 
         $this->recalculer($commande);
 
         return $ligne;
+    }
+
+    /**
+     * Champs d'une nouvelle ligne de panier.
+     *
+     * Publique parce qu'elle fait autorité : tout ce qui crée une ligne doit
+     * passer par elle, tests compris. Une ligne fabriquée à côté masquerait le
+     * défaut qu'elle prémunit.
+     *
+     * Calqué sur ce qu'écrit CartController quand le client ajoute au panier :
+     * même table, mêmes contraintes. En omettre un rendait l'insertion
+     * impossible en production sans que rien ne le laisse voir ici, le schéma
+     * reconstruit depuis les migrations ne portant pas ces colonnes.
+     *
+     * @return array<string, mixed>
+     */
+    public function donneesDeLigne(?int $idPanier, ?int $idClient, Product $produit, int $quantite): array
+    {
+        $donnees = [
+            'cart_id' => $idPanier,
+            'product_id' => $produit->id,
+            // Prix figé à l'ajout, comme au panier du client : il ne doit pas
+            // suivre les changements de tarif ultérieurs.
+            'amount' => (int) $produit->price,
+            'quantity' => $quantite,
+        ];
+
+        /*
+         | Colonnes présentes en production mais absentes du schéma décrit par
+         | les migrations. On ne les écrit que si elles existent : les écrire
+         | toujours ferait échouer l'insertion là où elles manquent, et les
+         | omettre toujours la fait échouer là où elles sont obligatoires.
+         */
+        if (self::colonneExiste('user_id')) {
+            $donnees['user_id'] = $idClient;
+        }
+
+        if (self::colonneExiste('status')) {
+            $donnees['status'] = 'Success';
+        }
+
+        return $donnees;
+    }
+
+    /**
+     * Cette colonne existe-t-elle sur cart_items ?
+     *
+     * Retenu d'un appel à l'autre : la question se pose à chaque ajout, et la
+     * réponse ne change pas en cours de requête.
+     *
+     * @var array<string, bool>
+     */
+    private static array $colonnes = [];
+
+    private static function colonneExiste(string $colonne): bool
+    {
+        return self::$colonnes[$colonne] ??= \Illuminate\Support\Facades\Schema::hasColumn('cart_items', $colonne);
     }
 
     /**
