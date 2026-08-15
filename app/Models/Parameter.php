@@ -45,8 +45,26 @@ class Parameter extends Model
         'note_points_average',
         'note_points_good',
         'note_points_excellent',
+        /*
+         | Lieu de repli quand le client ne choisit pas sa zone. Désigné parmi
+         | ceux que les agents ont enregistrés, plutôt que laissé à la dernière
+         | position connue du compte — périmée et identique pour tous.
+         */
+        'default_pickup_location_id',
         'status'
     ];
+
+    /**
+     * Lieu de retrait par défaut, s'il est encore en base.
+     *
+     * Sans clé étrangère : la table des lieux est alimentée depuis les
+     * téléphones des agents et un lieu peut disparaître. On vérifie donc à la
+     * lecture plutôt que d'interdire la suppression.
+     */
+    public function lieuParDefaut()
+    {
+        return $this->belongsTo(Location::class, 'default_pickup_location_id');
+    }
 
     /**
      * Les cinq appréciations, de la pire à la meilleure.
@@ -127,6 +145,12 @@ class Parameter extends Model
             'note_points_average' => 'nullable|numeric|min:-10|max:10',
             'note_points_good' => 'nullable|numeric|min:-10|max:10',
             'note_points_excellent' => 'nullable|numeric|min:-10|max:10',
+            /*
+             | Facultatif : sans lieu désigné, on ne force rien et le point reste
+             | indéterminé comme aujourd'hui. « exists » empêche de pointer un
+             | lieu supprimé entre l'ouverture du formulaire et l'enregistrement.
+             */
+            'default_pickup_location_id' => 'nullable|integer|exists:locations,id',
         ];
     }
 

@@ -98,7 +98,38 @@ class PointDeLivraison
                 $this->nombre($user?->latitude),
                 $this->nombre($user?->longitude),
             ],
+            /*
+             | Dernier recours : le lieu de retrait désigné par l'administration.
+             |
+             | Il vient après la position du compte, non avant : quand le client
+             | a une position connue, elle reste plus proche de la vérité qu'un
+             | point unique valable pour toute la ville. Mais elle manque
+             | souvent — un compte jamais localisé porte des coordonnées vides ou
+             | héritées — et c'est alors ce lieu qui évite d'envoyer le livreur
+             | nulle part, ou pire, toujours au même endroit faux.
+             */
+            'lieu_par_defaut' => $this->lieuParDefaut(),
         ];
+    }
+
+    /**
+     * Lieu de retrait désigné dans la configuration active.
+     *
+     * @return array{0: float|null, 1: float|null}
+     */
+    private function lieuParDefaut(): array
+    {
+        $idLieu = \App\Models\Parameter::active()?->default_pickup_location_id;
+
+        if (! $idLieu) {
+            return [null, null];
+        }
+
+        // Le lieu a pu être supprimé depuis sa désignation : on ne suppose pas
+        // qu'il existe encore.
+        $lieu = \App\Models\Location::find($idLieu);
+
+        return [$this->nombre($lieu?->latitude), $this->nombre($lieu?->longitude)];
     }
 
     /**
