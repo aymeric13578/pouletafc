@@ -13,6 +13,162 @@ new class extends Component {
     public $status = '';
     public $order_details = null;
 
+    /*
+    | Modification du panier d'une commande.
+    |
+    | L'écran ne permettait que de changer le statut : une quantité mal comprise
+    | au téléphone ou un article en rupture obligeait à tout annuler et
+    | ressaisir, en perdant l'historique et l'agent déjà attribué.
+    |
+    | La règle de calcul vit dans PanierDeCommande, partagée avec le mur des
+    | commandes : recopiée, elle finirait par diverger et deux écrans donneraient
+    | deux totaux pour la même commande.
+    */
+    public $panierOuvert = null;
+    public $produitAAjouter = '';
+    public $quantiteAAjouter = 1;
+
+    private function panier(): \App\Support\PanierDeCommande
+    {
+        return app(\App\Support\PanierDeCommande::class);
+    }
+
+    public function getCommandeOuverteProperty(): ?order_detail
+    {
+        return $this->panierOuvert ? order_detail::find($this->panierOuvert) : null;
+    }
+
+    public function getLignesProperty()
+    {
+        $commande = $this->commandeOuverte;
+
+        return $commande ? $this->panier()->lignes($commande) : collect();
+    }
+
+    /** Catalogue proposé à l'ajout : seuls les produits en vente. */
+    public function getCatalogueProperty()
+    {
+        return \App\Models\Product::where('status', 'Success')
+            ->orderBy('name')
+            ->get(['id', 'name', 'price', 'is_complement']);
+    }
+
+    public function ouvrirPanier($id): void
+    {
+        $this->panierOuvert = $this->panierOuvert === $id ? null : $id;
+        $this->produitAAjouter = '';
+        $this->quantiteAAjouter = 1;
+    }
+
+    /**
+     * Refuse la correction et le dit, plutôt que de laisser croire à un effet.
+     */
+    private function refusSiFermee(?order_detail $commande): bool
+    {
+        if (! $commande) {
+            return true;
+        }
+
+        if ($commande->id_cart === null) {
+            $this->dispatch('notify', [
+                'message' => "Cette commande n'a pas de panier : c'est une course.",
+                'type' => 'error',
+            ]);
+
+            return true;
+        }
+
+        if (! $this->panier()->modifiable($commande)) {
+            $this->dispatch('notify', [
+                'message' => 'Cette commande est close, son panier ne peut plus changer.',
+                'type' => 'error',
+            ]);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public function changerQuantite($idLigne, $delta): void
+    {
+        $commande = $this->commandeOuverte;
+
+        if ($this->refusSiFermee($commande)) {
+            return;
+        }
+
+        $ligne = \App\Models\CartItem::where('cart_id', $commande->id_cart)->find($idLigne);
+
+        if (! $ligne) {
+            $this->dispatch('notify', ['message' => 'Cet article ne fait pas partie de cette commande.', 'type' => 'error']);
+
+            return;
+        }
+
+        $nom = $ligne->product?->name ?? 'Article';
+        $nouvelle = (int) $ligne->quantity + (int) $delta;
+
+        $this->panier()->definirQuantite($commande, $ligne, $nouvelle);
+
+        $this->dispatch('notify', [
+            'message' => $nouvelle < 1
+                ? $nom . ' retiré de la commande.'
+                : $nom . ' : ' . $nouvelle . ' unité' . ($nouvelle > 1 ? 's' : '') . '.',
+            'type' => 'success',
+        ]);
+    }
+
+    public function retirerLigne($idLigne): void
+    {
+        $commande = $this->commandeOuverte;
+
+        if ($this->refusSiFermee($commande)) {
+            return;
+        }
+
+        $ligne = \App\Models\CartItem::where('cart_id', $commande->id_cart)->find($idLigne);
+
+        if (! $ligne) {
+            $this->dispatch('notify', ['message' => 'Cet article ne fait pas partie de cette commande.', 'type' => 'error']);
+
+            return;
+        }
+
+        $nom = $ligne->product?->name ?? 'Article';
+        $this->panier()->retirer($commande, $ligne);
+
+        $this->dispatch('notify', ['message' => $nom . ' retiré de la commande.', 'type' => 'success']);
+    }
+
+    public function ajouterProduit(): void
+    {
+        $commande = $this->commandeOuverte;
+
+        if ($this->refusSiFermee($commande)) {
+            return;
+        }
+
+        $produit = \App\Models\Product::find($this->produitAAjouter);
+
+        if (! $produit) {
+            $this->dispatch('notify', ['message' => 'Choisissez un produit à ajouter.', 'type' => 'error']);
+
+            return;
+        }
+
+        $quantite = max(1, (int) $this->quantiteAAjouter);
+        $this->panier()->ajouter($commande, $produit, $quantite);
+
+        $this->produitAAjouter = '';
+        $this->quantiteAAjouter = 1;
+
+        $this->dispatch('notify', [
+            'message' => $quantite . ' × ' . $produit->name . ' ajouté à la commande.',
+            'type' => 'success',
+        ]);
+    }
+
     public function getOrdersProperty()
     {
         return order_detail::when($this->search, function ($q) {
@@ -201,13 +357,140 @@ new class extends Component {
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                         </svg>
                                     </button>
-                                    <button wire:click="openModal({{ $order->id }})" class="text-gray-600 hover:text-gray-800" title="Modifier le statut">
+                                    <button wire:click="openModal({{ $order->id }})" class="text-gray-600 hover:text-gray-800 mr-2" title="Modifier le statut">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                                         </svg>
                                     </button>
+
+                                    {{-- Modifier le panier : produits et quantités. --}}
+                                    @if ($order->id_cart)
+                                        <button wire:click="ouvrirPanier({{ $order->id }})"
+                                                class="text-xs font-semibold text-indigo-600 hover:underline">
+                                            {{ $panierOuvert === $order->id ? 'Fermer' : 'Modifier le panier' }}
+                                        </button>
+                                    @else
+                                        {{-- Une course n'a pas de panier : elle transporte un colis. --}}
+                                        <span class="text-xs text-gray-400" title="Course de coursier">—</span>
+                                    @endif
                                 </td>
                             </tr>
+
+                            @if ($panierOuvert === $order->id)
+                                <tr wire:key="panier-{{ $order->id }}">
+                                    <td colspan="9" class="bg-gray-50 px-4 py-4">
+                                        @php
+                                            $modifiable = app(\App\Support\PanierDeCommande::class)->modifiable($order);
+                                        @endphp
+
+                                        <div class="flex flex-wrap items-center justify-between gap-2">
+                                            <p class="text-xs font-bold uppercase tracking-wider text-gray-600">
+                                                Panier de {{ $order->ref }}
+                                            </p>
+
+                                            @unless ($modifiable)
+                                                <span class="rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                                                    Commande close : le panier ne peut plus changer.
+                                                </span>
+                                            @endunless
+                                        </div>
+
+                                        <div class="mt-3 space-y-2">
+                                            @forelse ($this->lignes as $ligne)
+                                                <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2">
+                                                    <div class="min-w-0 flex-1">
+                                                        <p class="text-sm font-medium text-gray-900">
+                                                            {{ $ligne->product?->name ?? 'Produit supprimé' }}
+                                                            @if ($ligne->product?->is_complement)
+                                                                <span class="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">complément</span>
+                                                            @endif
+                                                        </p>
+                                                        <p class="text-xs text-gray-500">
+                                                            {{ number_format((int) $ligne->amount, 0, ',', ' ') }} F l'unité
+                                                        </p>
+                                                    </div>
+
+                                                    <div class="flex items-center gap-2">
+                                                        <button type="button" wire:click="changerQuantite({{ $ligne->id }}, -1)"
+                                                                @disabled(! $modifiable)
+                                                                class="h-7 w-7 rounded-full bg-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-300 disabled:opacity-40">
+                                                            −
+                                                        </button>
+
+                                                        <span class="w-8 text-center text-sm font-bold tabular-nums">
+                                                            {{ (int) $ligne->quantity }}
+                                                        </span>
+
+                                                        <button type="button" wire:click="changerQuantite({{ $ligne->id }}, 1)"
+                                                                @disabled(! $modifiable)
+                                                                class="h-7 w-7 rounded-full bg-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-300 disabled:opacity-40">
+                                                            +
+                                                        </button>
+                                                    </div>
+
+                                                    <span class="w-24 text-right text-sm font-bold tabular-nums text-gray-900">
+                                                        {{ number_format((int) $ligne->quantity * (int) $ligne->amount, 0, ',', ' ') }} F
+                                                    </span>
+
+                                                    <button type="button" wire:click="retirerLigne({{ $ligne->id }})"
+                                                            @disabled(! $modifiable)
+                                                            wire:confirm="Retirer cet article de la commande ?"
+                                                            class="text-xs font-semibold text-red-600 hover:underline disabled:opacity-40">
+                                                        Retirer
+                                                    </button>
+                                                </div>
+                                            @empty
+                                                <p class="text-xs text-gray-500">Ce panier est vide.</p>
+                                            @endforelse
+                                        </div>
+
+                                        <div class="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-3">
+                                            <div class="text-sm">
+                                                <span class="text-gray-500">Panier</span>
+                                                <span class="ml-1 font-bold tabular-nums text-gray-900">
+                                                    {{ number_format((int) $order->panier_price, 0, ',', ' ') }} F
+                                                </span>
+                                                <span class="ml-3 text-gray-500">Livraison</span>
+                                                <span class="ml-1 tabular-nums text-gray-700">
+                                                    {{ number_format((int) $order->delivery_fees, 0, ',', ' ') }} F
+                                                </span>
+                                                <span class="ml-3 text-gray-500">Total</span>
+                                                <span class="ml-1 font-bold tabular-nums text-indigo-700">
+                                                    {{ number_format((int) $order->price, 0, ',', ' ') }} F
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        @if ($modifiable)
+                                            <div class="mt-3 flex flex-wrap items-end gap-2 border-t border-gray-200 pt-3">
+                                                <div class="min-w-[16rem] flex-1">
+                                                    <label class="block text-xs font-semibold text-gray-600">Ajouter un produit</label>
+                                                    <select wire:model="produitAAjouter"
+                                                            class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                                                        <option value="">Choisir…</option>
+                                                        @foreach ($this->catalogue as $produit)
+                                                            <option value="{{ $produit->id }}">
+                                                                {{ $produit->name }} — {{ number_format((int) $produit->price, 0, ',', ' ') }} F{{ $produit->is_complement ? ' (complément)' : '' }}
+                                                            </option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+
+                                                <div class="w-24">
+                                                    <label class="block text-xs font-semibold text-gray-600">Quantité</label>
+                                                    <input type="number" min="1" wire:model="quantiteAAjouter"
+                                                           class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                                                </div>
+
+                                                <button type="button" wire:click="ajouterProduit"
+                                                        class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700">
+                                                    Ajouter
+                                                </button>
+                                            </div>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endif
                         @endforeach
                     </tbody>
                 </table>

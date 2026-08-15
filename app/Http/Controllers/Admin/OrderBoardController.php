@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\order_detail;
 use App\Support\ComplementsProposes;
+use App\Support\PanierDeCommande;
 use App\Models\Product;
 use App\Models\CartItem;
 use App\Models\Parameter;
@@ -206,9 +207,7 @@ class OrderBoardController extends Controller
         }
 
         $nom = $ligne->product?->name ?? 'Article';
-        $ligne->delete();
-
-        $this->recalculerLeTotal($commande);
+        app(PanierDeCommande::class)->retirer($commande, $ligne);
 
         return $this->reponseAvec($request, true, sprintf('%s retiré de la commande.', $nom), 200);
     }
@@ -244,27 +243,7 @@ class OrderBoardController extends Controller
         $produit = Product::findOrFail($valide['product_id']);
         $quantite = (int) ($valide['quantity'] ?? 1);
 
-        $existante = CartItem::where('cart_id', $commande->id_cart)
-            ->where('product_id', $produit->id)
-            ->first();
-
-        if ($existante) {
-            // Le même article deux fois donne une seule ligne de quantité
-            // double : deux lignes identiques se corrigent mal et s'additionnent
-            // mal à l'œil.
-            $existante->update(['quantity' => $existante->quantity + $quantite]);
-        } else {
-            CartItem::create([
-                'cart_id' => $commande->id_cart,
-                'product_id' => $produit->id,
-                'quantity' => $quantite,
-                // Le prix est figé ici, comme à l'ajout au panier par le client :
-                // il ne doit pas suivre les changements de tarif ultérieurs.
-                'amount' => (int) $produit->price,
-            ]);
-        }
-
-        $this->recalculerLeTotal($commande);
+        app(PanierDeCommande::class)->ajouter($commande, $produit, $quantite);
 
         return $this->reponseAvec($request, true, sprintf('%s ajouté à la commande.', $produit->name), 200);
     }
@@ -279,31 +258,6 @@ class OrderBoardController extends Controller
         }
 
         return null;
-    }
-
-    /**
-     * Réaligne le montant de la commande sur son panier.
-     *
-     * Le total est recalculé depuis les lignes plutôt qu'ajusté du montant de
-     * l'article touché : une commande déjà corrigée au poids, ou dont un tarif a
-     * bougé, dériverait sinon un peu plus à chaque geste.
-     */
-    private function recalculerLeTotal(order_detail $commande): void
-    {
-        $panier = (int) CartItem::where('cart_id', $commande->id_cart)
-            ->get()
-            ->sum(fn (CartItem $ligne) => (int) $ligne->quantity * (int) $ligne->amount);
-
-        $commande->update([
-            'panier_price' => $panier,
-            'price' => $panier + (int) $commande->delivery_fees,
-            /*
-             | Le poids saisi devient faux dès que le panier change : le laisser
-             | ferait croire que le montant en découle encore. Le comptoir le
-             | ressaisira s'il pèse à nouveau.
-             */
-            'poids_kg' => null,
-        ]);
     }
 
     /**
