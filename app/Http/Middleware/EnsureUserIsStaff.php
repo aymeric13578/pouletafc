@@ -28,6 +28,24 @@ class EnsureUserIsStaff
 
         abort_unless($user && in_array($user->role, self::ROLES, true), 403, "Cet espace est réservé à l'équipe Poulet AFC.");
 
+        /*
+         | Le droit s'applique ici, pas seulement dans la barre de navigation.
+         |
+         | Masquer un lien ne protège rien : l'URL d'un écran du tableau de bord
+         | se devine — /dashboard/configuration se lit sur n'importe quelle page.
+         | Un employé chargé des commandes pouvait ainsi ouvrir la grille des
+         | commissions sans qu'aucun menu ne l'y invite.
+         |
+         | Les administrateurs passent toujours, et les routes hors menu aussi :
+         | actions POST, flux de rafraîchissement et sous-pages n'ont pas de
+         | droit propre et appartiennent à l'écran qui les appelle.
+         */
+        abort_unless(
+            \App\Support\MenuTableauDeBord::autorise($user, $request->route()?->getName()),
+            403,
+            "Vous n'avez pas accès à cette partie du tableau de bord."
+        );
+
         return $next($request);
     }
 }
