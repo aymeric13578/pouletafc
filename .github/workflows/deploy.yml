@@ -289,25 +289,35 @@ jobs:
             step "5 - logs (ignorés volontairement, voir commentaire)"
 
             # 5 bis. Images produits et pièces jointes envoyées depuis l'app mobile et le
-            #        back-office. Le code les écrit dans public_path('upload') (33 appels),
-            #        donc DANS le dossier de release : sans cette restauration, chaque
-            #        déploiement les efface, puisque l'archive ne contient que les fichiers
-            #        versionnés et que le rsync de l'étape 6 tourne avec --delete.
-            #        C'est ce qui a fait disparaître les images des fiches produits.
-            if [ -d "$BACKUP_PATH/public/upload" ]; then
-              mkdir -p "$DEPLOY_PATH/public/upload"
-              rsync -a "$BACKUP_PATH/public/upload/" "$DEPLOY_PATH/public/upload/"
-              echo "Uploads restaurés : $(ls -1 "$DEPLOY_PATH/public/upload" | wc -l) fichiers"
+            #        back-office. Elles sont écrites par PHP dans public_path('upload')
+            #        (33 appels) et doivent survivre à chaque mise en production : ni
+            #        l'archive, qui les exclut, ni le rsync --delete de l'étape 6 ne les
+            #        épargnent. Leur original vit désormais dans le webroot (étape 7 bis) ;
+            #        c'est donc là qu'on les rassemble, en trois temps.
+            #
+            #        Temps 1 : rétablir un vrai dossier si un déploiement antérieur avait
+            #        fait du webroot un lien vers la release, en récupérant son contenu.
+            #        À faire d'abord : sans cela, les copies suivantes écriraient à travers
+            #        le lien, donc dans l'ancienne release qu'on s'apprête à effacer.
+            if [ -L "$WEBROOT_PATH/upload" ]; then
+              ANCIEN_LIEN="$(readlink -f "$WEBROOT_PATH/upload" || true)"
+              rm -f "$WEBROOT_PATH/upload"
+              mkdir -p "$WEBROOT_PATH/upload"
+
+              if [ -n "$ANCIEN_LIEN" ] && [ -d "$ANCIEN_LIEN" ]; then
+                rsync -a "$ANCIEN_LIEN/" "$WEBROOT_PATH/upload/"
+                echo "Uploads repris depuis l'ancien lien : $(ls -1 "$WEBROOT_PATH/upload" | wc -l) fichiers"
+              fi
             fi
 
-            # 5 ter. Filet de sécurité : le webroot peut contenir des uploads plus récents que
-            #        la release sauvegardée (fichiers envoyés depuis le dernier déploiement).
-            #        On les récupère avant que le rsync --delete de l'étape 6 ne les supprime.
-            #        Le test "! -L" évite de recopier un dossier sur lui-même une fois que
-            #        l'étape 7 bis a transformé le webroot en lien symbolique.
-            if [ -d "$WEBROOT_PATH/upload" ] && [ ! -L "$WEBROOT_PATH/upload" ]; then
-              mkdir -p "$DEPLOY_PATH/public/upload"
-              rsync -a --ignore-existing "$WEBROOT_PATH/upload/" "$DEPLOY_PATH/public/upload/"
+            mkdir -p "$WEBROOT_PATH/upload"
+
+            #        Temps 2 : compléter avec ce que porte la release sauvegardée, sans
+            #        écraser ce que le webroot a déjà — il peut être plus récent.
+            #        -L déréférence, la sauvegarde pouvant elle-même contenir un lien.
+            if [ -d "$BACKUP_PATH/public/upload" ]; then
+              rsync -aL --ignore-existing "$BACKUP_PATH/public/upload/" "$WEBROOT_PATH/upload/"
+              echo "Uploads complétés depuis la release précédente : $(ls -1 "$WEBROOT_PATH/upload" | wc -l) fichiers"
             fi
 
             step "6 - rsync vers le webroot"
@@ -324,9 +334,10 @@ jobs:
               --exclude='upload' \
               "$DEPLOY_PATH/public/" "$WEBROOT_PATH/"
 
-            # 6 bis. "upload" est exclu ci-dessus car ce n'est plus une copie mais un lien
-            #        (voir étape 7 bis) : sans l'exclusion, rsync --delete écraserait le lien
-            #        par un dossier et le problème reviendrait au déploiement suivant.
+            # 6 bis. "upload" est exclu ci-dessus parce que le webroot en détient
+            #        désormais l'original (voir étape 7 bis) : sans l'exclusion,
+            #        rsync --delete effacerait toutes les images à chaque mise en
+            #        production.
 
             # 7 bis. CAUSE RACINE des images produits invisibles : PHP écrit les fichiers
             #        envoyés depuis le back-office et l'app mobile dans
@@ -335,16 +346,30 @@ jobs:
             #        image ajoutée depuis le tableau de bord était donc bien enregistrée sur
             #        le disque, mais jamais servie : elle n'apparaissait qu'après le
             #        déploiement suivant, et seulement si elle avait été committée.
-            #        On remplace la copie par un lien vers le dossier réellement écrit.
-            #        Le contenu du webroot a déjà été récupéré à l'étape 5 ter, donc rien
-            #        n'est perdu par le rm ci-dessous.
-            UPLOAD_TARGET="$DEPLOY_PATH/public/upload"
-            mkdir -p "$UPLOAD_TARGET"
-            if [ "$(readlink "$WEBROOT_PATH/upload" 2>/dev/null || true)" != "$UPLOAD_TARGET" ]; then
-              rm -rf "$WEBROOT_PATH/upload"
-              ln -sfn "$UPLOAD_TARGET" "$WEBROOT_PATH/upload"
-              echo "public_html/upload est désormais un lien vers $UPLOAD_TARGET"
-            fi
+            #
+            #        Le lien va du dossier de release VERS le webroot, et non
+            #        l'inverse.
+            #
+            #        On avait d'abord fait pointer public_html/upload vers la
+            #        release : LiteSpeed refuse de servir à travers un lien dont
+            #        la cible sort du dossier web, et renvoyait 403 sur toutes les
+            #        images — y compris sur des fichiers inexistants, preuve que
+            #        le refus portait sur le chemin et non sur les fichiers.
+            #
+            #        Dans ce sens-ci, le serveur sert un vrai dossier et PHP écrit
+            #        à travers le lien : PHP, lui, suit les liens sans restriction.
+            UPLOAD_REEL="$WEBROOT_PATH/upload"
+            mkdir -p "$UPLOAD_REEL"
+
+            # Lisible et traversable par le serveur web, faute de quoi il refuse
+            # l'accès quel que soit le contenu.
+            chmod a+rX "$UPLOAD_REEL"
+            find "$UPLOAD_REEL" -type d -exec chmod a+rx {} + 2>/dev/null || true
+            find "$UPLOAD_REEL" -type f -exec chmod a+r {} + 2>/dev/null || true
+
+            rm -rf "$DEPLOY_PATH/public/upload"
+            ln -sfn "$UPLOAD_REEL" "$DEPLOY_PATH/public/upload"
+            echo "public/upload de la release pointe vers $UPLOAD_REEL ($(ls -1 "$UPLOAD_REEL" | wc -l) fichiers)"
 
             # 7. Lien storage accessible publiquement : recréé s'il est absent ou s'il ne pointe
             #    pas vers le bon chemin (ne touche pas à un lien déjà valide).

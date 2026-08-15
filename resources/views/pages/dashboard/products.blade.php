@@ -686,7 +686,19 @@ new class extends Component {
                     @forelse ($this->products as $product)
                         @php
                             $coche = in_array((string) $product->id, $selection, true);
-                            $image = $product->product_image1 ?: $product->img;
+                            /*
+                             | product_image_url() plutôt qu'un chemin bricolé.
+                             |
+                             | Les images sont stockées tantôt en URL absolue
+                             | (https://pouletafc.com/upload/…), tantôt en chemin
+                             | relatif (images/products/…). Préfixer « upload/ »
+                             | à la main donnait .../upload/https://... : rien ne
+                             | chargeait, et l'attribut onerror masquait l'image
+                             | au lieu de signaler le problème. L'assistant sait
+                             | traiter les trois cas, y compris l'absence.
+                             */
+                            $image = product_image_url($product->img ?: $product->product_image1);
+                            $sansPhoto = blank($product->img) && blank($product->product_image1);
                         @endphp
 
                         <div wire:key="produit-{{ $product->id }}"
@@ -694,14 +706,16 @@ new class extends Component {
                                     {{ $coche ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-200 hover:shadow-md' }}">
 
                             <div class="relative h-36 bg-gray-100">
-                                @if ($image)
-                                    <img src="{{ asset('upload/' . $image) }}" alt="{{ $product->name }}"
-                                         class="h-full w-full object-cover"
-                                         onerror="this.style.display='none'">
-                                @else
+                                @if ($sansPhoto)
                                     <div class="flex h-full items-center justify-center text-xs text-gray-400">
                                         Sans photo
                                     </div>
+                                @else
+                                    {{-- Pas de onerror qui masque : une image
+                                         cassée doit se voir, sinon on croit que
+                                         le produit n'a pas de photo. --}}
+                                    <img src="{{ $image }}" alt="{{ $product->name }}"
+                                         class="h-full w-full object-cover" loading="lazy">
                                 @endif
 
                                 {{-- La case ne s'affiche que sur les produits ordinaires :
