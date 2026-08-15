@@ -183,6 +183,39 @@
     <script src="https://cdn.jsdelivr.net/npm/toastr@2.1.4/build/toastr.min.js"></script>
     <script>
         toastr.options = { positionClass: 'toast-bottom-right', progressBar: true, timeOut: 4000 };
+
+        /*
+         * Écoute unique des notifications, pour toutes les pages.
+         *
+         * Chaque écran posait jusqu'ici son propre gestionnaire, et neuf sur
+         * dix-huit n'en avaient aucun : leurs confirmations n'apparaissaient
+         * jamais. Surtout, aucun ne fonctionnait — voir la lecture de la charge
+         * ci-dessous.
+         */
+        window.addEventListener('notify', (evenement) => {
+            const brut = evenement.detail ?? {};
+
+            /*
+             * Deux formes possibles.
+             *
+             * Livewire 3 transmet des paramètres nommés : dispatch('notify',
+             * message: '…') donne { message: '…' }. Mais tout le tableau de bord
+             * appelle dispatch('notify', ['message' => …]), c'est-à-dire un seul
+             * paramètre positionnel — la charge arrive alors sous la clé 0. Lue
+             * comme si elle était à plat, event.detail.type valait undefined,
+             * toastr[undefined] levait une erreur, et rien ne s'affichait.
+             */
+            const charge = brut.message !== undefined ? brut : (brut[0] ?? {});
+
+            if (!charge.message) return;
+
+            // Un type inconnu ne doit pas faire échouer l'affichage du message.
+            const type = ['success', 'error', 'warning', 'info'].includes(charge.type)
+                ? charge.type
+                : 'info';
+
+            toastr[type](charge.message);
+        });
     </script>
 
     @livewireScripts

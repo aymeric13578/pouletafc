@@ -360,9 +360,123 @@ new class extends Component {
         $this->dispatch('notify', ['message' => 'Produit supprimé avec succès !', 'type' => 'success']);
     }
 
+    /*
+    | Sélection multiple.
+    |
+    | Rattacher un complément produit par produit devient vite pénible : une
+    | sauce accompagne souvent tout un menu. On coche les plats concernés, on
+    | choisit le complément, et le lien se fait en une fois.
+    */
+    public $selection = [];
+    public $complementARattacher = '';
+
+    public function getComplementsDisponiblesProperty()
+    {
+        return Product::where('is_complement', true)
+            ->where('status', 'Success')
+            ->orderBy('name')
+            ->get(['id', 'name', 'price']);
+    }
+
+    public function toutSelectionner(): void
+    {
+        $this->selection = $this->products
+            ->where('is_complement', false)
+            ->pluck('id')
+            ->map(fn ($id) => (string) $id)
+            ->all();
+    }
+
+    public function viderSelection(): void
+    {
+        $this->selection = [];
+    }
+
+    public function rattacherComplement(): void
+    {
+        $ids = collect($this->selection)->filter()->map(fn ($id) => (int) $id);
+
+        if ($ids->isEmpty()) {
+            $this->dispatch('notify', ['message' => 'Sélectionnez d\'abord des produits.', 'type' => 'error']);
+
+            return;
+        }
+
+        $complement = Product::where('is_complement', true)->find($this->complementARattacher);
+
+        if (! $complement) {
+            $this->dispatch('notify', ['message' => 'Choisissez un complément à rattacher.', 'type' => 'error']);
+
+            return;
+        }
+
+        // Un produit ne peut pas se proposer lui-même : l'écran de vente
+        // l'afficherait sous lui-même.
+        $cibles = $ids->reject(fn (int $id) => $id === (int) $complement->id);
+
+        $deja = 0;
+        $faits = 0;
+
+        foreach ($cibles as $id) {
+            $produit = Product::find($id);
+
+            if (! $produit) {
+                continue;
+            }
+
+            if ($produit->complements()->where('complement_id', $complement->id)->exists()) {
+                $deja++;
+
+                continue;
+            }
+
+            $produit->complements()->attach($complement->id);
+            $faits++;
+        }
+
+        $this->selection = [];
+        $this->complementARattacher = '';
+
+        $this->dispatch('notify', [
+            'message' => $faits === 0
+                ? $complement->name . ' était déjà rattaché à ces produits.'
+                : sprintf(
+                    '%s rattaché à %d produit%s%s.',
+                    $complement->name,
+                    $faits,
+                    $faits > 1 ? 's' : '',
+                    $deja > 0 ? sprintf(' (%d l\'avaient déjà)', $deja) : ''
+                ),
+            'type' => 'success',
+        ]);
+    }
+
+    /**
+     * Désigne un produit comme complément depuis sa carte, ou le retire.
+     */
+    public function basculerComplement($id): void
+    {
+        $produit = Product::findOrFail($id);
+        $devient = ! $produit->is_complement;
+
+        $produit->update(['is_complement' => $devient]);
+
+        if (! $devient) {
+            // Ses rattachements deviendraient trompeurs : on les défait.
+            $produit->proposePar()->detach();
+        }
+
+        $this->dispatch('notify', [
+            'message' => $devient
+                ? $produit->name . ' peut désormais être proposé en complément.'
+                : $produit->name . " n'est plus un complément ; ses rattachements sont défaits.",
+            'type' => 'success',
+        ]);
+    }
+
     public function getProductsProperty()
     {
-        return Product::with(['category', 'shop'])
+        return Product::with(['category', 'shop', 'complements:id,name'])
             ->where('status', '!=', 'failed')
             ->when($this->search, function ($query) {
                 $query->where('name', 'like', '%' . $this->search . '%')->orWhere('ref', 'like', '%' . $this->search . '%');
@@ -392,8 +506,6 @@ new class extends Component {
     @volt
         <div>
             <div class="container mx-auto px-2 mt-6">
-                <!-- Notifications -->
-                <div x-data x-on:notify.window="toastr[event.detail.type](event.detail.message)"></div>
 
                 <!-- Barre de recherche -->
                 <form class="flex items-center max-w-lg mx-auto mb-6">
@@ -439,99 +551,167 @@ new class extends Component {
                     </div>
                 </div>
 
-                <!-- Bouton Ajouter -->
-                <div class="flex justify-end mb-4">
+                <!-- Actions -->
+                <div class="flex flex-wrap items-center justify-end gap-3 mb-4">
                     <button wire:click="openModal('add')"
-                        class="bg-indigo-600 text-white py-2 px-6 rounded-lg hover:bg-indigo-700 transition duration-300">Ajouter
-                        Produit</button>
+                        class="bg-indigo-600 text-white py-2 px-6 rounded-lg hover:bg-indigo-700 transition duration-300">
+                        Ajouter Produit
+                    </button>
                 </div>
 
-                <!-- Tableau des produits -->
-                <div class="bg-white rounded-2xl shadow-lg p-6 overflow-x-auto">
-                    <table class="w-full text-left">
-                        <thead>
-                            <tr class="border-b">
-                                <th class="py-3 px-4 text-gray-800">Référence</th>
-                                <th class="py-3 px-4 text-gray-800">Nom</th>
-                                <th class="py-3 px-4 text-gray-800">Catégorie</th>
-                                <th class="py-3 px-4 text-gray-800">Boutique</th>
-                                <th class="py-3 px-4 text-gray-800">Prix (FCFA)</th>
-                                <th class="py-3 px-4 text-gray-800">Stock</th>
-                                <th class="py-3 px-4 text-gray-800">Statut</th>
-                                <th class="py-3 px-4 text-gray-800">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($this->products as $product)
-                                <tr class="border-b hover:bg-gray-50">
-                                    <td class="py-3 px-4">{{ $product->ref }}</td>
-                                    <td class="py-3 px-4">{{ $product->name }}</td>
-                                    <td class="py-3 px-4">{{ $product->category?->name ?? 'N/A' }}</td>
-                                    <td class="py-3 px-4">
-                                        @if ($product->shop)
-                                            <span class="inline-block rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-700">
-                                                {{ $product->shop->shop_name }}
-                                            </span>
-                                        @else
-                                            <span class="text-xs text-gray-400">Aucune</span>
-                                        @endif
-                                    </td>
-                                    <td class="py-3 px-4">{{ number_format($product->price, 2, ',', ' ') }}</td>
-                                    <td class="py-3 px-4">{{ $product->stock_init }}</td>
-                                    <td class="py-3 px-4">
-                                        @if ($product->status === 'Success')
-                                            <span
-                                                class="inline-block px-2 py-1 rounded-full bg-green-100 text-green-800 text-xs">Actif</span>
-                                        @elseif ($product->status === 'pending')
-                                            <span
-                                                class="inline-block px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 text-xs">En
-                                                attente</span>
-                                        @else
-                                            <span
-                                                class="inline-block px-2 py-1 rounded-full bg-red-100 text-red-800 text-xs">Suspendu</span>
-                                        @endif
-                                    </td>
-                                    <td class="py-3 px-4">
-                                        <button wire:click="openModal('edit', {{ $product->id }})"
-                                            class="text-indigo-600 hover:text-indigo-800 mr-2">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
-                                                </path>
-                                            </svg>
-                                        </button>
-                                        <button wire:click="openModal('view', {{ $product->id }})"
-                                            class="text-blue-600 hover:text-blue-800 mr-2">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z">
-                                                </path>
-                                            </svg>
-                                        </button>
-                                        <button wire:click="toggleStatus({{ $product->id }})"
-                                            class="text-purple-600 hover:text-purple-800 mr-2">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M5 13l4 4L19 7"></path>
-                                            </svg>
-                                        </button>
-                                        <button wire:click="deleteProduct({{ $product->id }})"
-                                            onclick="return confirm('Voulez-vous supprimer ce produit ?')"
-                                            class="text-red-600 hover:text-red-800">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor"
-                                                viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
-                                                </path>
-                                            </svg>
-                                        </button>
-                                    </td>
-                                </tr>
+                {{--
+                  | Rattachement groupé.
+                  |
+                  | N'apparaît qu'une fois des produits cochés : une barre
+                  | permanente encombrerait l'écran pour un geste occasionnel.
+                --}}
+                @if (count($selection) > 0)
+                    <div wire:key="rattachement-groupe"
+                         class="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-indigo-200 bg-indigo-50 px-5 py-4">
+                        <span class="text-sm font-bold text-indigo-900">
+                            {{ count($selection) }} produit{{ count($selection) > 1 ? 's' : '' }} sélectionné{{ count($selection) > 1 ? 's' : '' }}
+                        </span>
+
+                        <select wire:model="complementARattacher"
+                                class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                            <option value="">Choisir un complément…</option>
+                            @foreach ($this->complementsDisponibles as $complement)
+                                <option value="{{ $complement->id }}">
+                                    {{ $complement->name }} — {{ number_format((int) $complement->price, 0, ',', ' ') }} F
+                                </option>
                             @endforeach
-                        </tbody>
-                    </table>
+                        </select>
+
+                        <button type="button" wire:click="rattacherComplement"
+                                class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700">
+                            Rattacher
+                        </button>
+
+                        <button type="button" wire:click="viderSelection"
+                                class="text-xs font-semibold text-gray-600 hover:underline">
+                            Tout décocher
+                        </button>
+
+                        @if ($this->complementsDisponibles->isEmpty())
+                            <span class="text-xs text-amber-800">
+                                Aucun complément disponible : cochez « complément » sur un produit d'abord.
+                            </span>
+                        @endif
+                    </div>
+                @else
+                    <div class="mb-4 flex justify-end">
+                        <button type="button" wire:click="toutSelectionner"
+                                class="text-xs font-semibold text-indigo-600 hover:underline">
+                            Sélectionner tous les produits affichés
+                        </button>
+                    </div>
+                @endif
+
+                <!-- Produits en cartes -->
+                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    @forelse ($this->products as $product)
+                        @php
+                            $coche = in_array((string) $product->id, $selection, true);
+                            $image = $product->product_image1 ?: $product->img;
+                        @endphp
+
+                        <div wire:key="produit-{{ $product->id }}"
+                             class="flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition
+                                    {{ $coche ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-200 hover:shadow-md' }}">
+
+                            <div class="relative h-36 bg-gray-100">
+                                @if ($image)
+                                    <img src="{{ asset('upload/' . $image) }}" alt="{{ $product->name }}"
+                                         class="h-full w-full object-cover"
+                                         onerror="this.style.display='none'">
+                                @else
+                                    <div class="flex h-full items-center justify-center text-xs text-gray-400">
+                                        Sans photo
+                                    </div>
+                                @endif
+
+                                {{-- La case ne s'affiche que sur les produits ordinaires :
+                                     un complément ne se rattache pas à lui-même. --}}
+                                @unless ($product->is_complement)
+                                    <label class="absolute left-2 top-2 flex cursor-pointer items-center rounded-lg bg-white/90 p-1.5 shadow">
+                                        <input type="checkbox" wire:model.live="selection" value="{{ $product->id }}"
+                                               class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    </label>
+                                @endunless
+
+                                <div class="absolute right-2 top-2 flex flex-col items-end gap-1">
+                                    @if ($product->is_complement)
+                                        <span class="rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-white">
+                                            Complément
+                                        </span>
+                                    @endif
+                                    <span class="rounded-full px-2 py-0.5 text-[10px] font-bold text-white
+                                        {{ $product->status === 'Success' ? 'bg-emerald-600' : 'bg-gray-500' }}">
+                                        {{ $product->status === 'Success' ? 'En vente' : 'Retiré' }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-1 flex-col p-4">
+                                <p class="font-semibold text-gray-900">{{ $product->name }}</p>
+                                <p class="text-xs text-gray-500">
+                                    {{ $product->category?->name ?? 'Sans catégorie' }}
+                                    @if ($product->shop) · {{ $product->shop->shop_name }} @endif
+                                </p>
+
+                                <div class="mt-2 flex items-baseline justify-between">
+                                    <span class="text-lg font-bold text-indigo-700">
+                                        {{ number_format((int) $product->price, 0, ',', ' ') }} F
+                                    </span>
+                                    <span class="text-xs {{ (int) $product->stock_init < 10 ? 'font-bold text-red-600' : 'text-gray-500' }}">
+                                        stock {{ (int) $product->stock_init }}
+                                    </span>
+                                </div>
+
+                                @if ($product->complements->isNotEmpty())
+                                    <div class="mt-2 flex flex-wrap gap-1">
+                                        @foreach ($product->complements as $lie)
+                                            <span class="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] text-indigo-700">
+                                                + {{ $lie->name }}
+                                            </span>
+                                        @endforeach
+                                    </div>
+                                @endif
+
+                                <div class="mt-auto flex flex-wrap items-center gap-2 pt-3">
+                                    <button wire:click="openModal('edit', {{ $product->id }})"
+                                            class="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                        Modifier
+                                    </button>
+                                    <button wire:click="openModal('view', {{ $product->id }})"
+                                            class="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                        Voir
+                                    </button>
+                                    <button wire:click="toggleStatus({{ $product->id }})"
+                                            class="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                        {{ $product->status === 'Success' ? 'Retirer' : 'Remettre' }}
+                                    </button>
+                                    <button wire:click="basculerComplement({{ $product->id }})"
+                                            class="rounded-lg px-2.5 py-1 text-xs font-semibold
+                                                {{ $product->is_complement
+                                                    ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                                                    : 'border border-amber-400 text-amber-700 hover:bg-amber-50' }}">
+                                        {{ $product->is_complement ? 'Ne plus proposer' : 'Ajouter un complément' }}
+                                    </button>
+                                    <button wire:click="deleteProduct({{ $product->id }})"
+                                            wire:confirm="Supprimer définitivement ce produit ?"
+                                            class="rounded-lg border border-red-300 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50">
+                                        Supprimer
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    @empty
+                        <div class="col-span-full rounded-2xl border border-dashed border-gray-300 bg-white p-12 text-center">
+                            <p class="font-semibold text-gray-700">Aucun produit</p>
+                            <p class="mt-1 text-sm text-gray-500">Aucun produit ne correspond à cette recherche.</p>
+                        </div>
+                    @endforelse
                 </div>
 
                 <!-- Modale pour création/modification/visualisation -->

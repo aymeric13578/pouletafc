@@ -141,8 +141,6 @@ new class extends Component {
 <x-layouts.app>
     @volt
         <div class="container mx-auto px-2 mt-6">
-            <!-- Notifications -->
-            <div x-data x-on:notify.window="toastr[event.detail.type](event.detail.message)"></div>
             <!-- Barre de recherche -->
             <form class="flex items-center max-w-lg mx-auto mb-6">
                 <label for="search" class="sr-only">Rechercher</label>

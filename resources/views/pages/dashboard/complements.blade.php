@@ -250,7 +250,6 @@ new class extends Component {
 <x-layouts.app title="Compléments">
     @volt
         <div>
-            <div x-data x-on:notify.window="toastr[event.detail.type](event.detail.message)"></div>
 
             <x-ui.page-header title="Compléments"
                 subtitle="Ce qu'on propose en plus d'un produit — frites, boisson, sauce" />
