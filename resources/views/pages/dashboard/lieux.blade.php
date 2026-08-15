@@ -58,6 +58,71 @@ new class extends Component {
             ->paginate(15);
     }
 
+    /**
+     * Lieu servant de point de livraison par défaut.
+     *
+     * Quand le client ne choisit pas sa zone, le point retombait sur la
+     * dernière position connue de son compte — vide ou héritée pour un compte
+     * jamais localisé, donc identique pour tout le monde et parfois à des
+     * centaines de kilomètres. Ce lieu-ci sert de repli, en dernier recours
+     * seulement : une position réelle du client reste toujours prioritaire.
+     */
+    public function getLieuParDefautProperty(): ?int
+    {
+        $id = \App\Models\Parameter::active()?->default_pickup_location_id;
+
+        // Le lieu a pu être supprimé depuis sa désignation : on ne suppose pas
+        // qu'il existe encore.
+        return $id && Location::whereKey($id)->exists() ? (int) $id : null;
+    }
+
+    /**
+     * Désigne ce lieu comme point de livraison par défaut, ou le retire.
+     */
+    public function definirParDefaut($id): void
+    {
+        $grille = \App\Models\Parameter::active();
+
+        if (! $grille) {
+            $this->dispatch('notify', [
+                'message' => "Activez d'abord une configuration.",
+                'type' => 'error',
+            ]);
+
+            return;
+        }
+
+        $lieu = Location::find($id);
+
+        if (! $lieu) {
+            $this->dispatch('notify', ['message' => 'Ce lieu n\'existe plus.', 'type' => 'error']);
+
+            return;
+        }
+
+        // Un lieu sans coordonnées enverrait le livreur au large du golfe de
+        // Guinée : le refuser ici vaut mieux que de le découvrir à la livraison.
+        if (blank($lieu->latitude) || blank($lieu->longitude)) {
+            $this->dispatch('notify', [
+                'message' => 'Ce lieu n\'a pas de coordonnées : renseignez-les d\'abord.',
+                'type' => 'error',
+            ]);
+
+            return;
+        }
+
+        $retrait = $this->lieuParDefaut === (int) $id;
+
+        $grille->update(['default_pickup_location_id' => $retrait ? null : $lieu->id]);
+
+        $this->dispatch('notify', [
+            'message' => $retrait
+                ? 'Point de livraison par défaut retiré.'
+                : $lieu->name . ' est désormais le point de livraison par défaut.',
+            'type' => 'success',
+        ]);
+    }
+
     public function getStatsProperty(): array
     {
         $sansCoord = Location::where(function ($q) {
@@ -70,6 +135,11 @@ new class extends Component {
             'lieux' => Location::count(),
             'sans_coordonnees' => $sansCoord,
             'contributeurs' => Location::whereNotNull('id_user')->distinct('id_user')->count('id_user'),
+            // Nom du lieu retenu, ou null : l'écran doit pouvoir le dire sans
+            // parcourir les pages du tableau.
+            'defaut' => $this->lieuParDefaut
+                ? Location::whereKey($this->lieuParDefaut)->value('name')
+                : null,
         ];
     }
 
@@ -172,6 +242,32 @@ new class extends Component {
                     icon="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
             </div>
 
+            {{--
+              | Point de livraison par défaut.
+              |
+              | Rappelé ici en clair : le bouton vit dans le tableau, et sur
+              | plusieurs pages de lieux on ne saurait sinon lequel est retenu
+              | sans les parcourir tous.
+            --}}
+            <div class="mt-4 rounded-2xl border px-5 py-4 {{ $this->stats['defaut'] ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50' }}">
+                @if ($this->stats['defaut'])
+                    <p class="text-sm font-bold text-emerald-900">
+                        ★ Point de livraison par défaut : {{ $this->stats['defaut'] }}
+                    </p>
+                    <p class="mt-1 text-xs text-emerald-800">
+                        Utilisé lorsqu'un client ne choisit pas sa zone de livraison. Une position
+                        réelle du client reste prioritaire ; ce lieu n'est qu'un dernier recours.
+                    </p>
+                @else
+                    <p class="text-sm font-bold text-amber-900">Aucun point de livraison par défaut</p>
+                    <p class="mt-1 text-xs text-amber-800">
+                        Quand un client ne choisit pas sa zone, la livraison retombe sur la dernière
+                        position connue de son compte — souvent vide, et alors identique pour tout le
+                        monde. Choisissez un lieu ci-dessous avec « Définir par défaut ».
+                    </p>
+                @endif
+            </div>
+
             {{-- Filtres --}}
             <div class="mt-6 flex flex-wrap items-center gap-3">
                 <x-ui.search model="search" placeholder="Lieu, quartier ou agent…" />
@@ -193,7 +289,7 @@ new class extends Component {
             <div class="mt-4">
                 <x-ui.table
                     target="search,quartierFiltre,sansCoordonnees,gotoPage,previousPage,nextPage"
-                    :headers="['Lieu', 'Quartier', 'Enregistré par', 'Coordonnées', 'Statut', 'Actions']">
+                    :headers="['Lieu', 'Quartier', 'Enregistré par', 'Coordonnées', 'Statut', 'Par défaut', 'Actions']">
                     @forelse ($this->lieux as $lieu)
                         <tr class="transition-colors hover:bg-gray-50">
                             <td class="px-4 py-3">
@@ -242,6 +338,25 @@ new class extends Component {
                             </td>
 
                             <td class="whitespace-nowrap px-4 py-3">
+                                @php $estDefaut = $this->lieuParDefaut === $lieu->id; @endphp
+                                @if (blank($lieu->latitude) || blank($lieu->longitude))
+                                    {{-- Sans coordonnées, ce lieu ne peut servir de repli. --}}
+                                    <span class="text-xs text-gray-400">Coordonnées requises</span>
+                                @elseif ($estDefaut)
+                                    <button type="button" wire:click="definirParDefaut({{ $lieu->id }})"
+                                            class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800 ring-1 ring-emerald-300 hover:bg-emerald-200"
+                                            title="Cliquer pour retirer">
+                                        ★ Par défaut
+                                    </button>
+                                @else
+                                    <button type="button" wire:click="definirParDefaut({{ $lieu->id }})"
+                                            class="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50 hover:text-gray-900">
+                                        Définir par défaut
+                                    </button>
+                                @endif
+                            </td>
+
+                            <td class="whitespace-nowrap px-4 py-3">
                                 <div class="flex items-center gap-2">
                                     <x-ui.button size="sm" variant="secondary" wire:click="openModal({{ $lieu->id }})">
                                         Modifier
@@ -256,7 +371,7 @@ new class extends Component {
                         </tr>
                     @empty
                         <x-ui.empty
-                            :colspan="6"
+                            :colspan="7"
                             title="Aucun lieu"
                             message="Les lieux enregistrés par les agents depuis l'application mobile apparaîtront ici." />
                     @endforelse
