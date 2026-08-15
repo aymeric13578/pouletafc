@@ -109,6 +109,54 @@ class PageProduitsCartesTest extends TestCase
     }
 
     /*
+     | Deux gestes distincts, à ne pas confondre.
+     |
+     | « Ajouter un complément » rattache des accompagnements À ce produit ;
+     | « Définir comme complément » dit que ce produit EST un accompagnement.
+     | Le premier bouton portait le nom du second : on croyait rattacher, on
+     | marquait.
+     */
+    public function test_les_deux_gestes_sont_distincts(): void
+    {
+        $this->produit('Poulet à distinguer');
+
+        $reponse = $this->actingAs($this->staff())->get(self::URL);
+
+        $reponse->assertOk();
+        $reponse->assertSeeText('Ajouter un complément');
+        $reponse->assertSeeText('Définir comme complément');
+        $reponse->assertSee('ouvrirRattachement', false);
+        $reponse->assertSee('basculerComplement', false);
+    }
+
+    /*
+     | Plusieurs compléments d'un coup, sur plusieurs produits.
+     |
+     | Un seul choix obligeait à répéter le geste autant de fois qu'il y a
+     | d'accompagnements, alors que c'est le même mouvement.
+     */
+    public function test_plusieurs_complements_se_rattachent_en_une_fois(): void
+    {
+        $poulet = $this->produit('Poulet groupé');
+        $poisson = $this->produit('Poisson groupé');
+        $coca = $this->produit('Coca groupé', complement: true);
+        $frites = $this->produit('Frites groupées', complement: true);
+
+        // On rejoue ce que fait l'écran : la page Folio n'est pas pilotable.
+        foreach ([$poulet, $poisson] as $plat) {
+            foreach ([$coca, $frites] as $complement) {
+                $plat->complements()->attach($complement->id);
+            }
+        }
+
+        $this->assertSame(2, $poulet->fresh()->complements()->count());
+        $this->assertSame(2, $poisson->fresh()->complements()->count());
+
+        $reponse = $this->actingAs($this->staff())->get(self::URL);
+        $reponse->assertSee('wire:model.live="complementsARattacher"', false);
+    }
+
+    /*
      | La confirmation doit réellement s'afficher.
      |
      | Livewire 3 transmet dispatch('notify', ['message' => …]) comme un

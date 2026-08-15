@@ -368,7 +368,15 @@ new class extends Component {
     | choisit le complément, et le lien se fait en une fois.
     */
     public $selection = [];
-    public $complementARattacher = '';
+
+    /*
+    | Plusieurs compléments à la fois.
+    |
+    | Un seul choix obligeait à répéter le geste autant de fois qu'il y a
+    | d'accompagnements — six passages pour quatre boissons et deux frites,
+    | alors que c'est le même mouvement.
+    */
+    public $complementsARattacher = [];
 
     public function getComplementsDisponiblesProperty()
     {
@@ -394,65 +402,128 @@ new class extends Component {
 
     public function rattacherComplement(): void
     {
-        $ids = collect($this->selection)->filter()->map(fn ($id) => (int) $id);
+        $produits = collect($this->selection)->filter()->map(fn ($id) => (int) $id);
 
-        if ($ids->isEmpty()) {
+        if ($produits->isEmpty()) {
             $this->dispatch('notify', ['message' => 'Sélectionnez d\'abord des produits.', 'type' => 'error']);
 
             return;
         }
 
-        $complement = Product::where('is_complement', true)->find($this->complementARattacher);
+        $complements = Product::where('is_complement', true)
+            ->whereIn('id', collect($this->complementsARattacher)->filter()->map(fn ($id) => (int) $id))
+            ->get();
 
-        if (! $complement) {
-            $this->dispatch('notify', ['message' => 'Choisissez un complément à rattacher.', 'type' => 'error']);
+        if ($complements->isEmpty()) {
+            $this->dispatch('notify', ['message' => 'Choisissez au moins un complément.', 'type' => 'error']);
 
             return;
         }
 
-        // Un produit ne peut pas se proposer lui-même : l'écran de vente
-        // l'afficherait sous lui-même.
-        $cibles = $ids->reject(fn (int $id) => $id === (int) $complement->id);
-
-        $deja = 0;
         $faits = 0;
+        $deja = 0;
 
-        foreach ($cibles as $id) {
-            $produit = Product::find($id);
+        foreach ($produits as $idProduit) {
+            $produit = Product::find($idProduit);
 
             if (! $produit) {
                 continue;
             }
 
-            if ($produit->complements()->where('complement_id', $complement->id)->exists()) {
-                $deja++;
+            foreach ($complements as $complement) {
+                // Un produit ne peut pas se proposer lui-même : l'écran de vente
+                // l'afficherait sous lui-même.
+                if ((int) $idProduit === (int) $complement->id) {
+                    continue;
+                }
 
-                continue;
+                if ($produit->complements()->where('complement_id', $complement->id)->exists()) {
+                    $deja++;
+
+                    continue;
+                }
+
+                $produit->complements()->attach($complement->id);
+                $faits++;
             }
-
-            $produit->complements()->attach($complement->id);
-            $faits++;
         }
 
+        $nbProduits = $produits->count();
+        $nbComplements = $complements->count();
+
         $this->selection = [];
-        $this->complementARattacher = '';
+        $this->complementsARattacher = [];
 
         $this->dispatch('notify', [
             'message' => $faits === 0
-                ? $complement->name . ' était déjà rattaché à ces produits.'
+                ? 'Ces compléments étaient déjà rattachés à ces produits.'
                 : sprintf(
-                    '%s rattaché à %d produit%s%s.',
-                    $complement->name,
+                    '%d rattachement%s créé%s : %d complément%s sur %d produit%s%s.',
                     $faits,
                     $faits > 1 ? 's' : '',
-                    $deja > 0 ? sprintf(' (%d l\'avaient déjà)', $deja) : ''
+                    $faits > 1 ? 's' : '',
+                    $nbComplements,
+                    $nbComplements > 1 ? 's' : '',
+                    $nbProduits,
+                    $nbProduits > 1 ? 's' : '',
+                    $deja > 0 ? sprintf(' (%d existaient déjà)', $deja) : ''
                 ),
             'type' => 'success',
         ]);
     }
 
+    /*
+    | Deux gestes distincts, à ne pas confondre.
+    |
+    |  - « Ajouter un complément » rattache un ou plusieurs compléments À ce
+    |    produit : c'est ce qui fera proposer des frites au client qui prend un
+    |    poulet.
+    |  - « Définir comme complément » dit que ce produit EST un accompagnement,
+    |    donc rattachable à d'autres.
+    |
+    | Le premier bouton portait le nom du second, ce qui rendait l'écran
+    | incompréhensible : on croyait rattacher, on marquait.
+    */
+    public $produitOuvert = null;
+
+    public function ouvrirRattachement($id): void
+    {
+        $this->produitOuvert = $this->produitOuvert === $id ? null : $id;
+    }
+
     /**
-     * Désigne un produit comme complément depuis sa carte, ou le retire.
+     * Rattache un complément à ce produit, ou l'en détache.
+     */
+    public function basculerLien($idProduit, $idComplement): void
+    {
+        $produit = Product::findOrFail($idProduit);
+
+        // Un produit ne peut pas se proposer lui-même : l'écran de vente
+        // l'afficherait sous lui-même.
+        if ((int) $idProduit === (int) $idComplement) {
+            $this->dispatch('notify', [
+                'message' => 'Un produit ne peut pas être son propre complément.',
+                'type' => 'error',
+            ]);
+
+            return;
+        }
+
+        $complement = Product::findOrFail($idComplement);
+
+        if ($produit->complements()->where('complement_id', $idComplement)->exists()) {
+            $produit->complements()->detach($idComplement);
+            $message = $complement->name . ' ne sera plus proposé avec ' . $produit->name . '.';
+        } else {
+            $produit->complements()->attach($idComplement);
+            $message = $complement->name . ' sera proposé avec ' . $produit->name . '.';
+        }
+
+        $this->dispatch('notify', ['message' => $message, 'type' => 'success']);
+    }
+
+    /**
+     * Désigne un produit comme complément, ou le retire.
      */
     public function basculerComplement($id): void
     {
@@ -572,19 +643,22 @@ new class extends Component {
                             {{ count($selection) }} produit{{ count($selection) > 1 ? 's' : '' }} sélectionné{{ count($selection) > 1 ? 's' : '' }}
                         </span>
 
-                        <select wire:model="complementARattacher"
-                                class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                            <option value="">Choisir un complément…</option>
+                        {{-- Cases plutôt qu'une liste déroulante : on rattache
+                             souvent toutes les boissons d'un coup. --}}
+                        <div class="flex flex-wrap items-center gap-1.5">
                             @foreach ($this->complementsDisponibles as $complement)
-                                <option value="{{ $complement->id }}">
-                                    {{ $complement->name }} — {{ number_format((int) $complement->price, 0, ',', ' ') }} F
-                                </option>
+                                <label class="flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                    <input type="checkbox" wire:model.live="complementsARattacher"
+                                           value="{{ $complement->id }}"
+                                           class="h-3.5 w-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    {{ $complement->name }}
+                                </label>
                             @endforeach
-                        </select>
+                        </div>
 
                         <button type="button" wire:click="rattacherComplement"
                                 class="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700">
-                            Rattacher
+                            Rattacher{{ count($complementsARattacher) > 0 ? ' (' . count($complementsARattacher) . ')' : '' }}
                         </button>
 
                         <button type="button" wire:click="viderSelection"
@@ -691,12 +765,21 @@ new class extends Component {
                                             class="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50">
                                         {{ $product->status === 'Success' ? 'Retirer' : 'Remettre' }}
                                     </button>
+                                    {{-- Rattacher des compléments À ce produit. --}}
+                                    @unless ($product->is_complement)
+                                        <button wire:click="ouvrirRattachement({{ $product->id }})"
+                                                class="rounded-lg border border-indigo-400 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">
+                                            {{ $produitOuvert === $product->id ? 'Fermer' : 'Ajouter un complément' }}
+                                        </button>
+                                    @endunless
+
+                                    {{-- Dire que CE produit est un accompagnement. --}}
                                     <button wire:click="basculerComplement({{ $product->id }})"
                                             class="rounded-lg px-2.5 py-1 text-xs font-semibold
                                                 {{ $product->is_complement
                                                     ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
                                                     : 'border border-amber-400 text-amber-700 hover:bg-amber-50' }}">
-                                        {{ $product->is_complement ? 'Ne plus proposer' : 'Ajouter un complément' }}
+                                        {{ $product->is_complement ? 'Ne plus être un complément' : 'Définir comme complément' }}
                                     </button>
                                     <button wire:click="deleteProduct({{ $product->id }})"
                                             wire:confirm="Supprimer définitivement ce produit ?"
@@ -704,6 +787,35 @@ new class extends Component {
                                         Supprimer
                                     </button>
                                 </div>
+
+                                @if ($produitOuvert === $product->id)
+                                    <div class="mt-3 border-t border-gray-100 pt-3">
+                                        <p class="text-xs font-bold uppercase tracking-wider text-gray-600">
+                                            Proposés avec {{ $product->name }}
+                                        </p>
+
+                                        @if ($this->complementsDisponibles->isEmpty())
+                                            <p class="mt-2 text-xs text-gray-500">
+                                                Aucun complément n'existe encore. Utilisez « Définir comme
+                                                complément » sur une boisson ou une portion de frites.
+                                            </p>
+                                        @else
+                                            <div class="mt-2 flex flex-wrap gap-1.5">
+                                                @foreach ($this->complementsDisponibles as $complement)
+                                                    @php $lie = $product->complements->contains('id', $complement->id); @endphp
+                                                    <button type="button"
+                                                            wire:click="basculerLien({{ $product->id }}, {{ $complement->id }})"
+                                                            class="rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors
+                                                                {{ $lie
+                                                                    ? 'border-indigo-500 bg-indigo-600 text-white hover:bg-indigo-700'
+                                                                    : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100' }}">
+                                                        {{ $lie ? '✓ ' : '+ ' }}{{ $complement->name }}
+                                                    </button>
+                                                @endforeach
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endif
                             </div>
                         </div>
                     @empty
