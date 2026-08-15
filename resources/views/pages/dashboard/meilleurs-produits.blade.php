@@ -97,7 +97,10 @@ new class extends Component {
         // identifiants.
         $fiches = Product::whereIn('id', collect($lignes->items())->pluck('product_id'))
             ->with('shop:id,shop_name')
-            ->get(['id', 'name', 'price', 'stock_init', 'id_shop', 'image'])
+            // Pas d'image : la colonne s'appelle « img » et l'écran ne s'en sert
+            // pas. La demander sous un nom qui n'existe pas faisait échouer
+            // toute la requête.
+            ->get(['id', 'name', 'price', 'stock_init', 'id_shop'])
             ->keyBy('id');
 
         $collection = collect($lignes->items())->map(function ($ligne) use ($fiches) {
