@@ -45,4 +45,29 @@ class MobileAppController extends Controller
                 ['Content-Type' => 'application/vnd.android.package-archive']
             );
     }
+
+    /**
+     * Sert l'application agent.
+     *
+     * Volontairement en accès libre, comme l'application cliente : le lien est
+     * partagé par l'administration à des livreurs qui n'ont pas encore de
+     * compte, et qui ne pourraient donc pas s'authentifier pour la télécharger.
+     * Le binaire n'expose rien : sans compte agent validé, il ne donne accès à
+     * aucune donnée.
+     */
+    public function agentApk(): BinaryFileResponse
+    {
+        abort_unless(
+            $this->app->agentApkIsAvailable(),
+            404,
+            "L'application agent n'est pas encore disponible au téléchargement."
+        );
+
+        return response()
+            ->download(
+                $this->app->agentApkPath(),
+                config('mobile_app.agent.apk_filename'),
+                ['Content-Type' => 'application/vnd.android.package-archive']
+            );
+    }
 }

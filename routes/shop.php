@@ -71,6 +71,15 @@ Route::post('/commandes/carte/{order}/agent', [\App\Http\Controllers\Admin\Order
 Route::get('/download-app', [MobileAppController::class, 'show'])->name('shop.app.show');
 Route::get('/download-app/clando.apk', [MobileAppController::class, 'apk'])->name('shop.app.android.apk');
 
+/*
+| Application agent, partagée par lien depuis l'écran Agents.
+|
+| Pas de page de présentation : elle ne s'adresse pas au public. L'URL est
+| volontairement courte et lisible, un livreur devant parfois la recopier à la
+| main depuis un message.
+*/
+Route::get('/agent.apk', [MobileAppController::class, 'agentApk'])->name('app.agent.apk');
+
 // Ancienne URL francophone : conservée en redirection au cas où elle aurait été
 // partagée, l'URL de référence communiquée est /download-app.
 Route::redirect('/application-mobile', '/download-app', 301);

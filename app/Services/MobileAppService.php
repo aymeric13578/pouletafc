@@ -58,6 +58,64 @@ class MobileAppService
         return $timestamp === false ? null : date('d/m/Y', $timestamp);
     }
 
+    /* ------------------------------------------------------------------ */
+    /*  Application agent                                                   */
+    /* ------------------------------------------------------------------ */
+
+    public function agentApkPath(): string
+    {
+        return config('mobile_app.agent.apk_path');
+    }
+
+    public function agentApkIsAvailable(): bool
+    {
+        return is_file($this->agentApkPath()) && is_readable($this->agentApkPath());
+    }
+
+    public function agentApkSizeLabel(): ?string
+    {
+        if (! $this->agentApkIsAvailable()) {
+            return null;
+        }
+
+        $taille = @filesize($this->agentApkPath());
+
+        return $taille === false ? null : number_format($taille / 1024 / 1024, 1, ',', ' ') . ' Mo';
+    }
+
+    public function agentApkUpdatedAt(): ?string
+    {
+        if (! $this->agentApkIsAvailable()) {
+            return null;
+        }
+
+        $horodatage = @filemtime($this->agentApkPath());
+
+        return $horodatage === false ? null : date('d/m/Y', $horodatage);
+    }
+
+    /**
+     * Ce que l'écran Agents affiche pour partager l'application.
+     *
+     * @return array<string, mixed>
+     */
+    public function agent(): array
+    {
+        return [
+            'name' => config('mobile_app.agent.name'),
+            'apk_available' => $this->agentApkIsAvailable(),
+            'apk_url' => route('app.agent.apk'),
+            'apk_size' => $this->agentApkSizeLabel(),
+            'apk_updated_at' => $this->agentApkUpdatedAt(),
+            'version' => config('mobile_app.agent.version'),
+            'min_os' => config('mobile_app.agent.min_os'),
+            // Chemin attendu sur le serveur, affiché à l'administration quand le
+            // fichier manque : sans cette indication, « indisponible » ne dit
+            // pas quoi faire pour y remédier.
+            'apk_path' => $this->agentApkPath(),
+        ];
+    }
+
     public function playStoreUrl(): ?string
     {
         return config('mobile_app.android.play_store_url') ?: null;

@@ -1,140 +1,280 @@
 <?php
+
 use function Laravel\Folio\{name};
 use Livewire\Volt\Component;
+use Livewire\WithPagination;
+use App\Models\order_detail;
+use App\Models\User;
 
 name('dashboard.customers');
 
+/*
+| Clients ayant déjà acheté, classés par montant dépensé.
+|
+| L'écran affichait « 1 200 clients », « 980 actifs », « 120 nouveaux » : trois
+| nombres écrits en dur dans le gabarit, qui n'avaient jamais rien lu en base.
+| On ne pouvait donc savoir ni qui achète, ni combien, ni depuis quand.
+*/
 new class extends Component {
+    use WithPagination;
+
     public $search = '';
-    public $showModal = false;
-    public $nom = '';
-    public $email = '';
-    public $telephone = '';
 
-    public function openModal()
+    /** Client dont on déplie l'historique. */
+    public $clientOuvert = null;
+
+    /**
+     * Ce qui compte comme versé.
+     *
+     * Une commande annulée ou refusée n'a rien rapporté ; une commande encore
+     * en cours non plus, tant qu'elle n'est pas remise. Confondre les deux
+     * gonflerait le total d'un client qui n'a peut-être jamais payé.
+     */
+    public const ENCAISSEES = ['Success'];
+
+    /** Commandes encore en vie, comptées à part. */
+    public const EN_COURS = ['pending', 'waiting', 'want', 'take', 'process'];
+
+    /**
+     * Agrégat par client, en une seule requête.
+     *
+     * Compter les commandes client par client produirait autant de requêtes que
+     * de lignes affichées.
+     */
+    protected function requeteDeBase()
     {
-        $this->showModal = true;
+        $encaissees = "'" . implode("','", self::ENCAISSEES) . "'";
+        $enCours = "'" . implode("','", self::EN_COURS) . "'";
+
+        return order_detail::query()
+            ->whereNotNull('id_user')
+            ->selectRaw("
+                id_user,
+                COUNT(*) as commandes,
+                SUM(CASE WHEN status IN ($encaissees) THEN 1 ELSE 0 END) as livrees,
+                SUM(CASE WHEN status IN ($enCours) THEN 1 ELSE 0 END) as en_cours,
+                SUM(CASE WHEN status IN ($encaissees) THEN price ELSE 0 END) as verse,
+                MAX(created_at) as derniere,
+                MIN(created_at) as premiere
+            ")
+            ->groupBy('id_user');
     }
 
-    public function closeModal()
+    public function getClientsProperty()
     {
-        $this->showModal = false;
-        $this->reset(['nom', 'email', 'telephone']);
+        $lignes = $this->requeteDeBase()
+            ->orderByDesc('verse')
+            ->paginate(20);
+
+        // Les noms en une requête : la table des commandes ne les porte pas.
+        $comptes = User::whereIn('id', $lignes->pluck('id_user'))
+            ->get(['id', 'name', 'phone', 'whatsapp', 'email', 'created_at'])
+            ->keyBy('id');
+
+        $lignes->getCollection()->transform(function ($ligne) use ($comptes) {
+            $ligne->compte = $comptes[$ligne->id_user] ?? null;
+
+            return $ligne;
+        });
+
+        if ($this->search) {
+            $terme = mb_strtolower($this->search);
+
+            $lignes->setCollection(
+                $lignes->getCollection()->filter(function ($ligne) use ($terme) {
+                    $compte = $ligne->compte;
+
+                    return $compte && (
+                        str_contains(mb_strtolower((string) $compte->name), $terme)
+                        || str_contains((string) $compte->phone, $terme)
+                        || str_contains(mb_strtolower((string) $compte->email), $terme)
+                    );
+                })
+            );
+        }
+
+        return $lignes;
     }
 
-    public function addClient()
+    /** Historique du client déplié, chargé seulement à l'ouverture. */
+    public function getHistoriqueProperty()
     {
-        $this->dispatch('notify', ['message' => 'Client ajouté avec succès !', 'type' => 'success']);
-        $this->closeModal();
+        if (! $this->clientOuvert) {
+            return collect();
+        }
+
+        return order_detail::where('id_user', $this->clientOuvert)
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get(['id', 'ref', 'address', 'price', 'status', 'created_at', 'id_cart', 'depart']);
+    }
+
+    public function getStatsProperty(): array
+    {
+        $encaissees = "'" . implode("','", self::ENCAISSEES) . "'";
+
+        $global = order_detail::whereNotNull('id_user')
+            ->selectRaw("
+                COUNT(DISTINCT id_user) as clients,
+                COUNT(*) as commandes,
+                SUM(CASE WHEN status IN ($encaissees) THEN price ELSE 0 END) as verse
+            ")
+            ->first();
+
+        $clients = (int) ($global->clients ?? 0);
+        $verse = (int) ($global->verse ?? 0);
+
+        return [
+            'clients' => $clients,
+            'commandes' => (int) ($global->commandes ?? 0),
+            'verse' => $verse,
+            // Panier moyen par client, et non par commande : c'est ce qu'un
+            // client rapporte sur toute sa vie, la question que pose cet écran.
+            'moyen' => $clients === 0 ? 0 : (int) round($verse / $clients),
+        ];
+    }
+
+    public function basculer($idUser): void
+    {
+        $this->clientOuvert = $this->clientOuvert === $idUser ? null : $idUser;
+    }
+
+    public function updatedSearch()
+    {
+        $this->resetPage();
     }
 };
 ?>
 
-<x-layouts.app>
+<x-layouts.app title="Clients">
     @volt
-        <div class="container mx-auto px-2 mt-6">
-            <!-- Notifications -->
-            <div x-data x-on:notify.window="toastr[event.detail.type](event.detail.message)"></div>
+        <div>
+            <x-ui.page-header title="Clients"
+                subtitle="Ceux qui ont déjà acheté, classés par montant versé" />
 
-            <!-- Barre de recherche -->
-            <form class="flex items-center max-w-lg mx-auto mb-6">
-                <label for="search" class="sr-only">Rechercher</label>
-                <div class="relative w-full">
-                    <div class="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
-                        <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 21 21">
-                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.15 5.6h.01m3.337 1.913h.01m-6.979 0h.01M5.541 11h.01M15 15h2.706a1.957 1.957 0 0 0 1.883-1.325A9 9 0 1 0 2.043 11.89 9.1 9.1 0 0 0 7.2 19.1a8.62 8.62 0 0 0 3.769.9A2.013 2.013 0 0 0 13 18v-.857A2.034 2.034 0 0 1 15 15Z" />
-                        </svg>
-                    </div>
-                    <input type="text" id="search" wire:model.live="search" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full ps-10 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Rechercher un client" />
-                </div>
-                <button type="submit" class="inline-flex items-center py-2.5 px-3 ms-2 text-sm font-medium text-white bg-blue-700 rounded-lg border border-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
-                    <svg class="w-4 h-4 me-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z" />
-                    </svg>Rechercher
-                </button>
-            </form>
+            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <x-ui.stat label="Clients acheteurs" :value="$this->stats['clients']" tone="brand"
+                    icon="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
 
-            <!-- Cartes de statistiques -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div class="bg-white rounded-2xl shadow-lg p-6 text-center transition transform hover:-translate-y-2 hover:shadow-2xl">
-                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Total Clients</h3>
-                    <p class="text-3xl font-bold text-indigo-600">1200</p>
-                </div>
-                <div class="bg-white rounded-2xl shadow-lg p-6 text-center transition transform hover:-translate-y-2 hover:shadow-2xl">
-                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Clients Actifs</h3>
-                    <p class="text-3xl font-bold text-indigo-600">980</p>
-                </div>
-                <div class="bg-white rounded-2xl shadow-lg p-6 text-center transition transform hover:-translate-y-2 hover:shadow-2xl">
-                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Nouveaux (30j)</h3>
-                    <p class="text-3xl font-bold text-indigo-600">120</p>
-                </div>
+                <x-ui.stat label="Commandes" :value="$this->stats['commandes']" tone="info"
+                    icon="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12A1.125 1.125 0 0119.75 22H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007z" />
+
+                <x-ui.stat label="Total versé"
+                    :value="number_format($this->stats['verse'], 0, ',', ' ') . ' F'" tone="success"
+                    hint="commandes livrées uniquement"
+                    icon="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+
+                <x-ui.stat label="Versé par client"
+                    :value="number_format($this->stats['moyen'], 0, ',', ' ') . ' F'" tone="accent"
+                    hint="moyenne sur toute la relation"
+                    icon="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
             </div>
 
-            <!-- Bouton Ajouter -->
-            <div class="flex justify-end mb-4">
-                <button wire:click="openModal" class="bg-indigo-600 text-white py-2 px-6 rounded-lg hover:bg-indigo-700 transition duration-300">Ajouter Client</button>
+            <div class="mt-6 flex flex-wrap items-center gap-3">
+                <x-ui.search model="search" placeholder="Nom, téléphone ou e-mail…" />
             </div>
 
-            <!-- Tableau -->
-            <div class="bg-white rounded-2xl shadow-lg p-6 overflow-x-auto">
-                <table class="w-full text-left">
-                    <thead>
-                        <tr class="border-b">
-                            <th class="py-3 px-4 text-gray-800">ID</th>
-                            <th class="py-3 px-4 text-gray-800">Nom</th>
-                            <th class="py-3 px-4 text-gray-800">Email</th>
-                            <th class="py-3 px-4 text-gray-800">Téléphone</th>
-                            <th class="py-3 px-4 text-gray-800">Actions</th>
+            <div class="mt-4">
+                <x-ui.table target="search,gotoPage,previousPage,nextPage"
+                    :headers="['Rang', 'Client', 'Commandes', 'Livrées', 'Total versé', 'Dernière', '']">
+                    @forelse ($this->clients as $rang => $ligne)
+                        <tr class="transition-colors hover:bg-gray-50">
+                            <td class="whitespace-nowrap px-4 py-3 text-sm font-bold text-gray-500">
+                                @if ($this->clients->currentPage() === 1 && $rang === 0)
+                                    <span title="Meilleur client">🏆</span>
+                                @else
+                                    {{ $this->clients->firstItem() + $rang }}
+                                @endif
+                            </td>
+
+                            <td class="px-4 py-3">
+                                <p class="font-medium text-gray-900">
+                                    {{ $ligne->compte?->name ?? 'Compte #' . $ligne->id_user }}
+                                </p>
+                                @if ($ligne->compte?->phone)
+                                    <p class="font-mono text-xs text-gray-500">{{ $ligne->compte->phone }}</p>
+                                @endif
+                                @if ($ligne->compte?->email)
+                                    <p class="text-xs text-gray-400">{{ $ligne->compte->email }}</p>
+                                @endif
+                            </td>
+
+                            <td class="whitespace-nowrap px-4 py-3 tabular-nums text-sm text-gray-700">
+                                {{ (int) $ligne->commandes }}
+                                @if ((int) $ligne->en_cours > 0)
+                                    <span class="ml-1 text-xs text-amber-600">
+                                        dont {{ (int) $ligne->en_cours }} en cours
+                                    </span>
+                                @endif
+                            </td>
+
+                            <td class="whitespace-nowrap px-4 py-3 tabular-nums text-sm text-gray-700">
+                                {{ (int) $ligne->livrees }}
+                            </td>
+
+                            <td class="whitespace-nowrap px-4 py-3 tabular-nums font-semibold text-gray-900">
+                                {{ number_format((int) $ligne->verse, 0, ',', ' ') }} F
+                            </td>
+
+                            <td class="whitespace-nowrap px-4 py-3 text-xs text-gray-500">
+                                {{ $ligne->derniere ? \Illuminate\Support\Carbon::parse($ligne->derniere)->timezone('Africa/Douala')->format('d/m/Y') : '—' }}
+                            </td>
+
+                            <td class="whitespace-nowrap px-4 py-3 text-right">
+                                <button type="button" wire:click="basculer({{ $ligne->id_user }})"
+                                        class="text-xs font-semibold text-brand-600 hover:underline">
+                                    {{ $clientOuvert === $ligne->id_user ? 'Masquer' : 'Historique' }}
+                                </button>
+                            </td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ([[ 'id' => 1, 'nom' => 'Jean Dupont', 'email' => 'jean@example.com', 'telephone' => '+22501020304' ], [ 'id' => 2, 'nom' => 'Marie Curie', 'email' => 'marie@example.com', 'telephone' => '+22505060708' ]] as $client)
-                            <tr class="border-b hover:bg-gray-50">
-                                <td class="py-3 px-4">{{ $client['id'] }}</td>
-                                <td class="py-3 px-4">{{ $client['nom'] }}</td>
-                                <td class="py-3 px-4">{{ $client['email'] }}</td>
-                                <td class="py-3 px-4">{{ $client['telephone'] }}</td>
-                                <td class="py-3 px-4">
-                                    <button class="text-indigo-600 hover:underline">Modifier</button>
-                                    <button class="text-red-600 hover:underline ml-2">Supprimer</button>
+
+                        @if ($clientOuvert === $ligne->id_user)
+                            <tr>
+                                <td colspan="7" class="bg-gray-50 px-4 py-4">
+                                    <p class="mb-2 text-xs font-bold uppercase tracking-wider text-gray-600">
+                                        Historique de {{ $ligne->compte?->name ?? 'ce client' }}
+                                    </p>
+
+                                    @forelse ($this->historique as $commande)
+                                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 py-2 last:border-0">
+                                            <div class="min-w-0">
+                                                <p class="font-mono text-xs font-semibold text-gray-800">
+                                                    {{ $commande->ref }}
+                                                    @if ($commande->id_cart === null && trim((string) $commande->depart) !== '')
+                                                        <span class="ml-1 rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-700">Course</span>
+                                                    @endif
+                                                </p>
+                                                <p class="truncate text-xs text-gray-500">{{ $commande->address ?: '—' }}</p>
+                                            </div>
+
+                                            <div class="flex items-center gap-3">
+                                                <span class="text-xs text-gray-400">
+                                                    {{ $commande->created_at?->timezone('Africa/Douala')->format('d/m/Y') }}
+                                                </span>
+                                                <x-ui.badge :tone="$commande->status === 'Success' ? 'success' : (in_array($commande->status, ['failed', 'declin'], true) ? 'danger' : 'warning')">
+                                                    {{ $commande->status }}
+                                                </x-ui.badge>
+                                                <span class="tabular-nums text-sm font-semibold text-gray-900">
+                                                    {{ number_format((int) $commande->price, 0, ',', ' ') }} F
+                                                </span>
+                                            </div>
+                                        </div>
+                                    @empty
+                                        <p class="text-xs text-gray-500">Aucune commande.</p>
+                                    @endforelse
                                 </td>
                             </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+                        @endif
+                    @empty
+                        <x-ui.empty :colspan="7" title="Aucun client"
+                            message="Les clients apparaîtront ici dès leur première commande." />
+                    @endforelse
+                </x-ui.table>
+
+                @if ($this->clients->hasPages())
+                    <div class="mt-4">{{ $this->clients->links() }}</div>
+                @endif
             </div>
-
-            <!-- Modale -->
-            <div wire:model="showModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center {{ $showModal ? '' : 'hidden' }}">
-                <div class="bg-white rounded-lg p-6 w-full max-w-md">
-                    <h2 class="text-xl font-semibold text-gray-800 mb-4">Ajouter un Client</h2>
-                    <form wire:submit.prevent="addClient">
-                        <div class="mb-4">
-                            <label class="block text-gray-700 mb-2" for="nom">Nom</label>
-                            <input type="text" id="nom" wire:model="nom" class="w-full p-2 border rounded-lg" required>
-                        </div>
-                        <div class="mb-4">
-                            <label class="block text-gray-700 mb-2" for="email">Email</label>
-                            <input type="email" id="email" wire:model="email" class="w-full p-2 border rounded-lg" required>
-                        </div>
-                        <div class="mb-4">
-                            <label class="block text-gray-700 mb-2" for="telephone">Téléphone</label>
-                            <input type="text" id="telephone" wire:model="telephone" class="w-full p-2 border rounded-lg" required>
-                        </div>
-                        <div class="flex justify-end">
-                            <button type="button" wire:click="closeModal" class="bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 mr-2">Annuler</button>
-                            <button type="submit" class="bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700">Ajouter</button>
-                        </div>
-                    </form>
-                </div>
-</div>
-
-            <!-- Toastr -->
-            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
-            <script>
-                toastr.options = { closeButton: true, progressBar: true, positionClass: 'toast-top-right', timeOut: 3000 };
-            </script>
         </div>
     @endvolt
 </x-layouts.app>

@@ -44,4 +44,29 @@ return [
         'app_store_url' => env('MOBILE_APP_APP_STORE_URL'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Application AGENT
+    |--------------------------------------------------------------------------
+    | Distribuée séparément : elle ne s'adresse pas au public mais aux livreurs
+    | et conducteurs recrutés. Elle ne figure donc sur aucune page publique — on
+    | y accède par un lien que l'administration partage depuis l'écran Agents.
+    |
+    | Même emplacement de stockage que l'application cliente, sous storage/app,
+    | resynchronisé depuis la release précédente à chaque déploiement : le
+    | binaire survit aux mises en production sans être versionné dans git.
+    */
+    'agent' => [
+
+        'name' => env('MOBILE_APP_AGENT_NAME', 'Poulet AFC Agent'),
+
+        'apk_path' => env('MOBILE_APP_AGENT_APK_PATH', storage_path('app/mobile/pouletafc-agent.apk')),
+
+        'apk_filename' => env('MOBILE_APP_AGENT_APK_FILENAME', 'pouletafc-agent.apk'),
+
+        'version' => env('MOBILE_APP_AGENT_VERSION'),
+
+        'min_os' => env('MOBILE_APP_AGENT_MIN_OS', 'Android 7.0'),
+    ],
+
 ];

@@ -15,6 +15,27 @@ name('dashboard.agents');
 
 new class extends Component {
     public $search = '';
+
+    /** Affiche ou masque le bloc de partage de l'application agent. */
+    public $partageOuvert = false;
+
+    /**
+     * Ce qu'il faut pour partager l'application agent.
+     *
+     * L'application n'est sur aucun magasin et ne figure sur aucune page
+     * publique : elle ne s'adresse pas aux clients. Sans lien à envoyer,
+     * recruter un livreur supposait de lui transmettre un fichier de cent
+     * mégaoctets par WhatsApp.
+     */
+    public function getApplicationProperty(): array
+    {
+        return app(\App\Services\MobileAppService::class)->agent();
+    }
+
+    public function basculerPartage(): void
+    {
+        $this->partageOuvert = ! $this->partageOuvert;
+    }
     public $showModal = false;
     public $showFileModal = false;
     public $showCreditModal = false;
@@ -310,6 +331,87 @@ new class extends Component {
         <div class="container mx-auto px-2 mt-6">
             <!-- Notifications -->
             <div x-data x-on:notify.window="toastr[event.detail.type](event.detail.message)"></div>
+
+            {{-- Partage de l'application agent --}}
+            <div class="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h2 class="text-sm font-bold text-gray-900">Application agent</h2>
+                        <p class="mt-1 text-xs text-gray-500">
+                            @if ($this->application['apk_available'])
+                                Version en ligne{{ $this->application['apk_size'] ? ' · ' . $this->application['apk_size'] : '' }}{{ $this->application['apk_updated_at'] ? ' · mise en ligne le ' . $this->application['apk_updated_at'] : '' }}
+                            @else
+                                Aucun fichier n'est encore déposé sur le serveur.
+                            @endif
+                        </p>
+                    </div>
+
+                    <button type="button" wire:click="basculerPartage"
+                            class="rounded-lg bg-brand-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-brand-700">
+                        {{ $partageOuvert ? 'Masquer' : "Partager l'application" }}
+                    </button>
+                </div>
+
+                @if ($partageOuvert)
+                    @php $lien = $this->application['apk_url']; @endphp
+
+                    <div class="mt-4 border-t border-gray-100 pt-4">
+                        @if ($this->application['apk_available'])
+                            <p class="text-xs font-semibold text-gray-700">Lien à envoyer à l'agent</p>
+
+                            {{--
+                              | Champ en lecture seule plutôt qu'un simple texte : sur
+                              | téléphone, un appui long ne sélectionne pas proprement
+                              | un lien affiché en clair, et l'agent recopie de travers.
+                            --}}
+                            <div class="mt-2 flex flex-wrap items-center gap-2"
+                                 x-data="{ copie: false }">
+                                <input type="text" readonly value="{{ $lien }}"
+                                       onclick="this.select()"
+                                       class="min-w-0 flex-1 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 font-mono text-xs text-gray-800" />
+
+                                <button type="button"
+                                        x-on:click="navigator.clipboard.writeText('{{ $lien }}'); copie = true; setTimeout(() => copie = false, 2000)"
+                                        class="rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-gray-700">
+                                    <span x-show="!copie">Copier</span>
+                                    <span x-show="copie" x-cloak>Copié !</span>
+                                </button>
+
+                                <a href="https://wa.me/?text={{ urlencode("Bonjour, voici l'application agent Poulet AFC à installer : " . $lien) }}"
+                                   target="_blank" rel="noopener"
+                                   class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700">
+                                    Envoyer par WhatsApp
+                                </a>
+
+                                <a href="{{ $lien }}"
+                                   class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                    Télécharger
+                                </a>
+                            </div>
+
+                            <p class="mt-3 text-xs text-gray-500">
+                                L'agent devra autoriser l'installation depuis une source inconnue :
+                                Android bloque par défaut les applications qui ne viennent pas du Play Store.
+                            </p>
+                        @else
+                            <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                                <p class="text-xs font-bold text-amber-900">Fichier absent</p>
+                                <p class="mt-1 text-xs text-amber-800">
+                                    Déposez l'APK sur le serveur à cet emplacement exact, puis rechargez cette page :
+                                </p>
+                                <p class="mt-2 break-all rounded bg-white px-3 py-2 font-mono text-xs text-gray-800">
+                                    {{ $this->application['apk_path'] }}
+                                </p>
+                                <p class="mt-2 text-xs text-amber-800">
+                                    Ce dossier est conservé d'une mise en production à l'autre : le fichier
+                                    n'a donc à être déposé qu'une fois, puis remplacé à chaque nouvelle version.
+                                </p>
+                            </div>
+                        @endif
+                    </div>
+                @endif
+            </div>
+
             <!-- Barre de recherche -->
             <form class="flex items-center max-w-lg mx-auto mb-6">
                 <label for="search" class="sr-only">Rechercher</label>
