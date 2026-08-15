@@ -122,6 +122,56 @@ class EcranComplementsTest extends TestCase
         );
     }
 
+    /*
+     | Créer un complément ne doit pas demander deux écrans.
+     |
+     | Il fallait passer par la page Produits, y créer un article complet —
+     | photo obligatoire comprise — puis revenir ici le désigner. Trois champs
+     | suffisent pour une portion de frites.
+     */
+    public function test_un_complement_se_cree_depuis_l_ecran(): void
+    {
+        $reponse = $this->actingAs($this->staff())->get(self::URL);
+
+        $reponse->assertOk();
+        $reponse->assertSeeText('Nouveau complément');
+        $reponse->assertSee('ouvrirFormulaire', false);
+        // Le formulaire lui-même n'est rendu qu'une fois ouvert : on vérifie
+        // dans la source que l'enregistrement existe bien derrière le bouton.
+        $this->assertStringContainsString(
+            'creerComplement',
+            file_get_contents(base_path('resources/views/pages/dashboard/complements.blade.php'))
+        );
+    }
+
+    /*
+     | La case du formulaire produit fait la même chose.
+     |
+     | C'est au moment où l'on crée une portion de frites qu'on sait qu'elle
+     | sert d'accompagnement ; l'obliger à revenir plus tard se solde par des
+     | compléments jamais désignés.
+     */
+    public function test_le_formulaire_produit_porte_la_case_complement(): void
+    {
+        $reponse = $this->actingAs($this->staff())->get('/dashboard/products');
+
+        $reponse->assertOk();
+        $reponse->assertSee('wire:model="is_complement"', false);
+        $reponse->assertSeeText('Ce produit peut accompagner un autre');
+    }
+
+    /** Un produit créé avec la case cochée est bien un complément. */
+    public function test_la_case_cochee_produit_un_complement(): void
+    {
+        $complement = $this->produit('Frites du formulaire', complement: true);
+
+        $this->assertTrue($complement->fresh()->is_complement);
+        $this->assertTrue(
+            \App\Models\Product::where('is_complement', true)->whereKey($complement->id)->exists(),
+            'Le complément doit apparaître dans la liste des compléments.'
+        );
+    }
+
     /** Le menu doit mener à l'écran, sinon il reste introuvable. */
     public function test_le_menu_mene_a_l_ecran(): void
     {

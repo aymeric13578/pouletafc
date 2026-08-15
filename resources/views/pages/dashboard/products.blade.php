@@ -99,6 +99,7 @@ new class extends Component {
             $this->locality = $product->locality;
             $this->bar_code = $product->bar_code;
             $this->commission = $product->commission;
+            $this->is_complement = (bool) $product->is_complement;
             $this->product_length = $product->product_length;
             $this->product_width = $product->product_width;
             $this->product_epaisseur = $product->product_epaisseur;
@@ -137,6 +138,15 @@ new class extends Component {
         $this->resetForm();
     }
 
+    /*
+    | Ce produit peut-il accompagner un autre ?
+    |
+    | Se règle ici plutôt que sur un second écran : c'est au moment où l'on crée
+    | une portion de frites qu'on sait qu'elle sert d'accompagnement. Le produit
+    | reste vendable seul — la case ne le retire pas du catalogue.
+    */
+    public $is_complement = false;
+
     public function resetForm()
     {
         $this->editMode = false;
@@ -153,6 +163,7 @@ new class extends Component {
         $this->locality = '';
         $this->bar_code = '';
         $this->commission = '';
+        $this->is_complement = false;
         $this->main_image = null;
         $this->secondary_image1 = null;
         $this->secondary_image2 = null;
@@ -213,6 +224,7 @@ new class extends Component {
             'id_shop' => $this->id_shop,
             'bar_code' => $this->bar_code,
             'commission' => $this->commission,
+            'is_complement' => (bool) $this->is_complement,
             'product_length' => $this->product_length,
             'product_width' => $this->product_width,
             'product_epaisseur' => $this->product_epaisseur,
@@ -683,6 +695,29 @@ new class extends Component {
                                             <span class="text-red-500 text-xs">{{ $message }}</span>
                                         @enderror
                                     </div>
+
+                                    {{--
+                                      | Complément : se règle ici plutôt que sur un second écran.
+                                      | C'est au moment où l'on crée une portion de frites qu'on
+                                      | sait qu'elle sert d'accompagnement.
+                                    --}}
+                                    <div class="col-span-3">
+                                        <label for="is_complement"
+                                               class="flex cursor-pointer items-start gap-2 rounded-lg border border-gray-300 p-2">
+                                            <input type="checkbox" id="is_complement" wire:model="is_complement"
+                                                   class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                            <span>
+                                                <span class="block text-sm font-medium text-gray-800">
+                                                    Ce produit peut accompagner un autre
+                                                </span>
+                                                <span class="block text-xs text-gray-500">
+                                                    Il sera proposé en complément — frites, boisson, sauce. Il reste
+                                                    vendable seul ; le rattachement aux plats se fait dans « Compléments ».
+                                                </span>
+                                            </span>
+                                        </label>
+                                    </div>
+
                                     <div class="col-span-3">
                                         <label class="block text-gray-700 text-sm mb-1" for="description">Description <span class="text-red-500">*</span></label>
                                         <textarea id="description" wire:model="description" class="w-full p-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" required></textarea>
