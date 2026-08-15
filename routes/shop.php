@@ -48,6 +48,16 @@ Route::post('/commandes/{order}/paiement', [\App\Http\Controllers\Admin\OrderBoa
 Route::post('/commandes/{order}/panier', [\App\Http\Controllers\Admin\OrderBoardController::class, 'updateCart'])->name('orders.board.cart');
 
 /*
+| Correction du panier d'une commande par le comptoir.
+|
+| Un article en rupture ou commandé par erreur obligeait jusqu'ici à tout
+| annuler et à ressaisir, en perdant l'historique et l'agent déjà attribué.
+*/
+Route::post('/commandes/{order}/articles', [\App\Http\Controllers\Admin\OrderBoardController::class, 'ajouterArticle'])->name('orders.board.item.add');
+Route::delete('/commandes/{order}/articles/{item}', [\App\Http\Controllers\Admin\OrderBoardController::class, 'retirerArticle'])->name('orders.board.item.remove');
+Route::get('/commandes/{order}/complements', [\App\Http\Controllers\Admin\OrderBoardController::class, 'complementsProposes'])->name('orders.board.complements');
+
+/*
 | Carte des courses clando, en accès libre pour la même raison que le mur des
 | commandes : l'écran tourne dans le local sans session ouverte.
 |

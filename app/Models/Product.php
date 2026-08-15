@@ -44,6 +44,17 @@ class Product extends Model
         'id_sub_category',
         'id_shop',
         'id_merchand',
+        /*
+         | Ce produit peut-il être proposé en accompagnement ?
+         |
+         | Il reste vendable seul : le drapeau ne le retire pas du catalogue, il
+         | indique seulement qu'on peut le rattacher à d'autres produits.
+         */
+        'is_complement',
+    ];
+
+    protected $casts = [
+        'is_complement' => 'boolean',
     ];
 
     // protected $dates = ['deleted_at'];
@@ -67,6 +78,44 @@ class Product extends Model
     public function merchand()
     {
         return $this->belongsTo(Merchand::class, 'id_merchand');
+    }
+
+    /**
+     * Compléments proposés avec ce produit.
+     *
+     * Des produits eux aussi : une portion de frites se vend seule autant
+     * qu'elle accompagne un poulet.
+     */
+    public function complements()
+    {
+        return $this->belongsToMany(
+            self::class,
+            'product_complement',
+            'product_id',
+            'complement_id'
+        )->withTimestamps();
+    }
+
+    /**
+     * Produits qui proposent ce complément.
+     *
+     * Sert à prévenir avant de retirer un complément du catalogue : sans cela on
+     * le supprime sans voir qu'il était rattaché à vingt plats.
+     */
+    public function proposePar()
+    {
+        return $this->belongsToMany(
+            self::class,
+            'product_complement',
+            'complement_id',
+            'product_id'
+        );
+    }
+
+    /** Ce produit propose-t-il au moins un complément ? */
+    public function aDesComplements(): bool
+    {
+        return $this->complements()->exists();
     }
 
     public function cartItems()

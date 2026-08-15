@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\order_detail;
+use App\Support\ComplementsProposes;
+use App\Models\Product;
+use App\Models\CartItem;
 use App\Models\Parameter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -178,6 +181,145 @@ class OrderBoardController extends Controller
                 number_format($panier, 0, ',', ' '),
             ),
             200,
+        );
+    }
+
+    /**
+     * Retire un article du panier d'une commande.
+     *
+     * Le comptoir n'avait aucun moyen de corriger une commande : un article en
+     * rupture ou commandé par erreur obligeait à tout annuler et à refaire la
+     * saisie, en perdant l'historique et l'agent déjà attribué.
+     */
+    public function retirerArticle(Request $request, int $order, int $item): JsonResponse
+    {
+        $commande = order_detail::with('carts')->findOrFail($order);
+
+        if ($refus = $this->refusSiClose($request, $commande)) {
+            return $refus;
+        }
+
+        $ligne = CartItem::where('cart_id', $commande->id_cart)->find($item);
+
+        if (! $ligne) {
+            return $this->reponseAvec($request, false, 'Cet article ne fait pas partie de cette commande.', 404);
+        }
+
+        $nom = $ligne->product?->name ?? 'Article';
+        $ligne->delete();
+
+        $this->recalculerLeTotal($commande);
+
+        return $this->reponseAvec($request, true, sprintf('%s retiré de la commande.', $nom), 200);
+    }
+
+    /**
+     * Ajoute un article au panier d'une commande.
+     *
+     * Sert aussi à ajouter un complément : un complément est un produit, et
+     * n'appelle donc pas de traitement séparé.
+     */
+    public function ajouterArticle(Request $request, int $order): JsonResponse
+    {
+        $valide = $request->validate([
+            'product_id' => ['required', 'integer', 'exists:products,id'],
+            'quantity' => ['nullable', 'integer', 'min:1', 'max:999'],
+        ]);
+
+        $commande = order_detail::with('carts')->findOrFail($order);
+
+        if ($refus = $this->refusSiClose($request, $commande)) {
+            return $refus;
+        }
+
+        if (! $commande->id_cart) {
+            /*
+             | Une course de coursier n'a pas de panier : elle transporte un
+             | colis, elle ne vend rien. Y ajouter un article n'aurait aucun
+             | sens et créerait une commande hybride que rien ne sait afficher.
+             */
+            return $this->reponseAvec($request, false, "Cette commande n'a pas de panier : c'est une course.", 422);
+        }
+
+        $produit = Product::findOrFail($valide['product_id']);
+        $quantite = (int) ($valide['quantity'] ?? 1);
+
+        $existante = CartItem::where('cart_id', $commande->id_cart)
+            ->where('product_id', $produit->id)
+            ->first();
+
+        if ($existante) {
+            // Le même article deux fois donne une seule ligne de quantité
+            // double : deux lignes identiques se corrigent mal et s'additionnent
+            // mal à l'œil.
+            $existante->update(['quantity' => $existante->quantity + $quantite]);
+        } else {
+            CartItem::create([
+                'cart_id' => $commande->id_cart,
+                'product_id' => $produit->id,
+                'quantity' => $quantite,
+                // Le prix est figé ici, comme à l'ajout au panier par le client :
+                // il ne doit pas suivre les changements de tarif ultérieurs.
+                'amount' => (int) $produit->price,
+            ]);
+        }
+
+        $this->recalculerLeTotal($commande);
+
+        return $this->reponseAvec($request, true, sprintf('%s ajouté à la commande.', $produit->name), 200);
+    }
+
+    /**
+     * Refuse toute correction sur une commande close.
+     */
+    private function refusSiClose(Request $request, order_detail $commande): ?JsonResponse
+    {
+        if (in_array($commande->status, ['Success', 'failed'], true)) {
+            return $this->reponseAvec($request, false, 'Cette commande est close, son panier ne peut plus changer.', 409);
+        }
+
+        return null;
+    }
+
+    /**
+     * Réaligne le montant de la commande sur son panier.
+     *
+     * Le total est recalculé depuis les lignes plutôt qu'ajusté du montant de
+     * l'article touché : une commande déjà corrigée au poids, ou dont un tarif a
+     * bougé, dériverait sinon un peu plus à chaque geste.
+     */
+    private function recalculerLeTotal(order_detail $commande): void
+    {
+        $panier = (int) CartItem::where('cart_id', $commande->id_cart)
+            ->get()
+            ->sum(fn (CartItem $ligne) => (int) $ligne->quantity * (int) $ligne->amount);
+
+        $commande->update([
+            'panier_price' => $panier,
+            'price' => $panier + (int) $commande->delivery_fees,
+            /*
+             | Le poids saisi devient faux dès que le panier change : le laisser
+             | ferait croire que le montant en découle encore. Le comptoir le
+             | ressaisira s'il pèse à nouveau.
+             */
+            'poids_kg' => null,
+        ]);
+    }
+
+    /**
+     * Compléments à proposer pour le panier d'une commande.
+     *
+     * Le comptoir prend souvent la commande au téléphone : il doit pouvoir dire
+     * « avec des frites ? » sans connaître par cœur ce qui accompagne quoi.
+     */
+    public function complementsProposes(Request $request, int $order): JsonResponse
+    {
+        $commande = order_detail::with('carts.cart_items')->findOrFail($order);
+
+        $produits = $commande->carts?->cart_items?->pluck('product_id') ?? collect();
+
+        return response()->json(
+            app(ComplementsProposes::class)->charge($produits)
         );
     }
 

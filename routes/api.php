@@ -153,7 +153,20 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
      Route::get('updatePositionAgent', 'ClandoController@updatePositionAgent');
       Route::post('updatePositionAgent', 'ClandoController@updatePositionAgent');
       
-      //note
+     /*
+    | Compléments : ce qu'on propose en plus d'un produit.
+    |
+    | Un complément est un produit marqué comme tel et rattaché aux plats qui le
+    | proposent. L'application interroge ces routes à l'ajout d'un produit, puis
+    | avant la validation du panier.
+    */
+    Route::get('getProductComplements', 'ComplementController@getProductComplements');
+    Route::post('getProductComplements', 'ComplementController@getProductComplements');
+    Route::get('getCartComplements', 'ComplementController@getCartComplements');
+    Route::post('getCartComplements', 'ComplementController@getCartComplements');
+    Route::post('addComplementToCart', 'ComplementController@addComplementToCart');
+
+     //note
       
             // Détail des appréciations : ce que l'agent lit dans son application,
             // et l'administrateur dans le tableau de bord.
