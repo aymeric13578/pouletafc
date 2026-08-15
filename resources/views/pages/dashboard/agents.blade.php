@@ -134,8 +134,25 @@ new class extends Component {
         }
     }
 
+    /**
+     * Ferme toutes les fenêtres avant d'en ouvrir une.
+     *
+     * Les trois calques sont empilés au même endroit et ne se fermaient qu'à
+     * leur propre bouton. Il suffisait qu'un reste ouvert pour qu'en ouvrir un
+     * second les superpose : c'est celui qui vient le plus bas dans la page qui
+     * s'affiche alors, et non celui qu'on vient de demander.
+     */
+    private function fermerLesFenetres(): void
+    {
+        $this->showModal = false;
+        $this->showFileModal = false;
+        $this->showCreditModal = false;
+    }
+
     public function openModal($mode = 'add', $id = null)
     {
+        $this->fermerLesFenetres();
+
         $this->resetForm();
         $this->editMode = ($mode === 'edit');
         if ($this->editMode && $id) {
@@ -166,6 +183,7 @@ new class extends Component {
 
     public function openFileModal($fileUrl, $fileType)
     {
+        $this->fermerLesFenetres();
         $this->fileUrl = $fileUrl;
         $this->fileType = $fileType;
         $this->showFileModal = true;
@@ -180,6 +198,7 @@ new class extends Component {
 
     public function openCreditModal($id)
     {
+        $this->fermerLesFenetres();
         $this->creditAgentId = $id;
         $this->creditAmount = '';
         $this->password = '';
@@ -332,27 +351,77 @@ new class extends Component {
             <!-- Notifications -->
             <div x-data x-on:notify.window="toastr[event.detail.type](event.detail.message)"></div>
 
-            {{-- Partage de l'application agent --}}
-            <div class="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                        <h2 class="text-sm font-bold text-gray-900">Application agent</h2>
-                        <p class="mt-1 text-xs text-gray-500">
-                            @if ($this->application['apk_available'])
-                                Version en ligne{{ $this->application['apk_size'] ? ' · ' . $this->application['apk_size'] : '' }}{{ $this->application['apk_updated_at'] ? ' · mise en ligne le ' . $this->application['apk_updated_at'] : '' }}
-                            @else
-                                Aucun fichier n'est encore déposé sur le serveur.
-                            @endif
-                        </p>
+            <!-- Barre de recherche -->
+            <form class="flex items-center max-w-lg mx-auto mb-6">
+                <label for="search" class="sr-only">Rechercher</label>
+                <div class="relative w-full">
+                    <div class="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
+                        <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 21 21">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.15 5.6h.01m3.337 1.913h.01m-6.979 0h.01M5.541 11h.01M15 15h2.706a1.957 1.957 0 0 0 1.883-1.325A9 9 0 1 0 2.043 11.89 9.1 9.1 0 0 0 7.2 19.1a8.62 8.62 0 0 0 3.769.9A2.013 2.013 0 0 0 13 18v-.857A2.034 2.034 0 0 1 15 15Z" />
+                        </svg>
+                    </div>
+                    <input type="text" id="search" wire:model.live="search" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full ps-10 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Rechercher un agent" />
+                </div>
+                <button type="submit" class="inline-flex items-center py-2.5 px-3 ms-2 text-sm font-medium text-white bg-blue-700 rounded-lg border border-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
+                    <svg class="w-4 h-4 me-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z" />
+                    </svg>Rechercher
+                </button>
+            </form>
+
+            <!-- Cartes de statistiques -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-2xl shadow-lg p-6 text-center transition transform hover:-translate-y-2 hover:shadow-2xl">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Total Agents</h3>
+                    <p class="text-3xl font-bold text-indigo-600">{{ $this->totalAgents }}</p>
+                </div>
+                <div class="bg-white rounded-2xl shadow-lg p-6 text-center transition transform hover:-translate-y-2 hover:shadow-2xl">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Agents Actifs</h3>
+                    <p class="text-3xl font-bold text-indigo-600">{{ $this->activeAgents }}</p>
+                </div>
+                <div class="bg-white rounded-2xl shadow-lg p-6 text-center transition transform hover:-translate-y-2 hover:shadow-2xl">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Agents en Attente</h3>
+                    <p class="text-3xl font-bold text-indigo-600">{{ $this->waitingAgents }}</p>
+                </div>
+                <div class="bg-white rounded-2xl shadow-lg p-6 text-center transition transform hover:-translate-y-2 hover:shadow-2xl">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Solde Total</h3>
+                    <p class="text-3xl font-bold {{ $this->totalBalance >= 0 ? 'text-green-600' : 'text-red-600' }}">{{ number_format($this->totalBalance, 2) }} FCFA</p>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex flex-wrap justify-end gap-3 mb-4">
+                <button type="button" wire:click="basculerPartage"
+                        class="border border-indigo-600 text-indigo-700 bg-white py-2 px-6 rounded-lg hover:bg-indigo-50 transition duration-300">
+                    {{ $partageOuvert ? "Masquer le partage" : "Partager l'application" }}
+                </button>
+
+                <button wire:click="openModal" class="bg-indigo-600 text-white py-2 px-6 rounded-lg hover:bg-indigo-700 transition duration-300">Ajouter Agent</button>
+            </div>
+
+            {{--
+              | Partage de l'application agent.
+              |
+              | Déplié sous les boutons plutôt que dans une fenêtre : l'écran en
+              | compte déjà trois, empilées au même endroit, et en ajouter une
+              | quatrième pour afficher un lien à recopier n'apporterait qu'un
+              | risque de confusion supplémentaire.
+            --}}
+            @if ($partageOuvert)
+                <div wire:key="partage-application" class="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h2 class="text-sm font-bold text-gray-900">Application agent</h2>
+                            <p class="mt-1 text-xs text-gray-500">
+                                @if ($this->application['apk_available'])
+                                    Version en ligne{{ $this->application['apk_size'] ? ' · ' . $this->application['apk_size'] : '' }}{{ $this->application['apk_updated_at'] ? ' · mise en ligne le ' . $this->application['apk_updated_at'] : '' }}
+                                @else
+                                    Aucun fichier n'est encore déposé sur le serveur.
+                                @endif
+                            </p>
+                        </div>
                     </div>
 
-                    <button type="button" wire:click="basculerPartage"
-                            class="rounded-lg bg-brand-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-brand-700">
-                        {{ $partageOuvert ? 'Masquer' : "Partager l'application" }}
-                    </button>
-                </div>
-
-                @if ($partageOuvert)
                     @php $lien = $this->application['apk_url']; @endphp
 
                     <div class="mt-4 border-t border-gray-100 pt-4">
@@ -361,13 +430,11 @@ new class extends Component {
 
                             {{--
                               | Champ en lecture seule plutôt qu'un simple texte : sur
-                              | téléphone, un appui long ne sélectionne pas proprement
-                              | un lien affiché en clair, et l'agent recopie de travers.
+                              | téléphone, un appui long ne sélectionne pas proprement un
+                              | lien affiché en clair, et l'agent le recopie de travers.
                             --}}
-                            <div class="mt-2 flex flex-wrap items-center gap-2"
-                                 x-data="{ copie: false }">
-                                <input type="text" readonly value="{{ $lien }}"
-                                       onclick="this.select()"
+                            <div class="mt-2 flex flex-wrap items-center gap-2" x-data="{ copie: false }">
+                                <input type="text" readonly value="{{ $lien }}" onclick="this.select()"
                                        class="min-w-0 flex-1 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 font-mono text-xs text-gray-800" />
 
                                 <button type="button"
@@ -409,51 +476,8 @@ new class extends Component {
                             </div>
                         @endif
                     </div>
-                @endif
-            </div>
-
-            <!-- Barre de recherche -->
-            <form class="flex items-center max-w-lg mx-auto mb-6">
-                <label for="search" class="sr-only">Rechercher</label>
-                <div class="relative w-full">
-                    <div class="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
-                        <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 21 21">
-                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.15 5.6h.01m3.337 1.913h.01m-6.979 0h.01M5.541 11h.01M15 15h2.706a1.957 1.957 0 0 0 1.883-1.325A9 9 0 1 0 2.043 11.89 9.1 9.1 0 0 0 7.2 19.1a8.62 8.62 0 0 0 3.769.9A2.013 2.013 0 0 0 13 18v-.857A2.034 2.034 0 0 1 15 15Z" />
-                        </svg>
-                    </div>
-                    <input type="text" id="search" wire:model.live="search" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full ps-10 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Rechercher un agent" />
                 </div>
-                <button type="submit" class="inline-flex items-center py-2.5 px-3 ms-2 text-sm font-medium text-white bg-blue-700 rounded-lg border border-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
-                    <svg class="w-4 h-4 me-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z" />
-                    </svg>Rechercher
-                </button>
-            </form>
-
-            <!-- Cartes de statistiques -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div class="bg-white rounded-2xl shadow-lg p-6 text-center transition transform hover:-translate-y-2 hover:shadow-2xl">
-                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Total Agents</h3>
-                    <p class="text-3xl font-bold text-indigo-600">{{ $this->totalAgents }}</p>
-                </div>
-                <div class="bg-white rounded-2xl shadow-lg p-6 text-center transition transform hover:-translate-y-2 hover:shadow-2xl">
-                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Agents Actifs</h3>
-                    <p class="text-3xl font-bold text-indigo-600">{{ $this->activeAgents }}</p>
-                </div>
-                <div class="bg-white rounded-2xl shadow-lg p-6 text-center transition transform hover:-translate-y-2 hover:shadow-2xl">
-                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Agents en Attente</h3>
-                    <p class="text-3xl font-bold text-indigo-600">{{ $this->waitingAgents }}</p>
-                </div>
-                <div class="bg-white rounded-2xl shadow-lg p-6 text-center transition transform hover:-translate-y-2 hover:shadow-2xl">
-                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Solde Total</h3>
-                    <p class="text-3xl font-bold {{ $this->totalBalance >= 0 ? 'text-green-600' : 'text-red-600' }}">{{ number_format($this->totalBalance, 2) }} FCFA</p>
-                </div>
-            </div>
-
-            <!-- Bouton Ajouter -->
-            <div class="flex justify-end mb-4">
-                <button wire:click="openModal" class="bg-indigo-600 text-white py-2 px-6 rounded-lg hover:bg-indigo-700 transition duration-300">Ajouter Agent</button>
-            </div>
+            @endif
 
             <!-- Tableau -->
             <div class="bg-white rounded-2xl shadow-lg p-6 overflow-x-auto">
@@ -542,7 +566,7 @@ new class extends Component {
             </div>
 
             <!-- Modal d'ajout/modification -->
-            <div wire:model="showModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center {{ $showModal ? '' : 'hidden' }}">
+            <div wire:key="fenetre-agent" class="fixed inset-0 z-50 bg-gray-900 bg-opacity-50 flex items-center justify-center {{ $showModal ? '' : 'hidden' }}">
                 <div class="bg-white rounded-lg p-6 w-full max-w-4xl h-auto max-h-[75vh] overflow-y-auto">
                     <h2 class="text-lg font-semibold text-gray-800 mb-4">{{ $editMode ? 'Modifier un Agent' : 'Ajouter un Agent' }}</h2>
                     <form id="agentForm" wire:submit.prevent="saveAgent" class="space-y-4">
@@ -620,7 +644,7 @@ new class extends Component {
             </div>
 
             <!-- Modal pour afficher les fichiers -->
-            <div wire:model="showFileModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center {{ $showFileModal ? '' : 'hidden' }}">
+            <div wire:key="fenetre-fichier" class="fixed inset-0 z-50 bg-gray-900 bg-opacity-50 flex items-center justify-center {{ $showFileModal ? '' : 'hidden' }}">
                 <div class="bg-white rounded-lg p-6 w-full max-w-4xl h-auto max-h-[75vh] overflow-y-auto">
                     <h2 class="text-lg font-semibold text-gray-800 mb-4">Aperçu {{ $fileType === 'image' ? 'de l\'image' : 'du document' }}</h2>
                     <div class="flex justify-center">
@@ -637,7 +661,7 @@ new class extends Component {
             </div>
 
             <!-- Modal pour créditer un agent -->
-            <div wire:model="showCreditModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center {{ $showCreditModal ? '' : 'hidden' }}">
+            <div wire:key="fenetre-credit" class="fixed inset-0 z-50 bg-gray-900 bg-opacity-50 flex items-center justify-center {{ $showCreditModal ? '' : 'hidden' }}">
                 <div class="bg-white rounded-lg p-6 w-full max-w-md">
                     <h2 class="text-lg font-semibold text-gray-800 mb-4">Créditer un Agent</h2>
                     <form id="creditForm" wire:submit.prevent="creditAgent" class="space-y-4">
