@@ -315,10 +315,35 @@ jobs:
             #        Temps 2 : compléter avec ce que porte la release sauvegardée, sans
             #        écraser ce que le webroot a déjà — il peut être plus récent.
             #        -L déréférence, la sauvegarde pouvant elle-même contenir un lien.
-            if [ -d "$BACKUP_PATH/public/upload" ]; then
-              rsync -aL --ignore-existing "$BACKUP_PATH/public/upload/" "$WEBROOT_PATH/upload/"
-              echo "Uploads complétés depuis la release précédente : $(ls -1 "$WEBROOT_PATH/upload" | wc -l) fichiers"
-            fi
+            #        On ratisse toutes les copies plausibles, jamais une seule.
+            #
+            #        Vingt-six images de fiches produits ont disparu du serveur : elles
+            #        ne sont ni dans le webroot, ni dans la dernière sauvegarde, ni
+            #        versionnées — le dépôt ne porte qu'un lot bien plus ancien. Elles
+            #        peuvent en revanche subsister dans une release antérieure oubliée.
+            #        Ce balayage coûte quelques secondes et n'écrase jamais un fichier
+            #        présent ; il ne peut donc que rendre ce qui a été perdu.
+            AVANT_RECUPERATION=$(ls -1 "$WEBROOT_PATH/upload" 2>/dev/null | wc -l)
+
+            for SOURCE in "$BACKUP_PATH/public/upload" "$HOME"/pouletafc*/public/upload; do
+              # Le motif ci-dessus reste littéral s'il ne correspond à rien, et
+              # une source peut être le dossier de destination lui-même.
+              if [ ! -d "$SOURCE" ]; then
+                continue
+              fi
+
+              # Écrit en « if » et non en « [ … ] && continue » : sous set -e, un
+              # test faux fait renvoyer un code non nul à la liste entière et
+              # interrompt le déploiement.
+              if [ "$(readlink -f "$SOURCE")" = "$(readlink -f "$WEBROOT_PATH/upload")" ]; then
+                continue
+              fi
+
+              rsync -aL --ignore-existing "$SOURCE/" "$WEBROOT_PATH/upload/" 2>/dev/null || true
+            done
+
+            APRES_RECUPERATION=$(ls -1 "$WEBROOT_PATH/upload" 2>/dev/null | wc -l)
+            echo "Uploads : $APRES_RECUPERATION fichiers ($(( APRES_RECUPERATION - AVANT_RECUPERATION )) récupérés)"
 
             step "6 - rsync vers le webroot"
             # 6. Synchronise les assets buildés vers le webroot réel (public_html n'est pas un
