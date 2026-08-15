@@ -735,7 +735,7 @@ new class extends Component {
                                     @endif
                                     <span class="rounded-full px-2 py-0.5 text-[10px] font-bold text-white
                                         {{ $product->status === 'Success' ? 'bg-emerald-600' : 'bg-gray-500' }}">
-                                        {{ $product->status === 'Success' ? 'En vente' : 'Retiré' }}
+                                        {{ $product->status === 'Success' ? 'Actif' : 'Désactivé' }}
                                     </span>
                                 </div>
                             </div>
@@ -775,9 +775,16 @@ new class extends Component {
                                             class="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50">
                                         Voir
                                     </button>
+                                    {{-- Activer / désactiver, nommé sans ambiguïté : « Retirer »
+                                         se confondait avec la suppression, et on n'osait plus
+                                         y toucher. Désactiver ne perd rien, contrairement à
+                                         supprimer. --}}
                                     <button wire:click="toggleStatus({{ $product->id }})"
-                                            class="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50">
-                                        {{ $product->status === 'Success' ? 'Retirer' : 'Remettre' }}
+                                            class="rounded-lg px-2.5 py-1 text-xs font-semibold
+                                                {{ $product->status === 'Success'
+                                                    ? 'border border-gray-400 text-gray-700 hover:bg-gray-100'
+                                                    : 'bg-emerald-600 text-white hover:bg-emerald-700' }}">
+                                        {{ $product->status === 'Success' ? 'Désactiver' : 'Activer' }}
                                     </button>
                                     {{-- Rattacher des compléments À ce produit. --}}
                                     @unless ($product->is_complement)

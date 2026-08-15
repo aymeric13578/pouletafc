@@ -165,6 +165,18 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
     Route::get('getCartComplements', 'ComplementController@getCartComplements');
     Route::post('getCartComplements', 'ComplementController@getCartComplements');
 
+    /*
+    | Commentaires sur une prestation.
+    |
+    | Distincts des notes : on peut commenter sans juger, plusieurs fois, et
+    | après coup.
+    */
+    Route::post('postCommentaire', 'CommentaireController@postCommentaire');
+    Route::get('getCommentairesPrestation', 'CommentaireController@getCommentairesPrestation');
+    Route::post('getCommentairesPrestation', 'CommentaireController@getCommentairesPrestation');
+    Route::get('getCommentairesAgent', 'CommentaireController@getCommentairesAgent');
+    Route::post('getCommentairesAgent', 'CommentaireController@getCommentairesAgent');
+
      //note
       
             // Détail des appréciations : ce que l'agent lit dans son application,
