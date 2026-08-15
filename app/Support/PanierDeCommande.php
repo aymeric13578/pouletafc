@@ -44,7 +44,15 @@ class PanierDeCommande
             return collect();
         }
 
-        return CartItem::with('product:id,name,price,is_complement')
+        /*
+         | Produit chargé en entier, sans liste de colonnes.
+         |
+         | Restreindre la sélection fait dépendre l'écran de la présence exacte
+         | de chaque colonne nommée : une seule absente, et toute la requête
+         | échoue. Sur un panier de quelques lignes, l'économie ne valait pas ce
+         | risque.
+         */
+        return CartItem::with('product')
             ->where('cart_id', $commande->id_cart)
             ->orderBy('id')
             ->get();

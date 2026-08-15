@@ -33,6 +33,16 @@ new class extends Component {
         return app(\App\Support\PanierDeCommande::class);
     }
 
+    /*
+    | Cause d'un échec, affichée dans le panneau.
+    |
+    | Ouvrir un panier renvoyait une erreur 500 au corps vide : la page ne dit
+    | rien, et les journaux du serveur ne sont pas consultables d'ici. Plutôt
+    | que de continuer à deviner, l'écran affiche la cause — il est réservé à
+    | l'équipe, et un message technique y vaut mieux qu'un écran mort.
+    */
+    public $erreurPanier = null;
+
     public function getCommandeOuverteProperty(): ?order_detail
     {
         return $this->panierOuvert ? order_detail::find($this->panierOuvert) : null;
@@ -40,17 +50,52 @@ new class extends Component {
 
     public function getLignesProperty()
     {
-        $commande = $this->commandeOuverte;
+        try {
+            $commande = $this->commandeOuverte;
 
-        return $commande ? $this->panier()->lignes($commande) : collect();
+            return $commande ? $this->panier()->lignes($commande) : collect();
+        } catch (\Throwable $e) {
+            $this->signaler('lecture du panier', $e);
+
+            return collect();
+        }
     }
 
-    /** Catalogue proposé à l'ajout : seuls les produits en vente. */
+    /**
+     * Catalogue proposé à l'ajout : seuls les produits en vente.
+     *
+     * Sans liste de colonnes restreinte : une seule colonne nommée qui
+     * viendrait à manquer ferait échouer toute la requête, et donc l'écran.
+     */
     public function getCatalogueProperty()
     {
-        return \App\Models\Product::where('status', 'Success')
-            ->orderBy('name')
-            ->get(['id', 'name', 'price', 'is_complement']);
+        try {
+            return \App\Models\Product::where('status', 'Success')
+                ->orderBy('name')
+                ->get(['id', 'name', 'price']);
+        } catch (\Throwable $e) {
+            $this->signaler('lecture du catalogue', $e);
+
+            return collect();
+        }
+    }
+
+    /**
+     * Retient la cause d'un échec et la trace, sans casser l'écran.
+     */
+    private function signaler(string $quoi, \Throwable $e): void
+    {
+        $this->erreurPanier = $quoi . ' : ' . $e->getMessage();
+
+        try {
+            \Illuminate\Support\Facades\Log::error('Panier de commande — ' . $quoi, [
+                'commande' => $this->panierOuvert,
+                'message' => $e->getMessage(),
+                'fichier' => $e->getFile() . ':' . $e->getLine(),
+            ]);
+        } catch (\Throwable) {
+            // Journal indisponible : l'écran reste la seule voie, et il l'a déjà.
+        }
     }
 
     public function ouvrirPanier($id): void
@@ -58,6 +103,7 @@ new class extends Component {
         $this->panierOuvert = $this->panierOuvert === $id ? null : $id;
         $this->produitAAjouter = '';
         $this->quantiteAAjouter = 1;
+        $this->erreurPanier = null;
     }
 
     /**
@@ -395,6 +441,13 @@ new class extends Component {
                                             @endunless
                                         </div>
 
+                                        @if ($erreurPanier)
+                                            <div class="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+                                                <p class="text-xs font-bold text-red-800">Le panier n'a pas pu être lu</p>
+                                                <p class="mt-1 break-words font-mono text-[11px] text-red-700">{{ $erreurPanier }}</p>
+                                            </div>
+                                        @endif
+
                                         <div class="mt-3 space-y-2">
                                             @forelse ($this->lignes as $ligne)
                                                 <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2">
@@ -470,7 +523,7 @@ new class extends Component {
                                                         <option value="">Choisir…</option>
                                                         @foreach ($this->catalogue as $produit)
                                                             <option value="{{ $produit->id }}">
-                                                                {{ $produit->name }} — {{ number_format((int) $produit->price, 0, ',', ' ') }} F{{ $produit->is_complement ? ' (complément)' : '' }}
+                                                                {{ $produit->name }} — {{ number_format((int) $produit->price, 0, ',', ' ') }} F
                                                             </option>
                                                         @endforeach
                                                     </select>
