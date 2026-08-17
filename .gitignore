@@ -17,3 +17,7 @@ yarn-error.log
 /.fleet
 /.idea
 /.vscode
+
+# Aperçus de partage : fabriqués à la demande depuis les photos du
+# catalogue, et refabriqués si elles changent. Rien à versionner.
+/public/upload/apercus/

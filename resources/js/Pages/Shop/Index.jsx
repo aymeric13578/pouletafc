@@ -6,8 +6,9 @@ import ProductCardSkeleton from '@/Components/Shop/ProductCardSkeleton';
 import FilterSidebar from '@/Components/Shop/FilterSidebar';
 import Pagination from '@/Components/Shop/Pagination';
 import EmptyState from '@/Components/Shop/EmptyState';
+import SharePanel from '@/Components/Shop/SharePanel';
 
-export default function Index({ products, categories, filters }) {
+export default function Index({ products, categories, filters, category = null }) {
     const [isNavigating, setIsNavigating] = useState(false);
 
     useEffect(() => {
@@ -25,14 +26,23 @@ export default function Index({ products, categories, filters }) {
 
     return (
         <ShopLayout>
-            <Head title="Boutique" />
+            <Head title={category ? category.name : 'Boutique'} />
 
             <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
                 <div className="mb-8 flex animate-fade-in-up flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                         <h1 className="text-2xl font-extrabold text-gray-900">
-                            La <span className="text-brand-600">boutique</span>
+                            {category ? (
+                                <span className="text-brand-600">{category.name}</span>
+                            ) : (
+                                <>
+                                    La <span className="text-brand-600">boutique</span>
+                                </>
+                            )}
                         </h1>
+                        {category && (
+                            <p className="mt-1 text-sm text-gray-500">{products.total} produit(s) dans cette catégorie</p>
+                        )}
                         {filters.q && (
                             <p className="mt-1 text-sm text-gray-500">
                                 Résultats pour « {filters.q} » — {products.total} produit(s)
@@ -40,6 +50,19 @@ export default function Index({ products, categories, filters }) {
                         )}
                     </div>
                 </div>
+
+                {/* Le partage n'apparaît que sur l'adresse propre d'une catégorie.
+                    Partager un catalogue filtré par la barre latérale enverrait un
+                    lien qui ne rejoue pas les mêmes filtres chez le destinataire. */}
+                {category && (
+                    <SharePanel
+                        label="Partager cette catégorie"
+                        title={category.name}
+                        url={category.share_url}
+                        description={category.share_description}
+                        headline={`${category.name} — Poulet AFC`}
+                    />
+                )}
 
                 <div className="flex flex-col gap-8 lg:flex-row">
                     <FilterSidebar categories={categories} filters={filters} />

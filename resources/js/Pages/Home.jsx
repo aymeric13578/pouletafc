@@ -128,7 +128,7 @@ export default function Home({ categories, products, articles, mobileApp }) {
                         {categories.map((category, index) => (
                             <Link
                                 key={category.id}
-                                href={route('shop.catalog.index', { category: category.id })}
+                                href={route('shop.catalog.category', category.slug)}
                                 style={{ animationDelay: `${Math.min(index, 8) * 60}ms` }}
                                 className="group relative aspect-square animate-fade-in-up overflow-hidden rounded-2xl shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                             >

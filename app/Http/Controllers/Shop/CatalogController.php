@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Shop;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
+use App\Support\ImageDePartage;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -13,7 +14,27 @@ class CatalogController extends Controller
 {
     public function index(Request $request): Response
     {
+        return $this->catalogue($request, null);
+    }
+
+    /**
+     * Le catalogue restreint à une catégorie, sous une adresse à elle.
+     *
+     * Même écran que le catalogue : ce qui change est l'adresse — partageable,
+     * lisible, stable — et l'aperçu que les messageries en tirent.
+     */
+    public function categorie(Request $request, string $slug): Response
+    {
+        return $this->catalogue($request, Category::where('slug', $slug)->firstOrFail());
+    }
+
+    private function catalogue(Request $request, ?Category $categorie): Response
+    {
         $query = Product::where('status', 'Success');
+
+        if ($categorie) {
+            $query->where('id_category', $categorie->id);
+        }
 
         if ($search = $request->string('q')->trim()->toString()) {
             $query->where(function ($q) use ($search) {
@@ -22,7 +43,7 @@ class CatalogController extends Controller
             });
         }
 
-        if ($categoryId = $request->integer('category')) {
+        if (! $categorie && $categoryId = $request->integer('category')) {
             $query->where('id_category', $categoryId);
         }
 
@@ -53,11 +74,46 @@ class CatalogController extends Controller
 
         $categories = Category::orderBy('name')->get(['id', 'name', 'slug']);
 
-        return Inertia::render('Shop/Index', [
+        $rendu = Inertia::render('Shop/Index', [
             'products' => $products,
             'categories' => $categories,
             'filters' => $request->only(['q', 'category', 'min_price', 'max_price', 'sort']),
+            'category' => $categorie ? $this->partageDeCategorie($categorie, $products->total()) : null,
         ]);
+
+        if (! $categorie) {
+            return $rendu;
+        }
+
+        return $rendu->withViewData(['meta' => [
+            'title' => $categorie->name . ' — Poulet AFC',
+            'description' => $this->descriptionDeCategorie($categorie, $products->total()),
+            'image' => route('shop.share.image.category', $categorie->slug),
+            'image_width' => ImageDePartage::LARGEUR,
+            'image_height' => ImageDePartage::HAUTEUR,
+            'url' => route('shop.catalog.category', $categorie->slug),
+        ]]);
+    }
+
+    /**
+     * Ce dont l'écran a besoin pour proposer le partage de la catégorie.
+     */
+    private function partageDeCategorie(Category $categorie, int $nombre): array
+    {
+        return [
+            'id' => $categorie->id,
+            'name' => $categorie->name,
+            'slug' => $categorie->slug,
+            'share_url' => route('shop.catalog.category', $categorie->slug),
+            'share_description' => $this->descriptionDeCategorie($categorie, $nombre),
+        ];
+    }
+
+    private function descriptionDeCategorie(Category $categorie, int $nombre): string
+    {
+        $produits = $nombre > 1 ? $nombre . ' produits' : ($nombre === 1 ? '1 produit' : 'Nos produits');
+
+        return $produits . ' de la catégorie ' . $categorie->name . ' sur Poulet AFC, livrés chez vous.';
     }
 
     public function show(string $slug): Response
@@ -124,7 +180,9 @@ class CatalogController extends Controller
             'meta' => [
                 'title' => $product->name,
                 'description' => $shortDescription,
-                'image' => $gallery->first(),
+                'image' => route('shop.share.image.product', $product->slug),
+                'image_width' => ImageDePartage::LARGEUR,
+                'image_height' => ImageDePartage::HAUTEUR,
                 'url' => $shareUrl,
                 'type' => 'product',
                 'price' => (int) $product->price,

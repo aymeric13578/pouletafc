@@ -1,40 +1,40 @@
 import { useState } from 'react';
-import { formatPrice } from '@/Utils/format';
 
 /**
- * Boutons de partage d'un produit.
+ * Boutons de partage d'un lien : WhatsApp, feuille de partage du téléphone,
+ * copie.
  *
- * L'aperçu riche (image + description) affiché par WhatsApp ne dépend pas de ce
- * composant : il provient des balises Open Graph rendues côté serveur dans
- * resources/views/partials/social-meta.blade.php. Ici on ne fait que composer le
- * message et ouvrir l'application.
+ * L'aperçu riche — image et description — n'est pas produit ici : il vient des
+ * balises Open Graph rendues côté serveur dans
+ * resources/views/partials/social-meta.blade.php, seule version que les robots
+ * de WhatsApp et consorts savent lire, puisqu'ils n'exécutent pas JavaScript.
+ * Ce composant ne fait que composer le message et ouvrir l'application.
+ *
+ * Il sert aussi bien un produit qu'une catégorie : ce qui les distingue tient
+ * au libellé et à la ligne d'accroche, pas au mécanisme.
  */
-export default function ShareProduct({ product }) {
+export default function SharePanel({ label, title, url, description, headline }) {
     const [copied, setCopied] = useState(false);
 
-    const url = product.share_url;
-    // WhatsApp ne génère l'aperçu que du premier lien du message : on place
-    // l'URL en dernier, seule sur sa ligne, pour qu'elle soit bien détectée.
-    const message = `${product.name} — ${formatPrice(product.price)}\n${url}`;
-
+    // WhatsApp ne génère l'aperçu que du premier lien du message : l'URL est
+    // placée en dernier, seule sur sa ligne, pour être détectée sans ambiguïté.
+    const message = `${headline ?? title}\n${url}`;
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
 
     // navigator.share n'existe que sur mobile et en contexte sécurisé (https).
     const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
 
     const nativeShare = () => {
-        navigator
-            .share({ title: product.name, text: product.share_description, url })
-            .catch(() => {
-                // L'utilisateur a fermé la feuille de partage : rien à signaler.
-            });
+        navigator.share({ title, text: description, url }).catch(() => {
+            // L'utilisateur a fermé la feuille de partage : rien à signaler.
+        });
     };
 
     const copyLink = async () => {
         try {
             await navigator.clipboard.writeText(url);
         } catch {
-            // Safari < 13.1 et contextes non sécurisés n'exposent pas le presse-papiers.
+            // Safari < 13.1 et les contextes non sécurisés n'exposent pas le presse-papiers.
             const field = document.createElement('textarea');
             field.value = url;
             document.body.appendChild(field);
@@ -49,7 +49,7 @@ export default function ShareProduct({ product }) {
 
     return (
         <div className="mt-6 border-t border-gray-100 pt-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Partager ce produit</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">{label}</p>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
                 <a

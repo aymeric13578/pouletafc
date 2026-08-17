@@ -9,6 +9,7 @@ use App\Http\Controllers\Shop\CheckoutController;
 use App\Http\Controllers\Shop\HomeController;
 use App\Http\Controllers\Shop\MobileAppController;
 use App\Http\Controllers\Shop\PageController;
+use App\Http\Controllers\Shop\ShareImageController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -22,7 +23,25 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', [HomeController::class, 'index'])->name('shop.home');
 
 Route::get('/boutique', [CatalogController::class, 'index'])->name('shop.catalog.index');
+
+/*
+| Adresse propre d'une catégorie, pour qu'elle puisse être partagée.
+|
+| Le filtre du catalogue passe par « ?category=12 » : un identifiant ne dit rien
+| de ce qu'on ouvre, et le lien ne survit pas à une renumérotation. La route par
+| slug est celle qu'on colle dans une conversation.
+*/
+Route::get('/boutique/categorie/{slug}', [CatalogController::class, 'categorie'])->name('shop.catalog.category');
+
 Route::get('/produit/{slug}', [CatalogController::class, 'show'])->name('shop.catalog.show');
+
+/*
+| Images d'aperçu du partage, redimensionnées et compressées à la volée.
+| L'extension .jpg n'est pas décorative : certains robots d'aperçu ignorent une
+| adresse d'image qui n'en porte pas.
+*/
+Route::get('/apercu/produit/{slug}.jpg', [ShareImageController::class, 'produit'])->name('shop.share.image.product');
+Route::get('/apercu/categorie/{slug}.jpg', [ShareImageController::class, 'categorie'])->name('shop.share.image.category');
 
 Route::get('/panier', [CartController::class, 'index'])->name('shop.cart.index');
 Route::post('/panier/ajouter', [CartController::class, 'add'])->name('shop.cart.add');

@@ -3,7 +3,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import ShopLayout from '@/Layouts/ShopLayout';
 import ProductCard from '@/Components/Shop/ProductCard';
 import QuantityStepper from '@/Components/Shop/QuantityStepper';
-import ShareProduct from '@/Components/Shop/ShareProduct';
+import SharePanel from '@/Components/Shop/SharePanel';
 import { formatPrice } from '@/Utils/format';
 
 export default function Show({ product, related }) {
@@ -109,7 +109,13 @@ export default function Show({ product, related }) {
                             </button>
                         </div>
 
-                        <ShareProduct product={product} />
+                        <SharePanel
+                            label="Partager ce produit"
+                            title={product.name}
+                            url={product.share_url}
+                            description={product.share_description}
+                            headline={`${product.name} — ${formatPrice(product.price)}`}
+                        />
                     </div>
                 </div>
 
