@@ -49,40 +49,52 @@ jobs:
           tools: composer
           coverage: none
 
-      # Cache des archives Composer.
+      # Dépendances déjà installées, réutilisées telles quelles.
       #
-      # Sans lui, chaque déploiement retélécharge les 84 paquets depuis
-      # codeload.github.com. Les coureurs GitHub partagent leurs adresses IP :
-      # au-delà d'un certain rythme, GitHub répond 429 et le déploiement
-      # s'arrête avant d'avoir rien fait. Avec le cache, la plupart des paquets
-      # ne sont plus demandés du tout.
-      - name: Cache Composer
+      # C'est la parade décisive : quand composer.lock n'a pas changé — le cas de
+      # presque tous les déploiements — « vendor » est restauré et Composer n'a
+      # plus rien à télécharger. Les 429 de codeload deviennent alors sans objet.
+      - name: Cache des dependances installees
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: vendor-php83-${{ hashFiles('composer.lock') }}
+
+      # Cache des archives, pour le jour où composer.lock change : seuls les
+      # paquets réellement nouveaux sont alors téléchargés.
+      - name: Cache des archives Composer
         uses: actions/cache@v4
         with:
           path: ~/.cache/composer/files
-          key: composer-${{ hashFiles('composer.lock') }}
-          restore-keys: composer-
+          key: archives-${{ hashFiles('composer.lock') }}
+          restore-keys: archives-
 
       - name: Install PHP dependencies
         env:
           # Requêtes authentifiées : le quota anonyme de codeload est vite
-          # atteint, celui d'un jeton ne l'est pas. Le jeton est fourni par
-          # GitHub à chaque exécution, il n'y a rien à configurer.
+          # atteint, celui d'un jeton ne l'est pas. GitHub le fournit à chaque
+          # exécution, il n'y a rien à configurer.
           COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ github.token }}"}}'
-        # Trois tentatives espacées : une limitation de débit se dissipe en
-        # quelques dizaines de secondes, et refaire tourner tout le déploiement
-        # à la main pour cela coûte plus cher que d'attendre.
+        # « --prefer-install=auto » remplace « --prefer-dist » : ce dernier
+        # interdisait à Composer de se rabattre sur le clone Git quand l'archive
+        # était refusée — le journal le disait mot pour mot, « Source fallback is
+        # disabled ». Git passe par un autre point d'entrée que codeload, et
+        # n'est donc pas limité en même temps que lui.
+        #
+        # Trois tentatives espacées en dernier recours : une limitation de débit
+        # se dissipe d'elle-même, et relancer tout le déploiement à la main pour
+        # cela coûte plus cher que d'attendre.
         run: |
           for tentative in 1 2 3; do
-            if composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist; then
+            if composer install --no-dev --optimize-autoloader --no-interaction --prefer-install=auto; then
               exit 0
             fi
 
-            echo "Tentative $tentative en échec — nouvel essai dans 30 s." >&2
+            echo "Tentative $tentative en echec — nouvel essai dans 30 s." >&2
             sleep 30
           done
 
-          echo "Composer a échoué après trois tentatives." >&2
+          echo "Composer a echoue apres trois tentatives." >&2
           exit 1
 
       - name: Prepare local env for build (needed by artisan/wayfinder during vite build)
