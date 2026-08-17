@@ -72,27 +72,73 @@ class ImageDePartageTest extends TestCase
         $this->assertSame(ImageDePartage::HAUTEUR, $hauteur);
     }
 
-    public function test_la_photo_n_est_pas_deformee(): void
+    /**
+     * Une photo en deux moitiés franches, rouge à gauche et bleue à droite.
+     * C'est ce qui permet de distinguer un cadre rempli d'un cadre étiré.
+     */
+    private function photoDeuxMoities(int $largeur, int $hauteur): string
     {
-        // Une image nettement plus haute que large : si le cadrage étirait au
-        // lieu de conserver les proportions, le carré rouge deviendrait un
-        // rectangle et la couleur déborderait de sa zone.
-        $source = $this->photoLourde(800, 2400);
+        $image = imagecreatetruecolor($largeur, $hauteur);
+        imagefilledrectangle($image, 0, 0, (int) ($largeur / 2) - 1, $hauteur - 1, imagecolorallocate($image, 220, 20, 20));
+        imagefilledrectangle($image, (int) ($largeur / 2), 0, $largeur - 1, $hauteur - 1, imagecolorallocate($image, 20, 20, 220));
 
-        $apercu = (new ImageDePartage())->fabriquer('upload/' . basename($source), 'essai-proportions');
+        $chemin = public_path('upload/essai-' . uniqid() . '.png');
+        imagepng($image, $chemin);
+        imagedestroy($image);
+
+        $this->aNettoyer[] = $chemin;
+
+        return $chemin;
+    }
+
+    public function test_la_photo_occupe_tout_le_cadre(): void
+    {
+        // Photo bien plus haute que large : c'est le cas où des bandes blanches
+        // apparaissaient de chaque côté, réduisant la photo à un timbre.
+        $source = $this->photoDeuxMoities(400, 1200);
+
+        $apercu = (new ImageDePartage())->fabriquer('upload/' . basename($source), 'essai-remplissage');
         $this->aNettoyer[] = $apercu;
 
         $image = imagecreatefromjpeg($apercu);
 
-        // Les bords gauche et droit doivent rester blancs : la photo, plus haute
-        // que large, ne peut occuper toute la largeur du cadre.
-        $bord = imagecolorsforindex($image, imagecolorat($image, 5, (int) (ImageDePartage::HAUTEUR / 2)));
+        $milieu = (int) (ImageDePartage::HAUTEUR / 2);
+        $gauche = imagecolorsforindex($image, imagecolorat($image, 40, $milieu));
+        $droite = imagecolorsforindex($image, imagecolorat($image, ImageDePartage::LARGEUR - 40, $milieu));
+        $hautGauche = imagecolorsforindex($image, imagecolorat($image, 40, 10));
 
         imagedestroy($image);
 
-        $this->assertGreaterThan(240, $bord['red']);
-        $this->assertGreaterThan(240, $bord['green']);
-        $this->assertGreaterThan(240, $bord['blue']);
+        // Les bords portent la photo, pas du blanc.
+        $this->assertGreaterThan(150, $gauche['red'], 'Le bord gauche devrait être rouge, pas blanc.');
+        $this->assertLessThan(90, $gauche['blue']);
+
+        $this->assertGreaterThan(150, $droite['blue'], 'Le bord droit devrait être bleu, pas blanc.');
+        $this->assertLessThan(90, $droite['red']);
+
+        // Le haut aussi : aucune bande ne subsiste nulle part.
+        $this->assertGreaterThan(150, $hautGauche['red']);
+    }
+
+    public function test_la_photo_n_est_pas_etiree(): void
+    {
+        // La frontière entre les deux moitiés doit rester au milieu exact du
+        // cadre. Un étirement horizontal la décalerait.
+        $source = $this->photoDeuxMoities(1000, 1000);
+
+        $apercu = (new ImageDePartage())->fabriquer('upload/' . basename($source), 'essai-non-etire');
+        $this->aNettoyer[] = $apercu;
+
+        $image = imagecreatefromjpeg($apercu);
+        $milieu = (int) (ImageDePartage::HAUTEUR / 2);
+
+        $avantFrontiere = imagecolorsforindex($image, imagecolorat($image, (int) (ImageDePartage::LARGEUR / 2) - 20, $milieu));
+        $apresFrontiere = imagecolorsforindex($image, imagecolorat($image, (int) (ImageDePartage::LARGEUR / 2) + 20, $milieu));
+
+        imagedestroy($image);
+
+        $this->assertGreaterThan(150, $avantFrontiere['red']);
+        $this->assertGreaterThan(150, $apresFrontiere['blue']);
     }
 
     public function test_une_source_introuvable_retombe_sur_le_logo(): void

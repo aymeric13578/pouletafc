@@ -32,6 +32,17 @@ class ImageDePartage
      */
     private const POIDS_VISE = 300_000;
 
+    /*
+    | Version du cadrage, incluse dans le nom du fichier mis en cache.
+    |
+    | La clé ne dépend sinon que de la photo d'origine : changer la façon de
+    | composer l'aperçu laisserait en place tous ceux déjà fabriqués. Ce numéro
+    | est à incrémenter chaque fois que le rendu change.
+    |
+    | 2 : le cadre est rempli par la photo, au lieu de la poser sur fond blanc.
+    */
+    private const VERSION = 2;
+
     /**
      * Chemin du fichier d'aperçu prêt à être servi.
      *
@@ -43,6 +54,7 @@ class ImageDePartage
         $origine = $this->fichierSource($source) ?? $this->logo();
 
         $signature = substr(md5($origine . '|' . filemtime($origine) . '|' . filesize($origine)), 0, 12);
+        $signature = 'v' . self::VERSION . '-' . $signature;
         $destination = $this->dossierCache() . '/' . $cle . '-' . $signature . '.jpg';
 
         if (is_file($destination)) {
@@ -50,7 +62,7 @@ class ImageDePartage
         }
 
         try {
-            $this->composer($origine, $destination);
+            $this->composer($origine, $destination, remplir: $origine !== $this->logo());
         } catch (\Throwable $e) {
             Log::warning('Aperçu de partage non fabriqué', [
                 'source' => $origine,
@@ -67,12 +79,19 @@ class ImageDePartage
     }
 
     /**
-     * Dessine la photo au centre d'un cadre 1200 × 630, sur fond blanc.
+     * Remplit un cadre de 1200 × 630 avec la photo.
      *
-     * Le cadrage conserve les proportions plutôt que de rogner : une brochette
-     * coupée en deux dans l'aperçu dessert le produit plus qu'une bande blanche.
+     * La photo occupe tout le cadre : on prélève dedans la plus grande zone au
+     * format voulu, centrée, et on l'agrandit à la taille du cadre. Un premier
+     * essai plaçait la photo entière sur fond blanc — les proportions étaient
+     * intactes, mais les bandes blanches occupaient la moitié de l'aperçu et la
+     * photo y paraissait minuscule.
+     *
+     * Rien n'est déformé pour autant : c'est la zone prélevée qui a déjà le
+     * format du cadre, la photo n'est jamais étirée dans un sens plus que dans
+     * l'autre.
      */
-    private function composer(string $origine, string $destination): void
+    private function composer(string $origine, string $destination, bool $remplir = true): void
     {
         if (! extension_loaded('gd')) {
             throw new \RuntimeException('GD absent : aucune image ne peut être redimensionnée.');
@@ -83,11 +102,76 @@ class ImageDePartage
         $largeurSource = imagesx($photo);
         $hauteurSource = imagesy($photo);
 
-        $facteur = min(self::LARGEUR / $largeurSource, self::HAUTEUR / $hauteurSource);
+        $format = self::LARGEUR / self::HAUTEUR;
 
-        // Une petite image n'est pas agrandie : l'étirer ne ferait qu'exposer
-        // ses défauts, et son poids n'a jamais posé problème.
-        $facteur = min($facteur, 1.0);
+        if (! $remplir) {
+            // Le logo de repli n'est pas une photo de plat : le rogner le
+            // couperait en deux. Il est posé entier, au centre.
+            $this->poserAuCentre($photo, $destination, $largeurSource, $hauteurSource);
+
+            return;
+        }
+
+        if ($largeurSource / $hauteurSource > $format) {
+            // Photo plus large que le cadre : on garde toute la hauteur.
+            $hauteurPrise = $hauteurSource;
+            $largeurPrise = (int) round($hauteurSource * $format);
+        } else {
+            // Photo plus haute : on garde toute la largeur.
+            $largeurPrise = $largeurSource;
+            $hauteurPrise = (int) round($largeurSource / $format);
+        }
+
+        // Centré : sur une photo de plat, le sujet est presque toujours au
+        // milieu, et c'est la partie qu'il faut préserver.
+        $depuisX = (int) (($largeurSource - $largeurPrise) / 2);
+        $depuisY = (int) (($hauteurSource - $hauteurPrise) / 2);
+
+        $cadre = imagecreatetruecolor(self::LARGEUR, self::HAUTEUR);
+        imagefill($cadre, 0, 0, imagecolorallocate($cadre, 255, 255, 255));
+
+        imagecopyresampled(
+            $cadre,
+            $photo,
+            0,
+            0,
+            $depuisX,
+            $depuisY,
+            self::LARGEUR,
+            self::HAUTEUR,
+            max(1, $largeurPrise),
+            max(1, $hauteurPrise)
+        );
+
+        imagedestroy($photo);
+
+        $this->enregistrer($cadre, $destination);
+    }
+
+    /**
+     * Écrit le JPEG en descendant la qualité par paliers jusqu'à tenir dans le
+     * poids visé. En pratique le premier palier suffit ; les suivants ne servent
+     * qu'aux photos très texturées, que 82 ne compresse pas assez.
+     */
+    private function enregistrer(\GdImage $cadre, string $destination): void
+    {
+        foreach ([82, 70, 60, 50] as $qualite) {
+            imagejpeg($cadre, $destination, $qualite);
+
+            if (filesize($destination) <= self::POIDS_VISE) {
+                break;
+            }
+        }
+
+        imagedestroy($cadre);
+    }
+
+    /**
+     * Place l'image entière au centre du cadre, sur fond blanc.
+     */
+    private function poserAuCentre(\GdImage $photo, string $destination, int $largeurSource, int $hauteurSource): void
+    {
+        $facteur = min(self::LARGEUR / $largeurSource, self::HAUTEUR / $hauteurSource, 1.0);
 
         $largeurCible = max(1, (int) round($largeurSource * $facteur));
         $hauteurCible = max(1, (int) round($hauteurSource * $facteur));
@@ -109,19 +193,7 @@ class ImageDePartage
         );
 
         imagedestroy($photo);
-
-        // On descend la qualité par paliers jusqu'à tenir dans le poids visé.
-        // En pratique le premier palier suffit ; les suivants ne servent que
-        // pour les photos très texturées, où 82 ne compresse pas assez.
-        foreach ([82, 70, 60, 50] as $qualite) {
-            imagejpeg($cadre, $destination, $qualite);
-
-            if (filesize($destination) <= self::POIDS_VISE) {
-                break;
-            }
-        }
-
-        imagedestroy($cadre);
+        $this->enregistrer($cadre, $destination);
     }
 
     private function ouvrir(string $chemin): \GdImage
