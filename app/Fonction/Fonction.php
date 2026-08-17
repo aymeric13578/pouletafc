@@ -97,12 +97,12 @@ public function getToken()
         
         $curl = curl_init();
          curl_setopt_array($curl, array(
-            CURLOPT_URL => 'https://api.orange.com/oauth/v3/token',
+            CURLOPT_URL => config('orange_sms.token_url'),
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYPEER => config('orange_sms.verify_ssl'),
             CURLOPT_HTTPHEADER => array(
                 "Content-Type: application/x-www-form-urlencoded",
-                "Authorization: Basic UEJhQXVKMWUzemtzc2JvWTJHTWRUM0hIS2FNUEhCcVY6Yk1rVEZIbVJlWnJvakI1bkFjeGNlZTgxbkpRSndxUFIwU0xVWjVBZDRTWmw=",
+                "Authorization: " . config('orange_sms.authorization'),
             ),
             CURLOPT_ENCODING => "",
             CURLOPT_MAXREDIRS => 10,
@@ -146,49 +146,72 @@ public function getToken()
         return $chiffres;
     }
 
-    public function sendSms($message,$contact)
+    /**
+     * Corps de la demande d'envoi.
+     *
+     * Le nom d'expéditeur n'y figure que s'il est renseigné. Orange refuse tout
+     * nom non enregistré sur le contrat — « Forbidden senderName : not
+     * whitelisted » — et l'envoi échoue alors entièrement : ni message remis,
+     * ni réponse exploitable par le parcours d'inscription, qui l'attend. Tant
+     * qu'Orange n'en a pas enregistré un, mieux vaut ne rien déclarer.
+     *
+     * @return array<string, mixed>
+     */
+    public function corpsDeLEnvoi($message, $contact)
     {
-         $contact = $this->numeroLocal($contact);
-         $curl = curl_init();
-         $function = new Fonction();
-         $getToken = $function->getToken();
-        
-         
-           curl_setopt_array($curl, array(
-    CURLOPT_URL => 'https://api.orange.com/smsmessaging/v1/outbound/tel%3A%2B2370000000/requests',
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_SSL_VERIFYPEER => false, // Note : D�sactiver la v�rification SSL n'est pas recommand� en production
-    CURLOPT_HTTPHEADER => array(
-        "Authorization: Bearer " . $getToken['access_token'],
-        "Content-Type: application/json"
-    ),
-    CURLOPT_ENCODING => "",
-    CURLOPT_MAXREDIRS => 10,
-    CURLOPT_TIMEOUT => 0,
-    CURLOPT_FOLLOWLOCATION => true,
-    CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-    CURLOPT_CUSTOMREQUEST => "POST",
-    CURLOPT_POSTFIELDS => json_encode([
-        "outboundSMSMessageRequest" => [
-            "address" => "tel:+237".$contact,
-            "senderAddress" => "tel:+2370000000",
+        $demande = [
+            /*
+             | « tel: » fait partie de l'adresse attendue par Orange, au même
+             | titre que l'indicatif. L'omettre produit une adresse qu'il
+             | n'associe à aucun abonné.
+             */
+            "address" => 'tel:' . config('orange_sms.country_code') . $this->numeroLocal($contact),
+            "senderAddress" => config('orange_sms.sender_address'),
             "outboundSMSTextMessage" => [
-                "message" => "".$message
-            ]
-        ]
-    ])
-));
+                "message" => (string) $message,
+            ],
+        ];
+
+        $nom = trim((string) config('orange_sms.sender_name'));
+
+        if ($nom !== '') {
+            $demande["senderName"] = $nom;
+        }
+
+        return ["outboundSMSMessageRequest" => $demande];
+    }
+
+    public function sendSms($message, $contact)
+    {
+        $curl = curl_init();
+        $getToken = $this->getToken();
+
+        // L'adresse d'émission fait partie du chemin, encodée.
+        $url = 'https://api.orange.com/smsmessaging/v1/outbound/'
+             . rawurlencode(config('orange_sms.sender_address'))
+             . '/requests';
+
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_SSL_VERIFYPEER => config('orange_sms.verify_ssl'),
+            CURLOPT_HTTPHEADER => array(
+                "Authorization: Bearer " . ($getToken['access_token'] ?? ''),
+                "Content-Type: application/json",
+            ),
+            CURLOPT_ENCODING => "",
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 0,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => "POST",
+            CURLOPT_POSTFIELDS => json_encode($this->corpsDeLEnvoi($message, $contact)),
+        ));
 
         $response = curl_exec($curl);
         curl_close($curl);
 
-        $rep = json_decode($response, true);
-         
-         
-        return $rep;
-        
-
-        
+        return json_decode($response, true);
     }
     
     

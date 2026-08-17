@@ -154,6 +154,36 @@ jobs:
               echo "[+$(( $(date +%s) - DEPLOY_T0 ))s] === $1"
             }
 
+            # 0 bis. Filet de sécurité sur les images.
+            #
+            #        Les photos des fiches produits ont déjà été perdues une fois, et
+            #        les renvoyer coûte des heures. Aucune opération de ce script ne
+            #        doit plus pouvoir y toucher — mais un raisonnement ne vaut pas une
+            #        garantie, et c'est ce que pose ce bloc.
+            #
+            #        L'instantané est fait de liens durs : il ne recopie aucun octet et
+            #        n'occupe presque rien, tout en survivant à la suppression des
+            #        originaux. Effacer un fichier ne libère la place que lorsque le
+            #        dernier lien disparaît.
+            UPLOAD_DIR="$WEBROOT_PATH/upload"
+            INSTANTANES="$HOME/uploads_instantanes"
+            INSTANTANE="$INSTANTANES/upload_$(date +%Y%m%d%H%M%S)"
+            UPLOADS_AVANT=0
+
+            if [ -d "$UPLOAD_DIR" ]; then
+              UPLOADS_AVANT=$( (find "$UPLOAD_DIR" -type f 2>/dev/null || true) | wc -l )
+              mkdir -p "$INSTANTANES"
+              cp -al "$UPLOAD_DIR" "$INSTANTANE" 2>/dev/null || cp -a "$UPLOAD_DIR" "$INSTANTANE"
+              echo "Images : $UPLOADS_AVANT fichiers, instantané dans $INSTANTANE"
+
+              # On garde les trois derniers : au-delà, ce sont des liens vers des
+              # fichiers depuis longtemps remplacés.
+              # « || true » indispensable : au premier passage aucun instantané
+              # n'existe, ls sort en erreur, et pipefail ferait échouer tout le
+              # déploiement pour un simple ménage.
+              ls -1dt "$INSTANTANES"/upload_* 2>/dev/null | tail -n +4 | xargs -r rm -rf || true
+            fi
+
             # 0. Sauvegarde défensive et explicite du .env serveur AVANT toute opération
             #    destructive (le mv/rm ci-dessous). Ces copies vivent dans un dossier dédié
             #    qui n'est JAMAIS purgé par le déploiement : le .env de production reste donc
@@ -416,5 +446,29 @@ jobs:
             # (dashboard, home, status.change, ...) qui font échouer la compilation du cache.
             php artisan view:cache
             php artisan queue:restart || true
+
+            step "10 - controle des images"
+            # 10. Dernier mot sur les images.
+            #
+            #     Si leur nombre a baissé, quelque chose les a effacées malgré tout :
+            #     on les remet depuis l'instantané et on fait échouer le déploiement,
+            #     pour que la perte se voie au lieu de passer inaperçue jusqu'à ce
+            #     qu'un client tombe sur une fiche sans photo.
+            UPLOADS_APRES=$( (find "$UPLOAD_DIR" -type f 2>/dev/null || true) | wc -l )
+
+            if [ "$UPLOADS_APRES" -lt "$UPLOADS_AVANT" ]; then
+              echo "ALERTE : $UPLOADS_AVANT images avant, $UPLOADS_APRES après. Restauration." >&2
+
+              if [ -d "$INSTANTANE" ]; then
+                mkdir -p "$UPLOAD_DIR"
+                rsync -a --ignore-existing "$INSTANTANE/" "$UPLOAD_DIR/"
+                echo "Restaurées : $(find "$UPLOAD_DIR" -type f | wc -l) fichiers" >&2
+              fi
+
+              echo "Le déploiement est marqué en échec : cette perte doit être examinée." >&2
+              exit 1
+            fi
+
+            echo "Images : $UPLOADS_APRES fichiers (aucune perte)."
 
             echo "Déploiement terminé. Sauvegarde disponible dans $BACKUP_PATH en cas de problème."
