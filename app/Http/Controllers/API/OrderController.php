@@ -130,11 +130,17 @@ Contact service client : 697 526 980";
             $object = 'POULET AFC COMMAND';
             Mail::to($agent->email)
                 ->send(new NotificationMail($object, $content, $title));
-                
-                
-         $function  = new Fonction();
-         $function->sendSms("Votre commande N° ".$ref.". a été reçu .Le service client poulet AFC vous contacteras d'ici quelques instants .... Merci de patienter.
-Contact service client : 697 526 980",$user->phone);
+
+         /*
+          | Le client était prévenu par SMS seulement, alors que le courriel ne
+          | partait qu'à l'agent. Comme Orange accepte les SMS sans les remettre,
+          | celui qui commandait n'était en pratique prévenu de rien.
+          */
+         app(\App\Support\NotificationClient::class)->prevenir(
+             $user,
+             'POULET AFC - Commande ' . $ref,
+             "Votre commande N° " . $ref . " a bien été reçue. Le service client Poulet AFC vous contactera d'ici quelques instants. Merci de patienter.\nContact service client : 697 526 980"
+         );
                 
      }
      else

@@ -250,28 +250,15 @@ class UserController extends Controller
             $title = "NOUVEAU COMPTE POULET AFC";
             $object = 'NOUVEAU COMPTE POULET AFC';
 
-            if ($email) {
-                try {
-                    Mail::to($email)->send(new NotificationMail($object, $content, $title));
-                } catch (\Throwable $e) {
-                    Log::error("Échec envoi mail inscription : " . $e->getMessage());
-                }
-            }
-
-            // L'application client ne demande qu'un numéro WhatsApp et n'envoie
-            // jamais "phone" : le SMS, conditionné à "phone", n'était pas émis
-            // alors que l'écran affichait « Entrez le code reçu par SMS ». On
-            // se rabat sur le numéro WhatsApp enregistré sur le compte.
-            $destinataire = $create->phone ?: $create->whatsapp;
-
-            if ($destinataire) {
-                try {
-                    $function = new Fonction();
-                    $function->sendSms("Votre code de confirmation AFC :" . $confirmation_code, $destinataire);
-                } catch (\Throwable $e) {
-                    Log::error("Échec envoi SMS inscription : " . $e->getMessage());
-                }
-            }
+            // Courriel et SMS, chacun indépendant de l'autre : l'échec de l'un
+            // ne doit ni empêcher le second, ni faire échouer l'inscription.
+            app(\App\Support\NotificationClient::class)->prevenirDirectement(
+                $email,
+                $create->phone ?: $create->whatsapp,
+                $object,
+                $content,
+                $title
+            );
 
             return response()->json([
                 "response" => 200,
@@ -596,27 +583,33 @@ class UserController extends Controller
                 'confirmation_code' => $confirmation_code
             ]);
 
-            if ($method === 'email' && $seachUser->email) {
-                try {
-                    $content = "Votre code de confirmation POULET AFC est " . $confirmation_code;
-                    $title = "RESTAURER COMPTE AFC";
-                    $object = 'RESTAURER COMPTE AFC';
-                    Mail::to($seachUser->email)->send(new NotificationMail($object, $content, $title));
-                } catch (\Throwable $e) {
-                    Log::error("Échec envoi OTP Mail : " . $e->getMessage());
-                }
-            } elseif ($method === 'sms' && $seachUser->phone) {
-                try {
-                    $function = new Fonction();
-                    $function->sendSms("Votre code de confirmation POULET AFC est " . $confirmation_code, $seachUser->phone);
-                } catch (\Throwable $e) {
-                    Log::error("Échec envoi OTP SMS : " . $e->getMessage());
-                }
-            }
+            /*
+             | Les deux canaux, quel que soit celui demandé.
+             |
+             | C'était auparavant l'un ou l'autre : demander « sms » n'envoyait
+             | aucun courriel. Or Orange accepte les SMS, les facture et n'en
+             | remet aucun — le client restait donc devant un écran lui affirmant
+             | qu'un code venait de partir, sans rien recevoir nulle part.
+             */
+            $envois = app(\App\Support\NotificationClient::class)->prevenir(
+                $seachUser,
+                'RESTAURER COMPTE AFC',
+                "Votre code de confirmation POULET AFC est " . $confirmation_code
+            );
 
+            /*
+             | On annonce le canal réellement emprunté plutôt qu'un succès vague :
+             | « envoyé avec succès » devant une boîte vide use la confiance plus
+             | vite qu'un échec annoncé.
+             */
             return response()->json([
                 "response" => 200,
-                "message" => "Code de confirmation envoyé avec succès",
+                "message" => $envois['mail']
+                    ? "Code de confirmation envoyé par e-mail."
+                    : ($envois['sms']
+                        ? "Code de confirmation envoyé par SMS."
+                        : "Aucun moyen de contact valide sur ce compte."),
+                "canaux" => $envois,
             ]);
         }
 
