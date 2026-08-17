@@ -161,7 +161,11 @@ export default function Home({ categories, products, articles, mobileApp }) {
                             Voir tout →
                         </Link>
                     </div>
-                    <div className="mt-6 grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
+                    {/* Trois par ligne sur téléphone au lieu de deux, six sur grand
+                        écran au lieu de quatre : c'est ce qui fait réellement entrer
+                        plus de produits dans un écran. Les cartes ont été resserrées
+                        d'autant. */}
+                    <div className="mt-6 grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4 lg:grid-cols-6">
                         {products.map((product, index) => (
                             <ProductCard key={product.id} product={product} index={index} />
                         ))}

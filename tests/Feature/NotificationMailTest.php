@@ -42,7 +42,7 @@ class NotificationMailTest extends TestCase
 
     public function test_le_logo_est_servi_par_le_domaine_courant(): void
     {
-        $this->assertStringContainsString('https://pouletafc.com/logo_blue.png', $this->messageRendu());
+        $this->assertStringContainsString('https://pouletafc.com/images/logo.png', $this->messageRendu());
     }
 
     public function test_une_version_texte_accompagne_le_html(): void

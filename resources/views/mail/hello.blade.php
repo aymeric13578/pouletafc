@@ -33,7 +33,7 @@
                                                                         <tr style="padding:0;text-align:left;vertical-align:top">
                                                                             <td height="31px" style="Margin:0;border-collapse:collapse!important;color:#9b9b9b;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif;font-size:31px;font-weight:400;line-height:31px;margin:0;padding:0;text-align:center;vertical-align:top;word-wrap:break-word">
                                                                         
-                                                                            <!-- <img src="https://pouletafc.com/logo_blue.png" style="width:100px;height:100px" alt=""></td> -->
+                                                                            <!-- <img src="https://pouletafc.com/images/logo.png" style="width:100px;height:100px" alt=""></td> -->
                                                                         </tr>
                                                                     </tbody>
                                                                 </table>

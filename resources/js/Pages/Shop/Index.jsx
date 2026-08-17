@@ -46,7 +46,7 @@ export default function Index({ products, categories, filters }) {
 
                     <div className="flex-1">
                         {isNavigating ? (
-                            <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 xl:grid-cols-4">
+                            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4 xl:grid-cols-6">
                                 {Array.from({ length: 8 }).map((_, index) => (
                                     <ProductCardSkeleton key={index} />
                                 ))}
@@ -60,7 +60,7 @@ export default function Index({ products, categories, filters }) {
                             />
                         ) : (
                             <>
-                                <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 xl:grid-cols-4">
+                                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4 xl:grid-cols-6">
                                     {products.data.map((product, index) => (
                                         <ProductCard key={product.id} product={product} index={index} />
                                     ))}

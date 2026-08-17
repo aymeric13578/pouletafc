@@ -55,7 +55,7 @@
                                                                                 une image morte pointant vers un hôte étranger au domaine
                                                                                 expéditeur. Le fichier est servi tel quel par pouletafc.com.
                                                                             --}}
-                                                                            <img src="https://pouletafc.com/logo_blue.png" width="100" height="100" style="width:100px;height:100px" alt="Poulet AFC"></td>
+                                                                            <img src="https://pouletafc.com/images/logo.png" width="100" height="100" style="width:100px;height:100px" alt="Poulet AFC"></td>
                                                                         </tr>
                                                                     </tbody>
                                                                 </table>

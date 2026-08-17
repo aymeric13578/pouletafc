@@ -116,7 +116,7 @@ export default function Show({ product, related }) {
                 {related.length > 0 && (
                     <section style={{ animationDelay: '150ms' }} className="mt-16 animate-fade-in-up">
                         <h2 className="text-xl font-bold text-gray-900">Produits similaires</h2>
-                        <div className="mt-6 grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
+                        <div className="mt-6 grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4 lg:grid-cols-6">
                             {related.map((item, index) => (
                                 <ProductCard key={item.id} product={item} index={index} />
                             ))}

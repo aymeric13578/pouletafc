@@ -24,9 +24,16 @@ class HomeController extends Controller
                 'image_url' => product_image_url($category->image),
             ]);
 
+        /*
+        | Huit produits sur la vingtaine du catalogue : l'accueil n'en montrait
+        | qu'un tiers, et les plus récents seulement. Vingt-quatre couvre le
+        | catalogue actuel tout en gardant une borne, pour que la page ne
+        | s'allonge pas sans fin le jour où il grossira — « Voir tout » mène de
+        | toute façon au catalogue complet.
+        */
         $products = Product::where('status', 'Success')
             ->latest('id')
-            ->take(8)
+            ->take(24)
             ->get()
             ->map(fn (Product $product) => $this->transformProduct($product));
 
