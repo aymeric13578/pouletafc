@@ -159,6 +159,27 @@ if [ -d "$DEPLOY_PATH/public/build" ]; then
   step "3 bis - assets publies (fenetre sans style refermee)"
 fi
 
+# 3 quater. Rétablit tout de suite le lien vers le dossier des images.
+#
+#           L'archive n'embarque pas "public/upload" : après extraction, le
+#           dossier n'existe pas dans la release. Le lien n'était rétabli qu'à
+#           l'étape 7 bis, soit après le rsync de ~5500 fichiers vers le webroot
+#           — plusieurs minutes pendant lesquelles le site est déjà en ligne
+#           sans que PHP ne retrouve la moindre photo.
+#
+#           Les images restaient visibles pour un visiteur, le serveur web les
+#           servant directement depuis le webroot. Mais tout ce qui passe par PHP
+#           échouait en silence : constaté sur un aperçu de partage fabriqué dans
+#           cet intervalle, qui portait le logo au lieu du plat. Un envoi d'image
+#           tombé là aurait fini ailleurs que dans le dossier servi.
+#
+#           L'étape 7 bis conserve les droits et réaffirme le lien : elle reste
+#           utile, mais n'est plus le premier moment où il existe.
+mkdir -p "$WEBROOT_PATH/upload"
+rm -rf "$DEPLOY_PATH/public/upload"
+ln -sfn "$WEBROOT_PATH/upload" "$DEPLOY_PATH/public/upload"
+step "3 quater - lien des images retabli"
+
 # 4. Restaure le .env (jamais écrasé/regénéré par le pipeline). Ordre de priorité :
 #    a) le backup de la release précédente, b) la sauvegarde dédiée .env.latest,
 #    sinon on échoue proprement plutôt que de démarrer sans configuration.
