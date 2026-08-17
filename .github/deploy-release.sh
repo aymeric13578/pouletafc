@@ -174,6 +174,51 @@ elif [ ! -f "$DEPLOY_PATH/.env" ]; then
   exit 1
 fi
 
+# 4 bis. Bascule des courriels sur la messagerie du serveur.
+#
+#        Le .env de production envoyait par smtp.gmail.com, avec le mot de passe
+#        d'application d'une boîte gmail personnelle. Les messages partaient,
+#        mais sous une autre identité que le domaine — et un mot de passe
+#        d'application révoqué suffit à tout arrêter sans prévenir.
+#
+#        « sendmail » remet le message à l'Exim du serveur, sous infos@pouletafc.com.
+#        Aucun identifiant à stocker, aucun service tiers dans la chaîne, et
+#        l'expéditeur relève du domaine — ce que les filtres anti-spam vérifient.
+#
+#        Opération unique : le marqueur ci-dessous empêche de rejouer la bascule
+#        à chaque déploiement. Le jour où tu préfères un SMTP authentifié sur la
+#        boîte infos@, tu modifies le .env à la main et le script n'y touchera
+#        plus — c'est tout l'intérêt du marqueur.
+step "4 bis - messagerie du serveur"
+MARQUEUR="# courriel-serveur-applique"
+if grep -qF "$MARQUEUR" "$DEPLOY_PATH/.env"; then
+  echo "Bascule déjà appliquée, .env laissé tel quel."
+else
+  ENV_FICHIER="$DEPLOY_PATH/.env"
+
+  regler() {
+    # Remplace la valeur si la clé existe, l'ajoute sinon.
+    if grep -qE "^[[:space:]]*$1=" "$ENV_FICHIER"; then
+      sed -i "s|^[[:space:]]*$1=.*|$1=$2|" "$ENV_FICHIER"
+    else
+      echo "$1=$2" >> "$ENV_FICHIER"
+    fi
+  }
+
+  regler MAIL_MAILER sendmail
+  regler MAIL_FROM_ADDRESS '"infos@pouletafc.com"'
+  regler MAIL_FROM_NAME '"Poulet AFC"'
+
+  # Les réglages SMTP de gmail deviennent inertes avec « sendmail », mais on les
+  # met en commentaire plutôt que de les effacer : si la bascule déçoit, la
+  # configuration précédente est là, sous les yeux, prête à être remise.
+  # Délimiteur « @ » : « | » sépare déjà les alternatives du motif.
+  sed -i -E 's@^[[:space:]]*(MAIL_HOST|MAIL_PORT|MAIL_USERNAME|MAIL_PASSWORD|MAIL_ENCRYPTION)=@# (avant bascule) \1=@' "$ENV_FICHIER"
+
+  echo "$MARQUEUR" >> "$ENV_FICHIER"
+  echo "Courriels basculés sur la messagerie du serveur (infos@pouletafc.com)."
+fi
+
 # 5. Restaure les fichiers persistants depuis la sauvegarde
 step "5 - restauration storage/app"
 if [ -d "$BACKUP_PATH/storage/app" ]; then

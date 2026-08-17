@@ -143,6 +143,55 @@ new class extends Component {
         $this->closeModal();
     }
 
+    /*
+    | Essai d'envoi de courriel.
+    |
+    | Les messages qui comptent — code de confirmation, accusé de commande —
+    | partent par courriel depuis que les SMS d'Orange sont acceptés, facturés,
+    | et jamais remis. Cette dépendance mérite d'être vérifiable sans ouvrir un
+    | terminal : une adresse, un bouton, et le message d'erreur exact si ça
+    | coince, plutôt qu'un silence à interpréter.
+    */
+    public $courrielTest = '';
+
+    public function envoyerCourrielTest()
+    {
+        $destinataire = trim($this->courrielTest) ?: (string) auth()->user()?->email;
+
+        if (! filter_var($destinataire, FILTER_VALIDATE_EMAIL)) {
+            $this->dispatch('notify', [
+                'message' => 'Renseignez une adresse valide pour l\'essai.',
+                'type' => 'error',
+            ]);
+
+            return;
+        }
+
+        try {
+            \Illuminate\Support\Facades\Mail::to($destinataire)->send(
+                new \App\Mail\NotificationMail(
+                    'POULET AFC - essai d\'envoi',
+                    'Ce message confirme que le serveur poste bien les courriels. '
+                        . 'Expédié depuis ' . config('mail.from.address')
+                        . ' via « ' . config('mail.default') . ' ».',
+                    'Essai d\'envoi'
+                )
+            );
+
+            $this->dispatch('notify', [
+                'message' => 'Message remis au serveur pour ' . $destinataire . '. Vérifiez la boîte de réception.',
+                'type' => 'success',
+            ]);
+        } catch (\Throwable $e) {
+            // Le message brut, sans reformulation : c'est lui qui dit si la
+            // boîte est refusée, le port fermé ou sendmail absent.
+            $this->dispatch('notify', [
+                'message' => 'Échec de l\'envoi : ' . $e->getMessage(),
+                'type' => 'error',
+            ]);
+        }
+    }
+
     public function activer($id)
     {
         Parameter::findOrFail($id)->activer();
@@ -227,6 +276,35 @@ new class extends Component {
                     </p>
                 </div>
             @endif
+
+            {{-- Envoi des courriels : ce qui est configuré, et de quoi l'essayer. --}}
+            <div class="mt-6 rounded-2xl border border-gray-200 bg-white px-5 py-4">
+                <div class="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <p class="text-sm font-bold text-gray-900">Envoi des courriels</p>
+                        <p class="mt-1 text-xs text-gray-500">
+                            Expéditeur
+                            <span class="font-semibold text-gray-700">{{ config('mail.from.address') }}</span>,
+                            par
+                            <span class="font-semibold text-gray-700">{{ config('mail.default') }}</span>.
+                            Les codes de confirmation et les accusés de commande passent par là.
+                        </p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input
+                            type="email"
+                            wire:model="courrielTest"
+                            placeholder="{{ auth()->user()?->email ?: 'adresse de destination' }}"
+                            class="w-64 rounded-xl border-gray-300 text-sm shadow-sm focus:border-gray-400 focus:ring-0" />
+
+                        <x-ui.button wire:click="envoyerCourrielTest" wire:loading.attr="disabled">
+                            <span wire:loading.remove wire:target="envoyerCourrielTest">Envoyer un essai</span>
+                            <span wire:loading wire:target="envoyerCourrielTest">Envoi…</span>
+                        </x-ui.button>
+                    </div>
+                </div>
+            </div>
 
             <div class="mt-6">
                 <x-ui.table

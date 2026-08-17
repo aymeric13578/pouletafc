@@ -178,18 +178,21 @@ jobs:
       # téléchargements du chemin critique, dont celui qui échouait.
       - name: Upload release archive
         env:
-          MOT_DE_PASSE: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+          # sshpass lit ce nom précis avec « -e ». Avec « -p », le mot de passe
+          # apparaîtrait dans la liste des processus de la machine.
+          SSHPASS: ${{ secrets.DEPLOY_SSH_PASSWORD }}
         run: |
           # sshpass est présent sur l'image de la machine, mais l'installer
           # coûte quelques secondes le jour où il n'y serait plus — bien moins
           # qu'un déploiement perdu sur un « command not found ».
-          command -v sshpass >/dev/null || sudo apt-get install -y -qq sshpass
+          command -v sshpass >/dev/null \
+            || { sudo apt-get update -qq && sudo apt-get install -y -qq sshpass; }
 
           # L'archive et le script de mise en production partent ensemble : une
           # seule connexion, et le script est déposé en fichier plutôt que tubé.
           # Tubé, bash le lirait depuis l'entrée standard, et la première
           # commande du script qui lit stdin en avalerait la suite.
-          sshpass -p "$MOT_DE_PASSE" scp -P "$DEPLOY_PORT" \
+          sshpass -e scp -P "$DEPLOY_PORT" \
             -o StrictHostKeyChecking=yes -o ConnectTimeout=30 \
             "$ARCHIVE_NAME" .github/deploy-release.sh \
             "$DEPLOY_USER@$DEPLOY_HOST:/home/$DEPLOY_USER/"
@@ -200,7 +203,9 @@ jobs:
         # 40 à l'étape pour que ce soit le script qui rende la main, pas le couperet.
         timeout-minutes: 40
         env:
-          MOT_DE_PASSE: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+          # sshpass lit ce nom précis avec « -e ». Avec « -p », le mot de passe
+          # apparaîtrait dans la liste des processus de la machine.
+          SSHPASS: ${{ secrets.DEPLOY_SSH_PASSWORD }}
         run: |
           # Les variables sont passées en tête de commande : c'est exactement ce
           # que faisait le paramètre « envs » de l'action remplacée.
@@ -208,7 +213,7 @@ jobs:
           # ServerAliveInterval maintient la connexion pendant le rsync vers
           # public_html, qui reste plusieurs minutes sans rien écrire — sans ça
           # le pare-feu de l'hébergeur coupe une session qu'il croit oisive.
-          sshpass -p "$MOT_DE_PASSE" ssh -p "$DEPLOY_PORT" \
+          sshpass -e ssh -p "$DEPLOY_PORT" \
             -o StrictHostKeyChecking=yes -o ConnectTimeout=30 \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=60 \
             "$DEPLOY_USER@$DEPLOY_HOST" \
