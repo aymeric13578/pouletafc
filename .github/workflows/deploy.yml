@@ -166,354 +166,52 @@ jobs:
             echo '[209.16.158.105]:5022 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIrOLR8T7kongCpfUuIneume8pLqSyhnhzr4pykSikXF'
           } >> ~/.ssh/known_hosts
 
+      # scp et ssh appelés directement, sans action tierce.
+      #
+      # Toute action utilisée doit d'abord être téléchargée depuis
+      # codeload.github.com, avant que la moindre étape ne démarre. Ce point
+      # d'entrée répond régulièrement 429 ou 503, et l'exécution s'arrête alors
+      # à « Prepare all required actions » : quatre déploiements d'affilée sont
+      # morts là, sans qu'une seule ligne de build ne tourne.
+      #
+      # scp et ssh sont déjà sur la machine. Les appeler nous-mêmes retire deux
+      # téléchargements du chemin critique, dont celui qui échouait.
       - name: Upload release archive
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ env.DEPLOY_HOST }}
-          port: ${{ env.DEPLOY_PORT }}
-          username: ${{ env.DEPLOY_USER }}
-          password: ${{ secrets.DEPLOY_SSH_PASSWORD }}
-          source: ${{ env.ARCHIVE_NAME }}
-          target: /home/${{ env.DEPLOY_USER }}
+        env:
+          MOT_DE_PASSE: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+        run: |
+          # sshpass est présent sur l'image de la machine, mais l'installer
+          # coûte quelques secondes le jour où il n'y serait plus — bien moins
+          # qu'un déploiement perdu sur un « command not found ».
+          command -v sshpass >/dev/null || sudo apt-get install -y -qq sshpass
+
+          # L'archive et le script de mise en production partent ensemble : une
+          # seule connexion, et le script est déposé en fichier plutôt que tubé.
+          # Tubé, bash le lirait depuis l'entrée standard, et la première
+          # commande du script qui lit stdin en avalerait la suite.
+          sshpass -p "$MOT_DE_PASSE" scp -P "$DEPLOY_PORT" \
+            -o StrictHostKeyChecking=yes -o ConnectTimeout=30 \
+            "$ARCHIVE_NAME" .github/deploy-release.sh \
+            "$DEPLOY_USER@$DEPLOY_HOST:/home/$DEPLOY_USER/"
 
       - name: Release on server (backup + swap + finalize)
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ env.DEPLOY_HOST }}
-          port: ${{ env.DEPLOY_PORT }}
-          username: ${{ env.DEPLOY_USER }}
-          password: ${{ secrets.DEPLOY_SSH_PASSWORD }}
-          envs: DEPLOY_PATH,BACKUP_PATH,WEBROOT_PATH,ARCHIVE_NAME
-          # Le disque de cet hébergement mutualisé est lent avec beaucoup de petits fichiers
-          # (rsync de ~5500 fichiers vers public_html) : le timeout par défaut de 10m est trop court.
-          command_timeout: 30m
-          script: |
-            set -euo pipefail
-            ARCHIVE="$HOME/${ARCHIVE_NAME}"
-
-            # Jalon horodaté avant chaque étape. Sans ça, quand le déploiement dépasse
-            # le timeout on ne sait pas laquelle a traîné : la sortie s'arrête net sur
-            # la dernière ligne affichée, qui ne dit rien de l'étape en cours.
-            DEPLOY_T0=$(date +%s)
-            step() {
-              echo "[+$(( $(date +%s) - DEPLOY_T0 ))s] === $1"
-            }
-
-            # 0 bis. Filet de sécurité sur les images.
-            #
-            #        Les photos des fiches produits ont déjà été perdues une fois, et
-            #        les renvoyer coûte des heures. Aucune opération de ce script ne
-            #        doit plus pouvoir y toucher — mais un raisonnement ne vaut pas une
-            #        garantie, et c'est ce que pose ce bloc.
-            #
-            #        L'instantané est fait de liens durs : il ne recopie aucun octet et
-            #        n'occupe presque rien, tout en survivant à la suppression des
-            #        originaux. Effacer un fichier ne libère la place que lorsque le
-            #        dernier lien disparaît.
-            UPLOAD_DIR="$WEBROOT_PATH/upload"
-            INSTANTANES="$HOME/uploads_instantanes"
-            INSTANTANE="$INSTANTANES/upload_$(date +%Y%m%d%H%M%S)"
-            UPLOADS_AVANT=0
-
-            if [ -d "$UPLOAD_DIR" ]; then
-              UPLOADS_AVANT=$( (find "$UPLOAD_DIR" -type f 2>/dev/null || true) | wc -l )
-              mkdir -p "$INSTANTANES"
-              cp -al "$UPLOAD_DIR" "$INSTANTANE" 2>/dev/null || cp -a "$UPLOAD_DIR" "$INSTANTANE"
-              echo "Images : $UPLOADS_AVANT fichiers, instantané dans $INSTANTANE"
-
-              # On garde les trois derniers : au-delà, ce sont des liens vers des
-              # fichiers depuis longtemps remplacés.
-              # « || true » indispensable : au premier passage aucun instantané
-              # n'existe, ls sort en erreur, et pipefail ferait échouer tout le
-              # déploiement pour un simple ménage.
-              ls -1dt "$INSTANTANES"/upload_* 2>/dev/null | tail -n +4 | xargs -r rm -rf || true
-            fi
-
-            # 0. Sauvegarde défensive et explicite du .env serveur AVANT toute opération
-            #    destructive (le mv/rm ci-dessous). Ces copies vivent dans un dossier dédié
-            #    qui n'est JAMAIS purgé par le déploiement : le .env de production reste donc
-            #    récupérable même si le backup principal ($BACKUP_PATH) est écrasé ou si un
-            #    déploiement échoue en cours de route.
-            ENV_BACKUP_DIR="$HOME/pouletafc_env_backups"
-            if [ -f "$DEPLOY_PATH/.env" ]; then
-              mkdir -p "$ENV_BACKUP_DIR"
-              cp -p "$DEPLOY_PATH/.env" "$ENV_BACKUP_DIR/.env.$(date +%Y%m%d%H%M%S)"
-              cp -p "$DEPLOY_PATH/.env" "$ENV_BACKUP_DIR/.env.latest"
-              # Ne conserve que les 10 sauvegardes horodatées les plus récentes.
-              ls -1t "$ENV_BACKUP_DIR"/.env.20* 2>/dev/null | tail -n +11 | xargs -r rm -f
-              echo ".env serveur sauvegardé dans $ENV_BACKUP_DIR (+ .env.latest)"
-            else
-              echo "Aucun .env courant à sauvegarder (premier déploiement ?)"
-            fi
-
-            # 0 bis. Contrôle de l'espace disque AVANT toute opération destructive.
-            #
-            #        Un déploiement a déjà échoué faute de place : l'extraction s'est
-            #        arrêtée en chemin, laissant une release sans "artisan", donc un
-            #        site en erreur 500. Le mal était fait puisque l'étape 1 avait déjà
-            #        écrasé la sauvegarde précédente. On refuse maintenant de démarrer
-            #        plutôt que de détruire le filet de sécurité.
-            #
-            #        Facteur 3 : l'archive reste sur le disque pendant l'extraction, son
-            #        contenu décompressé pèse environ 2,5 fois son poids, et la copie
-            #        vers le webroot demande un peu de marge. Volontairement calé au
-            #        plus juste : un seuil trop large bloquerait des déploiements
-            #        parfaitement viables, ce qui serait pire que le mal.
-            step "0 bis - controle de l'espace disque"
-            ESPACE_DISPO=$(df -Pk "$HOME" | awk 'NR==2 {print $4}')
-            TAILLE_ARCHIVE=$(du -k "$ARCHIVE" | awk '{print $1}')
-            REQUIS=$(( TAILLE_ARCHIVE * 3 ))
-
-            echo "Disponible : $(( ESPACE_DISPO / 1024 )) Mo | requis : $(( REQUIS / 1024 )) Mo"
-
-            if [ "$ESPACE_DISPO" -lt "$REQUIS" ]; then
-              echo "ERREUR: espace disque insuffisant, déploiement annulé." >&2
-              echo "Aucune modification n'a été faite, le site reste en ligne." >&2
-              df -h "$HOME" >&2
-              echo "Pistes : rm -rf ~/pouletafc_casse ~/release-*.tar.gz" >&2
-              exit 1
-            fi
-
-            step "1 - sauvegarde de la release"
-            # 1. Sauvegarde la release actuelle si elle existe (le backup précédent est remplacé)
-            if [ -d "$DEPLOY_PATH" ]; then
-              echo "Sauvegarde de la release existante vers $BACKUP_PATH"
-              rm -rf "$BACKUP_PATH"
-              mv "$DEPLOY_PATH" "$BACKUP_PATH"
-            else
-              echo "Aucune release existante, pas de sauvegarde nécessaire"
-            fi
-
-            # 2. Crée le dossier de release seulement s'il n'existe pas déjà
-            mkdir -p "$DEPLOY_PATH"
-
-            step "3 - extraction archive"
-            # 3. Extrait la nouvelle release
-            tar -xzf "$ARCHIVE" -C "$DEPLOY_PATH"
-            rm -f "$ARCHIVE"
-
-            # 3 ter. Vérifie que la release extraite est complète, et revient en arrière
-            #        sinon.
-            #
-            #        Une extraction tronquée passait jusqu'ici inaperçue : le script
-            #        continuait, écrasait le webroot, et n'échouait qu'à l'étape 9 sur
-            #        « Could not open input file: artisan » — trop tard, le site était
-            #        déjà cassé et la sauvegarde consommée. On restaure immédiatement.
-            if [ ! -f "$DEPLOY_PATH/artisan" ] || [ ! -d "$DEPLOY_PATH/public/build" ]; then
-              echo "ERREUR: release incomplète après extraction." >&2
-              ls -la "$DEPLOY_PATH" | head -20 >&2
-              df -h "$HOME" >&2
-
-              if [ -d "$BACKUP_PATH/artisan" ] || [ -f "$BACKUP_PATH/artisan" ]; then
-                echo "Restauration de la release précédente..." >&2
-                rm -rf "$DEPLOY_PATH"
-                mv "$BACKUP_PATH" "$DEPLOY_PATH"
-                echo "Release précédente restaurée : le site reste en ligne." >&2
-              else
-                echo "AUCUNE sauvegarde exploitable : intervention manuelle nécessaire." >&2
-              fi
-
-              exit 1
-            fi
-
-            # 3 bis. Publie les assets buildés vers le webroot IMMÉDIATEMENT, sans --delete.
-            #
-            #        L'étape 1 a déjà basculé la release : le PHP servi lit donc le nouveau
-            #        manifest et réclame les nouveaux fichiers hashés. Or le webroot n'était
-            #        synchronisé qu'à l'étape 6, après plusieurs minutes de rsync sur ~5500
-            #        fichiers. Pendant tout cet intervalle, chaque page renvoyait du HTML
-            #        pointant vers des CSS et JS absents : site sans aucun style, ou en 500.
-            #
-            #        En copiant "build" tout de suite et sans --delete, les anciens et les
-            #        nouveaux fichiers hashés coexistent : les pages déjà ouvertes continuent
-            #        de fonctionner, les nouvelles trouvent leurs assets. L'étape 6 fera le
-            #        ménage des fichiers devenus inutiles.
-            if [ -d "$DEPLOY_PATH/public/build" ]; then
-              mkdir -p "$WEBROOT_PATH/build"
-              rsync -a "$DEPLOY_PATH/public/build/" "$WEBROOT_PATH/build/"
-              step "3 bis - assets publies (fenetre sans style refermee)"
-            fi
-
-            # 4. Restaure le .env (jamais écrasé/regénéré par le pipeline). Ordre de priorité :
-            #    a) le backup de la release précédente, b) la sauvegarde dédiée .env.latest,
-            #    sinon on échoue proprement plutôt que de démarrer sans configuration.
-            if [ -f "$BACKUP_PATH/.env" ]; then
-              cp -p "$BACKUP_PATH/.env" "$DEPLOY_PATH/.env"
-              echo ".env restauré depuis $BACKUP_PATH"
-            elif [ -f "$ENV_BACKUP_DIR/.env.latest" ]; then
-              cp -p "$ENV_BACKUP_DIR/.env.latest" "$DEPLOY_PATH/.env"
-              echo ".env restauré depuis $ENV_BACKUP_DIR/.env.latest"
-            elif [ ! -f "$DEPLOY_PATH/.env" ]; then
-              echo "ERREUR: aucun fichier .env trouvé (ni sauvegarde, ni existant)." >&2
-              echo "Configure-le manuellement sur le serveur avant de redéployer." >&2
-              exit 1
-            fi
-
-            # 5. Restaure les fichiers persistants depuis la sauvegarde
-            step "5 - restauration storage/app"
-            if [ -d "$BACKUP_PATH/storage/app" ]; then
-              rsync -a "$BACKUP_PATH/storage/app/" "$DEPLOY_PATH/storage/app/"
-            fi
-
-            # Les logs ne sont PLUS recopiés d'une release à l'autre. Un laravel.log
-            # non tourné atteint facilement plusieurs Go sur un projet ancien, et le
-            # recopier intégralement à chaque déploiement sur ce disque mutualisé
-            # faisait dépasser le command_timeout de 30 min : le déploiement
-            # s'interrompait avant d'avoir synchronisé le webroot.
-            # Les anciens logs restent consultables dans $BACKUP_PATH/storage/logs.
-            step "5 - logs (ignorés volontairement, voir commentaire)"
-
-            # 5 bis. Images produits et pièces jointes envoyées depuis l'app mobile et le
-            #        back-office. Elles sont écrites par PHP dans public_path('upload')
-            #        (33 appels) et doivent survivre à chaque mise en production : ni
-            #        l'archive, qui les exclut, ni le rsync --delete de l'étape 6 ne les
-            #        épargnent. Leur original vit désormais dans le webroot (étape 7 bis) ;
-            #        c'est donc là qu'on les rassemble, en trois temps.
-            #
-            #        Temps 1 : rétablir un vrai dossier si un déploiement antérieur avait
-            #        fait du webroot un lien vers la release, en récupérant son contenu.
-            #        À faire d'abord : sans cela, les copies suivantes écriraient à travers
-            #        le lien, donc dans l'ancienne release qu'on s'apprête à effacer.
-            if [ -L "$WEBROOT_PATH/upload" ]; then
-              ANCIEN_LIEN="$(readlink -f "$WEBROOT_PATH/upload" || true)"
-              rm -f "$WEBROOT_PATH/upload"
-              mkdir -p "$WEBROOT_PATH/upload"
-
-              if [ -n "$ANCIEN_LIEN" ] && [ -d "$ANCIEN_LIEN" ]; then
-                rsync -a "$ANCIEN_LIEN/" "$WEBROOT_PATH/upload/"
-                echo "Uploads repris depuis l'ancien lien : $(ls -1 "$WEBROOT_PATH/upload" | wc -l) fichiers"
-              fi
-            fi
-
-            mkdir -p "$WEBROOT_PATH/upload"
-
-            #        Temps 2 : compléter avec ce que porte la release sauvegardée, sans
-            #        écraser ce que le webroot a déjà — il peut être plus récent.
-            #        -L déréférence, la sauvegarde pouvant elle-même contenir un lien.
-            #        On ratisse toutes les copies plausibles, jamais une seule.
-            #
-            #        Vingt-six images de fiches produits ont disparu du serveur : elles
-            #        ne sont ni dans le webroot, ni dans la dernière sauvegarde, ni
-            #        versionnées — le dépôt ne porte qu'un lot bien plus ancien. Elles
-            #        peuvent en revanche subsister dans une release antérieure oubliée.
-            #        Ce balayage coûte quelques secondes et n'écrase jamais un fichier
-            #        présent ; il ne peut donc que rendre ce qui a été perdu.
-            AVANT_RECUPERATION=$(ls -1 "$WEBROOT_PATH/upload" 2>/dev/null | wc -l)
-
-            for SOURCE in "$BACKUP_PATH/public/upload" "$HOME"/pouletafc*/public/upload; do
-              # Le motif ci-dessus reste littéral s'il ne correspond à rien, et
-              # une source peut être le dossier de destination lui-même.
-              if [ ! -d "$SOURCE" ]; then
-                continue
-              fi
-
-              # Écrit en « if » et non en « [ … ] && continue » : sous set -e, un
-              # test faux fait renvoyer un code non nul à la liste entière et
-              # interrompt le déploiement.
-              if [ "$(readlink -f "$SOURCE")" = "$(readlink -f "$WEBROOT_PATH/upload")" ]; then
-                continue
-              fi
-
-              rsync -aL --ignore-existing "$SOURCE/" "$WEBROOT_PATH/upload/" 2>/dev/null || true
-            done
-
-            APRES_RECUPERATION=$(ls -1 "$WEBROOT_PATH/upload" 2>/dev/null | wc -l)
-            echo "Uploads : $APRES_RECUPERATION fichiers ($(( APRES_RECUPERATION - AVANT_RECUPERATION )) récupérés)"
-
-            step "6 - rsync vers le webroot"
-            # 6. Synchronise les assets buildés vers le webroot réel (public_html n'est pas un
-            #    symlink vers erpndazoa/public sur ce serveur, donc il faut copier le build à
-            #    chaque déploiement, sinon le site sert d'anciens fichiers JS/CSS -> page cassée).
-            #    On préserve l'index.php spécifique du webroot (chemins ../erpndazoa/...) et
-            #    .well-known.
-            mkdir -p "$WEBROOT_PATH"
-            rsync -a --delete \
-              --exclude='index.php' \
-              --exclude='.well-known' \
-              --exclude='storage' \
-              --exclude='upload' \
-              "$DEPLOY_PATH/public/" "$WEBROOT_PATH/"
-
-            # 6 bis. "upload" est exclu ci-dessus parce que le webroot en détient
-            #        désormais l'original (voir étape 7 bis) : sans l'exclusion,
-            #        rsync --delete effacerait toutes les images à chaque mise en
-            #        production.
-
-            # 7 bis. CAUSE RACINE des images produits invisibles : PHP écrit les fichiers
-            #        envoyés depuis le back-office et l'app mobile dans
-            #        public_path('upload') = "$DEPLOY_PATH/public/upload", alors que le
-            #        webserver sert "$WEBROOT_PATH", qui en est une COPIE distincte. Une
-            #        image ajoutée depuis le tableau de bord était donc bien enregistrée sur
-            #        le disque, mais jamais servie : elle n'apparaissait qu'après le
-            #        déploiement suivant, et seulement si elle avait été committée.
-            #
-            #        Le lien va du dossier de release VERS le webroot, et non
-            #        l'inverse.
-            #
-            #        On avait d'abord fait pointer public_html/upload vers la
-            #        release : LiteSpeed refuse de servir à travers un lien dont
-            #        la cible sort du dossier web, et renvoyait 403 sur toutes les
-            #        images — y compris sur des fichiers inexistants, preuve que
-            #        le refus portait sur le chemin et non sur les fichiers.
-            #
-            #        Dans ce sens-ci, le serveur sert un vrai dossier et PHP écrit
-            #        à travers le lien : PHP, lui, suit les liens sans restriction.
-            UPLOAD_REEL="$WEBROOT_PATH/upload"
-            mkdir -p "$UPLOAD_REEL"
-
-            # Lisible et traversable par le serveur web, faute de quoi il refuse
-            # l'accès quel que soit le contenu.
-            chmod a+rX "$UPLOAD_REEL"
-            find "$UPLOAD_REEL" -type d -exec chmod a+rx {} + 2>/dev/null || true
-            find "$UPLOAD_REEL" -type f -exec chmod a+r {} + 2>/dev/null || true
-
-            rm -rf "$DEPLOY_PATH/public/upload"
-            ln -sfn "$UPLOAD_REEL" "$DEPLOY_PATH/public/upload"
-            echo "public/upload de la release pointe vers $UPLOAD_REEL ($(ls -1 "$UPLOAD_REEL" | wc -l) fichiers)"
-
-            # 7. Lien storage accessible publiquement : recréé s'il est absent ou s'il ne pointe
-            #    pas vers le bon chemin (ne touche pas à un lien déjà valide).
-            if [ "$(readlink "$WEBROOT_PATH/storage" 2>/dev/null || true)" != "$DEPLOY_PATH/storage/app/public" ]; then
-              ln -sfn "$DEPLOY_PATH/storage/app/public" "$WEBROOT_PATH/storage"
-            fi
-
-            step "8 - permissions"
-            # 8. Permissions
-            chmod -R ug+rwx "$DEPLOY_PATH/storage" "$DEPLOY_PATH/bootstrap/cache"
-
-            step "9 - taches artisan (migrate / config / view)"
-            # 9. Tâches de release Laravel
-            cd "$DEPLOY_PATH"
-            php artisan migrate --force
-            step "9 - migrate termine, config:cache"
-            php artisan config:cache
-            # route:cache désactivé : routes/web.php contient des noms de route dupliqués
-            # (dashboard, home, status.change, ...) qui font échouer la compilation du cache.
-            php artisan view:cache
-            php artisan queue:restart || true
-
-            step "10 - controle des images"
-            # 10. Dernier mot sur les images.
-            #
-            #     Si leur nombre a baissé, quelque chose les a effacées malgré tout :
-            #     on les remet depuis l'instantané et on fait échouer le déploiement,
-            #     pour que la perte se voie au lieu de passer inaperçue jusqu'à ce
-            #     qu'un client tombe sur une fiche sans photo.
-            UPLOADS_APRES=$( (find "$UPLOAD_DIR" -type f 2>/dev/null || true) | wc -l )
-
-            if [ "$UPLOADS_APRES" -lt "$UPLOADS_AVANT" ]; then
-              echo "ALERTE : $UPLOADS_AVANT images avant, $UPLOADS_APRES après. Restauration." >&2
-
-              if [ -d "$INSTANTANE" ]; then
-                mkdir -p "$UPLOAD_DIR"
-                rsync -a --ignore-existing "$INSTANTANE/" "$UPLOAD_DIR/"
-                echo "Restaurées : $(find "$UPLOAD_DIR" -type f | wc -l) fichiers" >&2
-              fi
-
-              echo "Le déploiement est marqué en échec : cette perte doit être examinée." >&2
-              exit 1
-            fi
-
-            echo "Images : $UPLOADS_APRES fichiers (aucune perte)."
-
-            echo "Déploiement terminé. Sauvegarde disponible dans $BACKUP_PATH en cas de problème."
+        # Le disque de cet hébergement mutualisé est lent avec beaucoup de petits
+        # fichiers (rsync de ~5500 fichiers vers public_html) : 30 min au serveur,
+        # 40 à l'étape pour que ce soit le script qui rende la main, pas le couperet.
+        timeout-minutes: 40
+        env:
+          MOT_DE_PASSE: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+        run: |
+          # Les variables sont passées en tête de commande : c'est exactement ce
+          # que faisait le paramètre « envs » de l'action remplacée.
+          #
+          # ServerAliveInterval maintient la connexion pendant le rsync vers
+          # public_html, qui reste plusieurs minutes sans rien écrire — sans ça
+          # le pare-feu de l'hébergeur coupe une session qu'il croit oisive.
+          sshpass -p "$MOT_DE_PASSE" ssh -p "$DEPLOY_PORT" \
+            -o StrictHostKeyChecking=yes -o ConnectTimeout=30 \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=60 \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "DEPLOY_PATH='$DEPLOY_PATH' BACKUP_PATH='$BACKUP_PATH' \
+             WEBROOT_PATH='$WEBROOT_PATH' ARCHIVE_NAME='$ARCHIVE_NAME' \
+             bash \$HOME/deploy-release.sh"
