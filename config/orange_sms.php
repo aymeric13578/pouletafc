@@ -27,34 +27,13 @@ return [
     'token_url' => env('ORANGE_SMS_TOKEN_URL', 'https://api.orange.com/oauth/v3/token'),
 
     /*
-    | Adresse d'émission. « tel:+2370000000 » est le remplissage des offres
-    | self-service : Orange l'accepte, mais ne remet rien tant qu'aucun nom
-    | d'expéditeur n'est enregistré sur le contrat.
+    | Adresse d'émission.
+    |
+    | Orange ne la contrôle pas : le remplissage « tel:+2370000000 », un numéro
+    | réel ou un numéro inventé sont acceptés à l'identique — testé, trois fois
+    | 201. Elle n'est donc pas un levier sur la remise des messages.
     */
     'sender_address' => env('ORANGE_SMS_SENDER_ADDRESS', 'tel:+2370000000'),
-
-    /*
-    |--------------------------------------------------------------------------
-    | Nom d'expéditeur
-    |--------------------------------------------------------------------------
-    |
-    | Volontairement vide par défaut, et transmis seulement s'il est renseigné.
-    |
-    | Orange refuse tout nom non enregistré sur le contrat — « Forbidden
-    | senderName : not whitelisted » — et l'envoi échoue alors entièrement. Le
-    | poser en dur avant leur accord remplacerait des messages acceptés mais non
-    | remis par des messages refusés : aucun des deux n'arrive, mais le second
-    | casse en plus le parcours d'inscription, qui attend une réponse.
-    |
-    | Le jour où Orange enregistre « POULETAFC », il suffira d'ajouter au .env
-    | du serveur :
-    |
-    |     ORANGE_SMS_SENDER_NAME=POULETAFC
-    |
-    | sans toucher au code ni redéployer.
-    |
-    */
-    'sender_name' => env('ORANGE_SMS_SENDER_NAME'),
 
     /*
     | Indicatif préfixé aux numéros locaux à neuf chiffres.

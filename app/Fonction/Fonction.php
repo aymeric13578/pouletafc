@@ -149,17 +149,17 @@ public function getToken()
     /**
      * Corps de la demande d'envoi.
      *
-     * Le nom d'expéditeur n'y figure que s'il est renseigné. Orange refuse tout
-     * nom non enregistré sur le contrat — « Forbidden senderName : not
-     * whitelisted » — et l'envoi échoue alors entièrement : ni message remis,
-     * ni réponse exploitable par le parcours d'inscription, qui l'attend. Tant
-     * qu'Orange n'en a pas enregistré un, mieux vaut ne rien déclarer.
+     * Sans nom d'expéditeur, volontairement. Orange refuse tout nom non
+     * enregistré sur le contrat, et en déclarer un ferait échouer entièrement
+     * des envois aujourd'hui acceptés. Il n'apporterait de toute façon rien à
+     * la remise : l'API accepte à l'identique le remplissage, un numéro réel ou
+     * un numéro inventé comme adresse d'émission.
      *
      * @return array<string, mixed>
      */
     public function corpsDeLEnvoi($message, $contact)
     {
-        $demande = [
+        return ["outboundSMSMessageRequest" => [
             /*
              | « tel: » fait partie de l'adresse attendue par Orange, au même
              | titre que l'indicatif. L'omettre produit une adresse qu'il
@@ -170,15 +170,7 @@ public function getToken()
             "outboundSMSTextMessage" => [
                 "message" => (string) $message,
             ],
-        ];
-
-        $nom = trim((string) config('orange_sms.sender_name'));
-
-        if ($nom !== '') {
-            $demande["senderName"] = $nom;
-        }
-
-        return ["outboundSMSMessageRequest" => $demande];
+        ]];
     }
 
     public function sendSms($message, $contact)

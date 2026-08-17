@@ -8,11 +8,13 @@ use Tests\TestCase;
 /**
  * Composition de la demande d'envoi Orange.
  *
- * Les SMS ne partaient pas : Orange accepte l'envoi, débite le forfait, mais ne
- * remet rien tant qu'aucun nom d'expéditeur n'est enregistré sur le contrat.
- * Le jour où il le sera, il suffira de renseigner une variable — encore
- * faut-il que le code sache la transmettre, et surtout qu'il s'en passe d'ici
- * là.
+ * Les SMS ne partaient pas : Orange accepte l'envoi, débite le forfait, et ne
+ * remet rien. Le blocage est en aval de l'API — ni le format du numéro, ni
+ * l'adresse d'émission n'y changent quoi que ce soit, Orange acceptant à
+ * l'identique le remplissage, un numéro réel ou un numéro inventé.
+ *
+ * Ce qui se vérifie ici est donc la constance de la demande : la même requête
+ * qu'avant l'extraction des identifiants, sans rien y avoir ajouté.
  */
 class EnvoiSmsTest extends TestCase
 {
@@ -22,33 +24,15 @@ class EnvoiSmsTest extends TestCase
     }
 
     /*
-     | Sans nom enregistré, on n'en déclare aucun.
+     | Aucun nom d'expéditeur, jamais.
      |
-     | Orange refuse tout nom non autorisé et l'envoi échoue entièrement : le
-     | poser d'avance remplacerait des messages non remis par des messages
-     | refusés, en cassant aussi le parcours d'inscription qui attend la
-     | réponse.
+     | Orange refuse tout nom non enregistré sur le contrat, et en déclarer un
+     | ferait échouer entièrement des envois aujourd'hui acceptés. Ce test est
+     | une garde : il tombera si quelqu'un le réintroduit sans y avoir réfléchi.
      */
-    public function test_aucun_nom_d_expediteur_n_est_declare_par_defaut(): void
+    public function test_aucun_nom_d_expediteur_n_est_jamais_declare(): void
     {
-        config(['orange_sms.sender_name' => null]);
-
         $this->assertArrayNotHasKey('senderName', $this->demande());
-    }
-
-    public function test_un_nom_vide_ou_en_espaces_ne_compte_pas(): void
-    {
-        config(['orange_sms.sender_name' => '   ']);
-
-        $this->assertArrayNotHasKey('senderName', $this->demande());
-    }
-
-    /** Le jour où Orange l'enregistre, une variable suffit. */
-    public function test_le_nom_est_transmis_des_qu_il_est_renseigne(): void
-    {
-        config(['orange_sms.sender_name' => 'POULETAFC']);
-
-        $this->assertSame('POULETAFC', $this->demande()['senderName']);
     }
 
     /*
@@ -59,8 +43,6 @@ class EnvoiSmsTest extends TestCase
      */
     public function test_l_indicatif_n_est_jamais_doublé(): void
     {
-        config(['orange_sms.sender_name' => null]);
-
         foreach (['657316683', '237657316683', '+237 657 31 66 83'] as $saisie) {
             $this->assertSame(
                 'tel:+237657316683',
