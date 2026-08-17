@@ -89,4 +89,23 @@ class PartageBoutiqueTest extends TestCase
     {
         $this->get(route('shop.share.image.category', 'categorie-qui-nexiste-pas'))->assertNotFound();
     }
+
+    public function test_un_apercu_de_repli_n_est_pas_garde_une_semaine(): void
+    {
+        // Pendant une mise en production, le lien vers le dossier des images est
+        // recréé en fin de course : une requête tombée là ne trouve aucune photo
+        // et reçoit le logo. Un robot d'aperçu le garderait des jours.
+        $service = new ImageDePartage();
+
+        $this->assertTrue($service->reposeSurLeLogo('upload/photo-absente-' . uniqid() . '.jpg'));
+        $this->assertTrue($service->reposeSurLeLogo(null));
+
+        $produit = $this->unProduit();
+        $source = $produit->img ?: $produit->product_image1;
+
+        $reponse = $this->get(route('shop.share.image.product', $produit->slug));
+
+        $duree = $service->reposeSurLeLogo($source) ? 'max-age=300' : 'max-age=604800';
+        $this->assertStringContainsString($duree, $reponse->headers->get('cache-control'));
+    }
 }

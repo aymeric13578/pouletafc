@@ -79,6 +79,23 @@ class ImageDePartage
     }
 
     /**
+     * L'aperçu se rabat-il sur le logo, faute de retrouver la photo ?
+     *
+     * Le cas s'est présenté pendant une mise en production : le lien vers le
+     * dossier des images est recréé en fin de déploiement, et une requête tombée
+     * dans cet intervalle n'a trouvé aucune photo. L'aperçu du moment portait
+     * donc le logo — sans conséquence pour un visiteur, qui recharge, mais un
+     * robot d'aperçu passé là garde ce qu'il a vu pendant des jours.
+     *
+     * Sert à ne pas laisser mettre en cache, pour une semaine, une image de
+     * repli.
+     */
+    public function reposeSurLeLogo(?string $source): bool
+    {
+        return $this->fichierSource($source) === null;
+    }
+
+    /**
      * Remplit un cadre de 1200 × 630 avec la photo.
      *
      * La photo occupe tout le cadre : on prélève dedans la plus grande zone au

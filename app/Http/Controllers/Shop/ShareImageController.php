@@ -26,8 +26,11 @@ class ShareImageController extends Controller
     {
         $produit = Product::where('status', 'Success')->where('slug', $slug)->firstOrFail();
 
+        $source = $produit->img ?: $produit->product_image1;
+
         return $this->servir(
-            $this->images->fabriquer($produit->img ?: $produit->product_image1, 'produit-' . $produit->id)
+            $this->images->fabriquer($source, 'produit-' . $produit->id),
+            $this->images->reposeSurLeLogo($source)
         );
     }
 
@@ -36,17 +39,25 @@ class ShareImageController extends Controller
         $categorie = Category::where('slug', $slug)->firstOrFail();
 
         return $this->servir(
-            $this->images->fabriquer($categorie->image, 'categorie-' . $categorie->id)
+            $this->images->fabriquer($categorie->image, 'categorie-' . $categorie->id),
+            $this->images->reposeSurLeLogo($categorie->image)
         );
     }
 
-    private function servir(string $chemin): BinaryFileResponse
+    private function servir(string $chemin, bool $repli): BinaryFileResponse
     {
         return response()->file($chemin, [
-            // Une semaine : l'adresse ne change pas quand la photo change, c'est
-            // le fichier derrière qui est refabriqué. Les robots d'aperçu gardent
-            // de toute façon leur propre cache, souvent plus long.
-            'Cache-Control' => 'public, max-age=604800',
+            /*
+            | Une semaine pour une vraie photo : l'adresse ne change pas quand la
+            | photo change, c'est le fichier derrière qui est refabriqué.
+            |
+            | Cinq minutes quand on sert le logo faute d'avoir retrouvé la photo.
+            | C'est arrivé pendant une mise en production, le lien vers le dossier
+            | des images étant recréé en fin de déploiement : un robot d'aperçu
+            | passé à cet instant aurait retenu le logo pour des jours. Une durée
+            | courte le fait revenir, et il trouvera la photo.
+            */
+            'Cache-Control' => $repli ? 'public, max-age=300' : 'public, max-age=604800',
         ]);
     }
 }
