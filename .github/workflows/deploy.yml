@@ -49,8 +49,41 @@ jobs:
           tools: composer
           coverage: none
 
+      # Cache des archives Composer.
+      #
+      # Sans lui, chaque déploiement retélécharge les 84 paquets depuis
+      # codeload.github.com. Les coureurs GitHub partagent leurs adresses IP :
+      # au-delà d'un certain rythme, GitHub répond 429 et le déploiement
+      # s'arrête avant d'avoir rien fait. Avec le cache, la plupart des paquets
+      # ne sont plus demandés du tout.
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer/files
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
       - name: Install PHP dependencies
-        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+        env:
+          # Requêtes authentifiées : le quota anonyme de codeload est vite
+          # atteint, celui d'un jeton ne l'est pas. Le jeton est fourni par
+          # GitHub à chaque exécution, il n'y a rien à configurer.
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ github.token }}"}}'
+        # Trois tentatives espacées : une limitation de débit se dissipe en
+        # quelques dizaines de secondes, et refaire tourner tout le déploiement
+        # à la main pour cela coûte plus cher que d'attendre.
+        run: |
+          for tentative in 1 2 3; do
+            if composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist; then
+              exit 0
+            fi
+
+            echo "Tentative $tentative en échec — nouvel essai dans 30 s." >&2
+            sleep 30
+          done
+
+          echo "Composer a échoué après trois tentatives." >&2
+          exit 1
 
       - name: Prepare local env for build (needed by artisan/wayfinder during vite build)
         run: |
