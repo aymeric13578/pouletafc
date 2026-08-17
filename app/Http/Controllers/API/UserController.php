@@ -246,9 +246,9 @@ class UserController extends Controller
         }
 
         if ($create) {
-            $content = "Votre code de confirmation POULET AFC est " . $confirmation_code;
-            $title = "NOUVEAU COMPTE POULET AFC";
-            $object = 'NOUVEAU COMPTE POULET AFC';
+            $content = "Votre code de confirmation Poulet AFC est " . $confirmation_code;
+            $title = "Poulet AFC - votre code de confirmation";
+            $object = 'Poulet AFC - votre code de confirmation';
 
             // Courriel et SMS, chacun indépendant de l'autre : l'échec de l'un
             // ne doit ni empêcher le second, ni faire échouer l'inscription.
@@ -262,7 +262,7 @@ class UserController extends Controller
 
             return response()->json([
                 "response" => 200,
-                "message" => "Votre code de confirmation POULET AFC est " . $confirmation_code,
+                "message" => "Votre code de confirmation Poulet AFC est " . $confirmation_code,
             ]);
         }
 
@@ -488,8 +488,8 @@ class UserController extends Controller
             ]);
 
             $content = "Compte validé avec succès";
-            $title = "Validation de compte POULET AFC";
-            $object = 'Validation de compte POULET AFC';
+            $title = "Poulet AFC - validation de votre compte";
+            $object = 'Poulet AFC - validation de votre compte';
 
             if ($user->email) {
                 try {
@@ -594,7 +594,7 @@ class UserController extends Controller
             $envois = app(\App\Support\NotificationClient::class)->prevenir(
                 $seachUser,
                 'RESTAURER COMPTE AFC',
-                "Votre code de confirmation POULET AFC est " . $confirmation_code
+                "Votre code de confirmation Poulet AFC est " . $confirmation_code
             );
 
             /*

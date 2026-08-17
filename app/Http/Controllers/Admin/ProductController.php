@@ -66,7 +66,7 @@ class ProductController extends Controller
             'id_shop' => $request->{'shop_id'},
             'bar_code' => $request->{'bar_code'},
             'commission' => $request->{'commission'},
-            'product_image1' => "https://pouletafc.2gether-network.com/".$img_url1,
+            'product_image1' => url($img_url1),
             'product_length' => $request->{'product_length'},
             'product_width' => $request->{'product_width'},
             'product_epaisseur' => $request->{'product_epaisseur'},

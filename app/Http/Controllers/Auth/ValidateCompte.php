@@ -45,8 +45,8 @@ class ValidateCompte extends Controller
 
                 
         $content = "Compte validé avec success ";
-        $title = "Validation de compte POULET AFC";
-        $object = 'Validation de compte POULET AFC';
+        $title = "Poulet AFC - validation de votre compte";
+        $object = 'Poulet AFC - validation de votre compte';
          Mail::to($user->email)
         ->send(new NotificationMail($object,$content,$title)) ; 
                return redirect()->route('login');

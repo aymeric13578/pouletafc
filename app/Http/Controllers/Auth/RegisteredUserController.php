@@ -61,9 +61,9 @@ class RegisteredUserController extends Controller
 
         $country = Country::find(37);
 
-        $content = "Votre code de confirmation POULET AFC est " . $confirmation_code;
-        $title = "NOUVEAU COMPTE POULET AFC";
-        $object = 'NOUVEAU COMPTE POULET AFC';
+        $content = "Votre code de confirmation Poulet AFC est " . $confirmation_code;
+        $title = "Poulet AFC - votre code de confirmation";
+        $object = 'Poulet AFC - votre code de confirmation';
         Mail::to($request->email)
             ->send(new NotificationMail($object, $content, $title));
 

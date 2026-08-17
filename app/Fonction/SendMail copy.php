@@ -20,8 +20,8 @@ $mailjet = new \Mailjet\Client('92ef413e38d69800cb24d537694d4809','9455c2db1879b
     'Messages' => [
         [
             'From' => [
-                'Email' => "support@2gether-network.com",
-                'Name' => "2GETHER"
+                'Email' => "infos@pouletafc.com",
+                'Name' => "Poulet AFC"
             ],
             'To' => [
                 [

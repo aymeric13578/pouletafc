@@ -43,7 +43,7 @@ class CategoryController extends Controller
         Category::insert([
             'name'  => $request->{'category_name'},
             'ref'  => $request->{'category_code'},
-            'image' => "https://pouletafc.2gether-network.com/".$img_url,
+            'image' => url($img_url),
             'slug' => strtolower(str_replace(' ', '-', $request->{'category_name'})),
             'id_shop'  => $request->{'shop_id'}
         ]);

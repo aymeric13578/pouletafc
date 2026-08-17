@@ -126,8 +126,8 @@ class OrderController extends Controller
             $content = "Votre commande N° ".$ref.". a été reçu .Le service client poulet AFC vous contacteras d'ici quelques instants .... Merci de patienter.
 Contact service client : 697 526 980";
             //$content = "Vous venez de passer une commande N° ".$ref.". La direction POULET AFC vous contactera dans quelques instants .... Merci de patienter";
-            $title = "POULET AFC COMMAND";
-            $object = 'POULET AFC COMMAND';
+            $title = "Poulet AFC - votre commande";
+            $object = 'Poulet AFC - votre commande';
             Mail::to($agent->email)
                 ->send(new NotificationMail($object, $content, $title));
 
@@ -138,7 +138,7 @@ Contact service client : 697 526 980";
           */
          app(\App\Support\NotificationClient::class)->prevenir(
              $user,
-             'POULET AFC - Commande ' . $ref,
+             'Poulet AFC - commande ' . $ref,
              "Votre commande N° " . $ref . " a bien été reçue. Le service client Poulet AFC vous contactera d'ici quelques instants. Merci de patienter.\nContact service client : 697 526 980"
          );
                 
@@ -545,16 +545,16 @@ Contact service client : 697 526 980";
                  
             $agent = User::Where('id',$request->id_seller)->first();
             $content = "Félicitation vous venez de prendre une commande ".$order->ref;
-            $title = "POULET AFC AGENT";
-            $object = 'POULET AFC AGENT';
+            $title = "Poulet AFC - nouvelle commande a prendre";
+            $object = 'Poulet AFC - nouvelle commande a prendre';
             Mail::to($agent->email)
                 ->send(new NotificationMail($object, $content, $title));
                 
                 
             $user = User::Where('id',$order->id_user)->first();
             $content = "Un agent vient de prendre la commande  ".$order->ref.".Rendez-vous dans votre historique pour voir les détails" ;
-            $title = "POULET AFC COMMANDE";
-            $object = 'POULET AFC COMMANDE';
+            $title = "Poulet AFC - votre commande";
+            $object = 'Poulet AFC - votre commande';
             Mail::to($user->email)
                 ->send(new NotificationMail($object, $content, $title));
                 

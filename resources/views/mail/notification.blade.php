@@ -1,3 +1,19 @@
+{{--
+    Le message partait sans <html>, sans <head>, sans <body> : un simple fragment
+    de tableau. Un courriel sans structure de document est une signature que les
+    filtres anti-spam pénalisent — au même titre que l'absence de titre ou de
+    jeu de caractères déclaré, qui laisse les accents à l'interprétation du
+    lecteur.
+--}}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>{{ $title }}</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f6f8;">
 <table class="m_1166122828043341837body" style="Margin:0;background:#f4f6f8!important;border-collapse:collapse;border-spacing:0;color:#9b9b9b;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif;font-size:14px;font-weight:400;height:100%;line-height:1.3;margin:0;padding:0;text-align:left;vertical-align:top;width:100%">
         <tbody><tr style="padding:0;text-align:left;vertical-align:top">
             <td align="center" valign="top" style="Margin:0;border-collapse:collapse!important;color:#9b9b9b;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif;font-size:14px;font-weight:400;line-height:1.3;margin:0;padding:0;text-align:left;vertical-align:top;word-wrap:break-word">
@@ -33,7 +49,13 @@
                                                                         <tr style="padding:0;text-align:left;vertical-align:top">
                                                                             <td height="31px" style="Margin:0;border-collapse:collapse!important;color:#9b9b9b;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif;font-size:31px;font-weight:400;line-height:31px;margin:0;padding:0;text-align:center;vertical-align:top;word-wrap:break-word">
                                                                         
-                                                                            <img src="https://pouletafc.2gether-network.com/logo_blue.png" style="width:100px;height:100px" alt=""></td>
+                                                                            {{--
+                                                                                Le logo était chargé depuis pouletafc.2gether-network.com,
+                                                                                un domaine qui ne résout plus : chaque message affichait donc
+                                                                                une image morte pointant vers un hôte étranger au domaine
+                                                                                expéditeur. Le fichier est servi tel quel par pouletafc.com.
+                                                                            --}}
+                                                                            <img src="https://pouletafc.com/logo_blue.png" width="100" height="100" style="width:100px;height:100px" alt="Poulet AFC"></td>
                                                                         </tr>
                                                                     </tbody>
                                                                 </table>
@@ -156,7 +178,11 @@
                                     <table style="border-collapse:collapse;border-spacing:0;padding:0;text-align:left;vertical-align:top;width:100%">
                                         <tbody><tr style="padding:0;text-align:left;vertical-align:top">
                                             <th style="Margin:0;color:#9b9b9b;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif;font-size:14px;font-weight:400;line-height:1.3;margin:0;padding:0;text-align:left">
-                                                <p style="Margin:0;Margin-bottom:10px;color:rgba(74,82,106,.99);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif;font-size:13px!important;font-weight:400;letter-spacing:0;line-height:normal;margin:0;margin-bottom:10px;padding:0;text-align:center">2025 ALFA SARL</p>
+                                                <p style="Margin:0;Margin-bottom:10px;color:rgba(74,82,106,.99);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif;font-size:13px!important;font-weight:400;letter-spacing:0;line-height:normal;margin:0;margin-bottom:10px;padding:0;text-align:center">
+                                                    Poulet AFC &mdash; <a href="https://pouletafc.com" style="color:rgba(74,82,106,.99);text-decoration:underline">pouletafc.com</a><br>
+                                                    Nous écrire : <a href="mailto:infos@pouletafc.com" style="color:rgba(74,82,106,.99);text-decoration:underline">infos@pouletafc.com</a><br>
+                                                    &copy; {{ date('Y') }} ALFA SARL, Douala, Cameroun
+                                                </p>
                                             </th>
                                             <th style="Margin:0;color:#9b9b9b;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif;font-size:14px;font-weight:400;line-height:1.3;margin:0;padding:0!important;text-align:left;width:0"></th>
                                         </tr>
@@ -168,4 +194,6 @@
                 </center>
             </td>
         </tr>
-    </tbody></table> 
+    </tbody></table>
+</body>
+</html> 

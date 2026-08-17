@@ -100,11 +100,11 @@ class RegisterController extends Controller
         $country = Country::find(37);
 
          $function  = new Fonction();
-         $function->sendSms("Votre code de confirmation POULET AFC est " . $confirmation_code, $data['phone']);
+         $function->sendSms("Votre code de confirmation Poulet AFC est " . $confirmation_code, $data['phone']);
         
-        $content = "Votre code de confirmation POULET AFC est " . $confirmation_code;
-        $title = "NOUVEAU COMPTE POULET AFC";
-        $object = 'NOUVEAU COMPTE POULET AFC';
+        $content = "Votre code de confirmation Poulet AFC est " . $confirmation_code;
+        $title = "Poulet AFC - votre code de confirmation";
+        $object = 'Poulet AFC - votre code de confirmation';
         Mail::to($data['email'])
             ->send(new NotificationMail($object, $content, $title));
 

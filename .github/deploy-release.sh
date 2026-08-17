@@ -219,6 +219,29 @@ else
   echo "Courriels basculés sur la messagerie du serveur (infos@pouletafc.com)."
 fi
 
+# 4 ter. Adresse publique de l'application.
+#
+#        APP_URL valait « http://localhost » en production. Laravel s'en sert
+#        partout où il doit fabriquer une adresse absolue sans requête sous la
+#        main : liens de réinitialisation de mot de passe, tâches en file,
+#        commandes artisan. Ces liens pointaient donc vers la machine du
+#        destinataire — et un courriel qui renvoie vers localhost est aussi ce
+#        qu'un filtre anti-spam relève en premier.
+step "4 ter - adresse publique"
+MARQUEUR_URL="# url-application-corrigee"
+if grep -qF "$MARQUEUR_URL" "$DEPLOY_PATH/.env"; then
+  echo "Adresse publique déjà corrigée."
+else
+  if grep -qE "^[[:space:]]*APP_URL=" "$DEPLOY_PATH/.env"; then
+    sed -i 's|^[[:space:]]*APP_URL=.*|APP_URL=https://pouletafc.com|' "$DEPLOY_PATH/.env"
+  else
+    echo "APP_URL=https://pouletafc.com" >> "$DEPLOY_PATH/.env"
+  fi
+
+  echo "$MARQUEUR_URL" >> "$DEPLOY_PATH/.env"
+  echo "APP_URL fixé à https://pouletafc.com."
+fi
+
 # 5. Restaure les fichiers persistants depuis la sauvegarde
 step "5 - restauration storage/app"
 if [ -d "$BACKUP_PATH/storage/app" ]; then

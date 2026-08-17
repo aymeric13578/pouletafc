@@ -46,7 +46,7 @@ class SubCategoryController extends Controller
             'name' => $request->{'subcategory_name'},
             'id_user'=> Auth::user()->id, 
             'ref' => $request->{'subcategory_code'},
-            'image' => "https://pouletafc.2gether-network.com/".$image_url,
+            'image' => url($image_url),
             'id_category' => $request->{'category_id'},
             'category_name' => $category_name,
             'slug' => strtolower(str_replace(' ', '-', $request->{'subcategory_name'})),
