@@ -62,7 +62,23 @@ class OrderController extends Controller
       */
      $sansDoublon = app(\App\Support\CommandeSansDoublon::class);
 
-     $orderverified = $sansDoublon->dejaPassee(
+     /*
+      | La clé transmise par l'application, quand elle en envoie une.
+      |
+      | Elle est fabriquée une fois par tentative et renvoyée à l'identique à
+      | chaque nouvel essai : deux envois sous la même clé sont la même commande.
+      | C'est exact, là où la reconnaissance par le contenu ne fait que présumer
+      | — et cela rend au client le droit de commander deux fois la même chose
+      | dans la même minute.
+      |
+      | Les versions déjà installées n'en envoient pas : elles restent couvertes
+      | par la reconnaissance du contenu, juste en dessous.
+      */
+     $cleUnique = trim((string) $request->input('cle_unique', $request->input('idempotency_key')));
+
+     $orderverified = $sansDoublon->parCle($cleUnique);
+
+     $orderverified ??= $sansDoublon->dejaPassee(
          (int) $request->user_id,
          $request->cart_id ? (int) $request->cart_id : null,
          (float) ($totalamount + $request->delivery_fees),
@@ -124,7 +140,9 @@ class OrderController extends Controller
                 'address'=>$request->delivery_address,
                 'commission_agent'=>$commission_agent,
                 'delivery_fees'=>$request->delivery_fees,
-            ]);
+            ] + ($cleUnique !== '' && $sansDoublon->peutRetenirLaCle()
+                ? ['cle_unique' => $cleUnique]
+                : []));
 
             /*
              | Tracer les commandes dont l'adresse n'a pas pu être résolue : le

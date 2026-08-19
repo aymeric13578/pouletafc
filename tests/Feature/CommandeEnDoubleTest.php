@@ -156,6 +156,39 @@ class CommandeEnDoubleTest extends TestCase
         );
     }
 
+    public function test_la_cle_reconnait_exactement_la_meme_tentative(): void
+    {
+        $panier = $this->panier([8 => 1]);
+        $id = $this->commande($panier);
+
+        DB::table('order_details')->where('id', $id)->update(['cle_unique' => 'essai-cle-1']);
+
+        $this->assertNotNull(
+            (new CommandeSansDoublon())->parCle('essai-cle-1'),
+            'Un second envoi sous la même clé est la même commande.'
+        );
+
+        $this->assertNull((new CommandeSansDoublon())->parCle('essai-cle-2'));
+        $this->assertNull((new CommandeSansDoublon())->parCle(''));
+    }
+
+    public function test_deux_commandes_voulues_passent_si_les_cles_different(): void
+    {
+        /*
+        | Le vrai risque de ce genre de garde-fou est d'avaler une commande
+        | légitime. Avec une clé, deux tentatives distinctes restent distinctes,
+        | même si elles portent exactement le même panier.
+        */
+        $premier = $this->panier([8 => 1]);
+        $id = $this->commande($premier);
+        DB::table('order_details')->where('id', $id)->update(['cle_unique' => 'tentative-A']);
+
+        $this->assertNull(
+            (new CommandeSansDoublon())->parCle('tentative-B'),
+            "Une seconde tentative assumée doit pouvoir aboutir."
+        );
+    }
+
     public function test_une_course_sans_panier_est_reconnue_par_son_trajet(): void
     {
         // Les courses de coursier n'ont pas de panier : seuls le prix et

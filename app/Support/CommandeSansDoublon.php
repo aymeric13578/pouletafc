@@ -37,6 +37,33 @@ class CommandeSansDoublon
     private const FENETRE_MINUTES = 5;
 
     /**
+     * La commande déjà enregistrée sous cette clé.
+     *
+     * Exact, là où la reconnaissance par le contenu ne fait que présumer : deux
+     * envois portant la même clé sont la même tentative, quoi qu'ils contiennent.
+     * C'est ce qui permet à un client de commander réellement deux fois la même
+     * chose dans la même minute sans que la seconde soit avalée.
+     */
+    public function parCle(?string $cle): ?order_detail
+    {
+        $cle = trim((string) $cle);
+
+        if ($cle === '' || ! ColonnesDisponibles::existe('order_details', 'cle_unique')) {
+            return null;
+        }
+
+        return order_detail::where('cle_unique', $cle)->first();
+    }
+
+    /**
+     * La colonne est-elle disponible pour y ranger la clé ?
+     */
+    public function peutRetenirLaCle(): bool
+    {
+        return ColonnesDisponibles::existe('order_details', 'cle_unique');
+    }
+
+    /**
      * La commande équivalente déjà enregistrée, s'il y en a une.
      */
     public function dejaPassee(int $idClient, ?int $idPanier, float $prix, ?string $adresse): ?order_detail
