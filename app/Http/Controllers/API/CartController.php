@@ -23,7 +23,14 @@ class CartController extends Controller
             if (!$user) {
                 return response()->json(['message' => 'User Not Found'], 404);
             }
-            $carts = Cart::where('user_id', $user->id)->where('status','pending')
+            /*
+            | Le plus récent des paniers en attente : le même que celui dans
+            | lequel « addToCartAndView » écrit. Sans ce tri, les deux écrans
+            | pouvaient regarder deux paniers différents du même client.
+            */
+            $carts = Cart::where('user_id', $user->id)
+                         ->where('status', 'pending')
+                         ->orderByDesc('id')
                          ->first();
                           //->where('status', 1)
                 if (!$carts) {
@@ -54,20 +61,33 @@ class CartController extends Controller
         if (!$user) {
             return response()->json(['message' => 'User Not Found'], 404);
         }
-        $carts = Cart::where('user_id', $user->id)->latest()->first();
-        // ->where('status', 1);
-         // Si l'utilisateur n'a pas de panier, en créer un nouveau
+        /*
+        | Le panier en cours, et un seul.
+        |
+        | On prenait le dernier panier créé, quel que soit son statut, pour en
+        | ouvrir un neuf s'il était clos. Deux ajouts rapprochés — un double
+        | appui, une reprise après coupure réseau — n'en trouvaient donc aucun
+        | d'ouvert et en créaient chacun un : le client se retrouvait avec deux
+        | paniers, et ses articles répartis entre les deux.
+        |
+        | Pire, « viewCart » lisait le PREMIER panier en attente pendant que
+        | celui-ci écrivait dans le DERNIER : l'article ajouté n'apparaissait pas,
+        | le client rajoutait, et l'écart se creusait.
+        |
+        | On cherche donc explicitement un panier en attente, le plus récent, et
+        | les deux écrans regardent désormais le même.
+        */
+        $carts = Cart::where('user_id', $user->id)
+            ->where('status', 'pending')
+            ->orderByDesc('id')
+            ->first();
 
-       
-               if ( !isset($carts) || $carts->status == "Success"|| $carts->status == "failed") {
-                $carts= Cart::create([
-                    'user_id' => $user->id,
-                    'status'=>"pending"
-                ]);
-               } 
-               else {
-                $carts->first();
-                }
+        if (! $carts) {
+            $carts = Cart::create([
+                'user_id' => $user->id,
+                'status' => 'pending',
+            ]);
+        }
         // Ajouter le produit au panier
         $product = Product::where('id', $request->product_id)->first();
         if (!$product) {
@@ -93,10 +113,26 @@ class CartController extends Controller
             ]);
         }
 
-        // Afficher le panier
-        $cartItems = CartItem::where('cart_id', $carts->id)->get();
-        
-       $updateCart = Cart::where('id', $carts->id)->update(['total_amount'=> $carts->total_amount + $product->price*$request->quantity]);
+        /*
+        | Seuls les articles vivants sont renvoyés.
+        |
+        | Un article retiré du panier passe en « failed », il n'est pas effacé.
+        | Sans ce filtre, il revenait dans la réponse : le client voyait
+        | réapparaître ce qu'il venait de retirer, et le même produit deux fois
+        | s'il le rajoutait ensuite.
+        */
+        $cartItems = CartItem::where('cart_id', $carts->id)
+            ->where('status', 'Success')
+            ->get();
+
+        /*
+        | Le total est recalculé à partir du panier, au lieu d'être additionné à
+        | chaque ajout. L'ancien calcul ajoutait le prix même quand la quantité
+        | était seulement corrigée — modifier « 3 » en « 1 » gonflait le total.
+        */
+        $total = $cartItems->sum(fn ($ligne) => $ligne->amount * $ligne->quantity);
+
+        Cart::where('id', $carts->id)->update(['total_amount' => $total]);
         return response()->json(['response'=> 200,'cartItems' => $cartItems, 'message'=>  "Produit ajouté avec success" ]);
     }
 

@@ -43,16 +43,35 @@ class OrderController extends Controller
         $quantity = $quantity + $data->quantity ;
     }
     
-    $cart = Cart::where('id', $request->cart_id)->update(
-        
-        [
-            'status' => "Success"
-            
-            
-        ]);
-        
-        
-     $orderverified = order_detail::where('id_user',$request->user_id)->where('id_cart',$request->cart_id)->first();
+    /*
+     | Le panier était fermé ici, avant même de savoir si la commande allait être
+     | créée. Conséquence : une seconde tentative trouvait un panier « Success »,
+     | l'écran en ouvrait aussitôt un neuf, et ce panier neuf redonnait un
+     | identifiant inédit — le contrôle de doublon, qui compare (client, panier),
+     | ne pouvait plus rien voir. On le ferme désormais une fois la commande
+     | réellement enregistrée.
+     */
+
+     /*
+      | Doublon reconnu par le contenu, et non par le panier qui le porte.
+      |
+      | Constaté en production : trois commandes identiques d'un même client,
+      | paniers 542, 543 et 544, créés à 36 secondes d'intervalle. Le client
+      | n'avait pas commandé trois fois, il avait appuyé trois fois faute de voir
+      | sa confirmation arriver.
+      */
+     $sansDoublon = app(\App\Support\CommandeSansDoublon::class);
+
+     $orderverified = $sansDoublon->dejaPassee(
+         (int) $request->user_id,
+         $request->cart_id ? (int) $request->cart_id : null,
+         (float) ($totalamount + $request->delivery_fees),
+         $request->delivery_address
+     );
+
+     if ($orderverified) {
+         $sansDoublon->signaler($orderverified, $request->cart_id ? (int) $request->cart_id : null);
+     }
      
  
     $user = User::where('id',$request->user_id)->first();
@@ -142,16 +161,28 @@ Contact service client : 697 526 980";
              "Votre commande N° " . $ref . " a bien été reçue. Le service client Poulet AFC vous contactera d'ici quelques instants. Merci de patienter.\nContact service client : 697 526 980"
          );
                 
+         // Le panier est fermé maintenant, la commande étant enregistrée : le
+         // prochain ajout de produit en ouvrira un neuf, ce qui est le bon moment.
+         Cart::where('id', $request->cart_id)->update(['status' => 'Success']);
      }
      else
      {
          $order = $orderverified;
+
+         /*
+          | Le panier de la tentative en double est refermé lui aussi, sinon il
+          | resterait ouvert et l'écran du panier continuerait d'afficher des
+          | articles déjà commandés.
+          */
+         if ($request->cart_id && (int) $request->cart_id !== (int) $orderverified->id_cart) {
+             Cart::where('id', $request->cart_id)->update(['status' => 'failed']);
+         }
      }
-        
-        
-     
-            
-        if($order) return response()->json(['response' => 200, 'data'=>  $order ]);
+
+        // « doublon » dit à l'application qu'elle n'a pas créé de commande :
+        // sans lui, elle affiche une confirmation pour une commande qui existait
+        // déjà, et le client croit en avoir deux.
+        if($order) return response()->json(['response' => 200, 'data'=>  $order, 'doublon' => $orderverified !== null ]);
         else return response()->json(['response' => 404]);
         
     }
