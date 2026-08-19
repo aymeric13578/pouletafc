@@ -65,6 +65,8 @@ Route::post('/commandes/{order}/statut', [\App\Http\Controllers\Admin\OrderBoard
 Route::post('/commandes/{order}/paiement', [\App\Http\Controllers\Admin\OrderBoardController::class, 'updatePayment'])->name('orders.board.payment');
 // Correction du panier au poids réel, le tarif au kilo venant de la grille active.
 Route::post('/commandes/{order}/panier', [\App\Http\Controllers\Admin\OrderBoardController::class, 'updateCart'])->name('orders.board.cart');
+// Alignement du montant sur le contenu réel du panier, décidé au comptoir.
+Route::post('/commandes/{order}/recalcul', [\App\Http\Controllers\Admin\OrderBoardController::class, 'recalculerLeTotal'])->name('orders.board.recompute');
 
 /*
 | Correction du panier d'une commande par le comptoir.

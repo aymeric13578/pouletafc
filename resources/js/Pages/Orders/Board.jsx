@@ -825,6 +825,42 @@ export default function Board({ initial }) {
      */
     const [annulationDemandee, setAnnulationDemandee] = useState(null);
 
+    /*
+     * Aligne le montant sur le contenu réel du panier.
+     *
+     * Certaines commandes facturent moins que ce que leur panier contient —
+     * 2 500 F pour treize articles en valant 30 000 sur l'une d'elles. Le
+     * comptoir voyait la liste et la somme sans rien pour signaler qu'elles ne
+     * se correspondaient pas.
+     */
+    const recalculerLeTotal = async (id) => {
+        setEnCours((precedent) => new Set([...precedent, id]));
+
+        try {
+            const reponse = await fetch(`/commandes/${id}/recalcul`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': jetonCsrf(),
+                },
+            });
+
+            const charge = await reponse.json();
+
+            if (charge.orders) setDonnees(charge);
+            if (charge.recalcul?.message) setRetourPanier(charge.recalcul.message);
+        } catch {
+            setEnLigne(false);
+        } finally {
+            setEnCours((precedent) => {
+                const copie = new Set(precedent);
+                copie.delete(id);
+                return copie;
+            });
+        }
+    };
+
     const changerStatut = async (id, statut, motif = null) => {
         if (statut === 'failed' && !motif) {
             setAnnulationDemandee(id);
@@ -1244,6 +1280,26 @@ export default function Board({ initial }) {
                                                 <td className="whitespace-nowrap px-4 py-4 text-right text-2xl font-extrabold tabular-nums text-gray-900">
                                                     {formatMontant(commande.price)}
                                                     <span className="ml-1 text-sm font-bold text-gray-400">F</span>
+
+                                                    {/* Le montant facturé ne couvre pas toujours le panier :
+                                                        2 500 F pour treize articles en valant 30 000 sur une
+                                                        commande du 19 août. L'écart se voyait nulle part. */}
+                                                    {commande.panier_calcule != null
+                                                        && commande.panier_calcule !== commande.panier_price && (
+                                                        <div className="mt-1 text-right">
+                                                            <p className="text-xs font-bold text-amber-700">
+                                                                Panier réel : {formatMontant(commande.panier_calcule)} F
+                                                            </p>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => recalculerLeTotal(commande.id)}
+                                                                disabled={enCours.has(commande.id)}
+                                                                className="mt-1 rounded-lg bg-amber-100 px-2 py-1 text-xs font-bold text-amber-800 hover:bg-amber-200 disabled:opacity-50"
+                                                            >
+                                                                Aligner le total
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td className="whitespace-nowrap px-4 py-4">
                                                     <span className={`rounded-full px-3 py-1 text-sm font-bold ring-1 ring-inset ${statut.classe}`}>

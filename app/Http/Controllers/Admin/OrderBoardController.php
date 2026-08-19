@@ -292,6 +292,43 @@ class OrderBoardController extends Controller
         ], $code)->header('Cache-Control', 'no-store, no-cache, must-revalidate');
     }
 
+    /**
+     * Aligne le montant de la commande sur ce que contient réellement son panier.
+     *
+     * Volontairement une action explicite, et non un recalcul silencieux : le
+     * montant a pu être encaissé, et le corriger sans que personne ne le décide
+     * ferait diverger la caisse des comptes. Le comptoir voit l'écart, et
+     * tranche.
+     */
+    public function recalculerLeTotal(Request $request, int $order): JsonResponse
+    {
+        $commande = order_detail::with('carts.cart_items')->findOrFail($order);
+
+        $articles = $commande->carts?->cart_items ?? collect();
+
+        if ($articles->isEmpty()) {
+            return response()->json($this->payload($request) + [
+                'recalcul' => ['ok' => false, 'message' => "Ce panier ne contient aucun article."],
+            ], 409)->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+        }
+
+        $panier = (int) $articles->sum(fn ($item) => (float) $item->amount * (int) $item->quantity);
+        $ancien = (int) $commande->panier_price;
+
+        $commande->panier_price = $panier;
+        $commande->price = $panier + (int) $commande->delivery_fees;
+        $commande->qty = (int) $articles->sum('quantity');
+        $commande->save();
+
+        return response()->json($this->payload($request) + [
+            'recalcul' => [
+                'ok' => true,
+                'message' => 'Total aligné sur le panier : ' . number_format($ancien, 0, ',', ' ')
+                    . ' F → ' . number_format($panier, 0, ',', ' ') . ' F.',
+            ],
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+
     public function updateStatus(Request $request, int $order): JsonResponse
     {
         $valide = $request->validate([
@@ -574,6 +611,21 @@ class OrderBoardController extends Controller
              | soustraction plutôt que d'afficher zéro.
              */
             'panier_price' => (int) ($order->panier_price ?? max(0, $order->price - (int) $order->delivery_fees)),
+            /*
+             | Ce que valent réellement les articles du panier, recalculé ici.
+             |
+             | Constaté sur plusieurs commandes : le montant enregistré ne
+             | couvre qu'une partie du panier. REF_C7suxuZ3bA facturait 2 500 F
+             | pour treize articles en valant 30 000 ; REF_aW4h7x0r2K, 13 500 F
+             | pour vingt-quatre articles en valant 77 500. Les paniers portent
+             | la trace de plusieurs compositions successives — « Poulet Pané,
+             | Frite de plantain » y revient six fois de suite.
+             |
+             | Le comptoir voyait donc une liste d'articles à préparer sans
+             | rapport avec la somme qu'il encaissait, sans rien pour l'alerter.
+             | On expose les deux, et l'écran signale la divergence.
+             */
+            'panier_calcule' => (int) $items->sum(fn ($item) => (float) $item->amount * (int) $item->quantity),
             'delivery_fees' => (int) $order->delivery_fees,
             'poids_kg' => $order->poids_kg !== null ? (float) $order->poids_kg : null,
             // Une commande livrée ou annulée ne se corrige plus : le montant a
