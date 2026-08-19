@@ -21,6 +21,16 @@ class ParametersController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $parameter,
+                /*
+                 | Le point de retrait désigné, sous une forme lisible.
+                 |
+                 | L'application affichait « Coordonnées non disponibles » au
+                 | client qui n'avait pas choisi de lieu, et envoyait ce texte
+                 | comme adresse de livraison. Elle a maintenant de quoi nommer
+                 | le lieu de repli, celui-là même que le serveur retient déjà
+                 | pour les coordonnées.
+                 */
+                'point_de_retrait' => app(\App\Support\PointDeLivraison::class)->nomDuLieuParDefaut(),
             ], 200);
         }
 

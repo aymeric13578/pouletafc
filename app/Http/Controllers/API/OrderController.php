@@ -56,7 +56,18 @@ class OrderController extends Controller
             'latitude' => $lat,
             'longitude' => $lon,
             'delivery_code' => rand(0, 10000),
-            'address' => $request->input('delivery_address'),
+            /*
+             | L'adresse enregistrée, ou le point de retrait désigné.
+             |
+             | L'application envoie « Coordonnées non disponibles » quand le
+             | client n'a pas choisi de lieu — un message d'erreur, pas une
+             | adresse — et c'est ce texte qui s'affichait sur le mur du
+             | comptoir en guise de destination. Le point de retrait servait
+             | pourtant déjà de repli pour les coordonnées : les deux disaient
+             | des choses différentes.
+             */
+            'address' => app(\App\Support\PointDeLivraison::class)
+                ->adresse($request->input('delivery_address')),
             'commission_agent' => $commission_agent,
             'delivery_fees' => $fraisDeLivraison,
         ] + ($cleUnique !== '' && app(\App\Support\CommandeSansDoublon::class)->peutRetenirLaCle()
@@ -205,7 +216,10 @@ class OrderController extends Controller
                 'latitude'=> $lat,
                 'longitude'=> $lon,
                 'delivery_code'=>rand(0, 10000),
-                'address'=>$request->delivery_address,
+                // Même règle que pour le chemin actuel : un message d'erreur
+                // n'est pas une adresse, on retient le point de retrait désigné.
+                'address'=> app(\App\Support\PointDeLivraison::class)
+                    ->adresse($request->delivery_address),
                 'commission_agent'=>$commission_agent,
                 'delivery_fees'=>$request->delivery_fees,
             ] + ($cleUnique !== '' && $sansDoublon->peutRetenirLaCle()

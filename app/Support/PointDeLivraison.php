@@ -113,6 +113,67 @@ class PointDeLivraison
     }
 
     /**
+     * Textes que l'application envoie faute d'adresse choisie.
+     *
+     * Ce ne sont pas des adresses : ce sont des messages d'erreur qui se sont
+     * retrouvés enregistrés à la place. Le mur du comptoir affichait donc
+     * « Coordonnées non disponibles » en guise de lieu de livraison, et le
+     * livreur n'avait rien pour se repérer.
+     */
+    private const NON_ADRESSES = [
+        'coordonnées non disponibles',
+        'coordonnees non disponibles',
+        'adresse inconnue',
+        "erreur lors de la récupération de l'adresse",
+        'null',
+        '-',
+    ];
+
+    /**
+     * L'adresse à enregistrer sur la commande.
+     *
+     * Quand le client n'en a pas choisi, on retient le nom du point de retrait
+     * désigné dans l'administration — celui-là même qui sert déjà de dernier
+     * recours pour les coordonnées. Les deux disaient jusqu'ici des choses
+     * différentes : le livreur recevait le bon point sur la carte, et un message
+     * d'erreur en guise d'adresse.
+     */
+    public function adresse(?string $recue): ?string
+    {
+        $recue = trim((string) $recue);
+
+        if ($recue !== '' && ! in_array(mb_strtolower($recue), self::NON_ADRESSES, true)) {
+            return $recue;
+        }
+
+        return $this->nomDuLieuParDefaut() ?? ($recue !== '' ? $recue : null);
+    }
+
+    /**
+     * Nom du point de retrait désigné, s'il en existe un.
+     */
+    public function nomDuLieuParDefaut(): ?string
+    {
+        $idLieu = \App\Models\Parameter::active()?->default_pickup_location_id;
+
+        if (! $idLieu) {
+            return null;
+        }
+
+        $lieu = \App\Models\Location::find($idLieu);
+
+        if (! $lieu) {
+            return null;
+        }
+
+        // Le quartier avec le lieu : « Marché central » seul ne suffit pas à
+        // situer une livraison quand plusieurs quartiers en ont un.
+        $quartier = $lieu->quarter?->name;
+
+        return $quartier ? $lieu->name . ' — ' . $quartier : $lieu->name;
+    }
+
+    /**
      * Lieu de retrait désigné dans la configuration active.
      *
      * @return array{0: float|null, 1: float|null}
