@@ -11,6 +11,8 @@ use App\Models\CartItem;
 use App\Models\Parameter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Models\Location;
+use App\Support\LieuDeLivraison;
 use App\Support\AnnulationDeCommande;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -329,6 +331,63 @@ class OrderBoardController extends Controller
         ])->header('Cache-Control', 'no-store, no-cache, must-revalidate');
     }
 
+    /**
+     * Change le lieu de livraison, en le choisissant ou en le créant.
+     *
+     * L'adresse était figée à la création et plus personne ne pouvait la
+     * corriger : un client qui se trompe de quartier, une adresse illisible au
+     * téléphone, une livraison qu'on déplace — il fallait annuler et ressaisir,
+     * en perdant l'historique et l'agent déjà attribué.
+     *
+     * Le comptoir a souvent la bonne adresse au téléphone sans qu'elle figure
+     * dans la liste : il peut donc la créer d'ici, et elle servira ensuite aux
+     * commandes suivantes comme aux agents sur le terrain.
+     */
+    public function changerLeLieu(Request $request, int $order, LieuDeLivraison $lieux): JsonResponse
+    {
+        $valide = $request->validate([
+            'location_id' => ['nullable', 'integer'],
+            'name' => ['nullable', 'string', 'max:191'],
+            'quarter_id' => ['nullable', 'integer'],
+            'quarter_name' => ['nullable', 'string', 'max:191'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+        ]);
+
+        $cible = order_detail::findOrFail($order);
+
+        /*
+        | « validate » ne renvoie que les champs réellement transmis : lire une
+        | clé absente lève une erreur, et l'écran recevait un 500 là où il
+        | attendait un refus lisible.
+        */
+        $valide += ['location_id' => null, 'name' => null, 'quarter_id' => null, 'quarter_name' => null];
+
+        $lieu = $valide['location_id'] ? Location::find($valide['location_id']) : null;
+
+        if (! $lieu) {
+            if (trim((string) ($valide['name'] ?? '')) === '') {
+                return response()->json($this->payload($request) + [
+                    'lieu' => ['ok' => false, 'message' => 'Choisissez un lieu ou nommez-en un nouveau.'],
+                ], 422)->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+            }
+
+            $lieu = $lieux->creer($valide, $request->user()?->id);
+        }
+
+        $lieu->loadMissing('quarter:id,name');
+
+        if (! $lieux->appliquer($cible, $lieu)) {
+            return response()->json($this->payload($request) + [
+                'lieu' => ['ok' => false, 'message' => "Le lieu n'a pas pu être enregistré."],
+            ], 409)->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+        }
+
+        return response()->json($this->payload($request) + [
+            'lieu' => ['ok' => true, 'message' => 'Livraison déplacée vers ' . $lieux->libelle($lieu) . '.'],
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+
     public function updateStatus(Request $request, int $order): JsonResponse
     {
         $valide = $request->validate([
@@ -476,6 +535,14 @@ class OrderBoardController extends Controller
              */
             'agents_en_service' => $this->agentsEnService(),
             'motifs_annulation' => \App\Support\AnnulationDeCommande::MOTIFS_COURANTS,
+            /*
+             | Les lieux enregistrés, pour le menu de changement de livraison.
+             |
+             | Servis avec le reste plutôt que par un appel séparé : l'écran
+             | tourne en continu sur un téléviseur, et une requête de plus à
+             | l'ouverture d'un menu se paierait par une attente devant le client.
+             */
+            'lieux' => app(\App\Support\LieuDeLivraison::class)->listePourLesEcrans(),
             'orders' => $commandes->getCollection()->map(fn (order_detail $o) => $this->transform($o))->values(),
             'pagination' => [
                 'current_page' => $commandes->currentPage(),

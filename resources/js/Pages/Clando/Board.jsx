@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DemandeDeMotif from '@/Components/Board/DemandeDeMotif';
+import ChoixDuLieu from '@/Components/Board/ChoixDuLieu';
 import { Head } from '@inertiajs/react';
 import L from 'leaflet';
 import {
@@ -207,6 +208,50 @@ export default function Board({ initial }) {
      */
     const [annulationDemandee, setAnnulationDemandee] = useState(null);
     const [enCoursAnnulation, setEnCoursAnnulation] = useState(false);
+
+    /*
+     * Changement de la destination d'une course.
+     *
+     * Elle était figée à la demande : une destination mal comprise obligeait à
+     * annuler la course et à la refaire, en perdant l'agent déjà en route.
+     */
+    const [lieuDemande, setLieuDemande] = useState(null);
+    const [enCoursLieu, setEnCoursLieu] = useState(false);
+
+    const changerLeLieu = useCallback(
+        async (courseId, choix) => {
+            setEnCoursLieu(true);
+            setRetour(null);
+
+            try {
+                const reponse = await fetch(`/clando/${courseId}/lieu`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': jetonCsrf(),
+                    },
+                    body: JSON.stringify(choix),
+                });
+
+                const charge = await reponse.json();
+
+                if (charge.courses) appliquer(charge);
+
+                setRetour({
+                    ok: reponse.ok && charge.lieu?.ok,
+                    message: charge.lieu?.message ?? "Le lieu n'a pas pu être changé.",
+                });
+
+                if (reponse.ok && charge.lieu?.ok) setLieuDemande(null);
+            } catch {
+                setRetour({ ok: false, message: 'Le serveur n\'a pas répondu.' });
+            } finally {
+                setEnCoursLieu(false);
+            }
+        },
+        [appliquer],
+    );
 
     const annuler = useCallback(
         async (courseId, motif) => {
@@ -638,6 +683,14 @@ export default function Board({ initial }) {
                                                 apprend que le client a renoncé. */}
                                             {c.annulable && (
                                                 <div className="px-4 pb-3">
+                                                    {/* Corriger la destination sans refaire la course. */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setLieuDemande(c)}
+                                                        className="mb-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                                    >
+                                                        Changer la destination
+                                                    </button>
                                                     <button
                                                         type="button"
                                                         onClick={() => setAnnulationDemandee(c.id)}
@@ -710,6 +763,16 @@ export default function Board({ initial }) {
                 <source src="/sounds/notification.mp3" type="audio/mpeg" />
                 <source src="/sounds/notification.wav" type="audio/wav" />
             </audio>
+
+            <ChoixDuLieu
+                ouvert={lieuDemande !== null}
+                titre="Destination de la course"
+                lieux={donnees.lieux ?? []}
+                actuel={lieuDemande?.destination}
+                enCours={enCoursLieu}
+                onFermer={() => setLieuDemande(null)}
+                onValider={(choix) => changerLeLieu(lieuDemande.id, choix)}
+            />
 
             <DemandeDeMotif
                 ouvert={annulationDemandee !== null}

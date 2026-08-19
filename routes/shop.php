@@ -66,6 +66,14 @@ Route::post('/commandes/{order}/paiement', [\App\Http\Controllers\Admin\OrderBoa
 // Correction du panier au poids réel, le tarif au kilo venant de la grille active.
 Route::post('/commandes/{order}/panier', [\App\Http\Controllers\Admin\OrderBoardController::class, 'updateCart'])->name('orders.board.cart');
 // Alignement du montant sur le contenu réel du panier, décidé au comptoir.
+/*
+| Changement du lieu de livraison, depuis le mur comme depuis la carte.
+|
+| L'adresse était figée à la création : corriger un quartier mal compris au
+| téléphone obligeait à annuler la commande et à la ressaisir.
+*/
+Route::post('/commandes/{order}/lieu', [\App\Http\Controllers\Admin\OrderBoardController::class, 'changerLeLieu'])->name('orders.board.place');
+
 Route::post('/commandes/{order}/recalcul', [\App\Http\Controllers\Admin\OrderBoardController::class, 'recalculerLeTotal'])->name('orders.board.recompute');
 
 /*
@@ -90,6 +98,7 @@ Route::get('/clando', [\App\Http\Controllers\Admin\ClandoBoardController::class,
 Route::get('/clando/flux', [\App\Http\Controllers\Admin\ClandoBoardController::class, 'feed'])->name('clando.board.feed');
 Route::post('/clando/{course}/agent', [\App\Http\Controllers\Admin\ClandoBoardController::class, 'assign'])->name('clando.board.assign');
 // Annulation d'une course, motif obligatoire.
+Route::post('/clando/{course}/lieu', [\App\Http\Controllers\Admin\ClandoBoardController::class, 'changerLeLieu'])->name('clando.board.place');
 Route::post('/clando/{course}/annulation', [\App\Http\Controllers\Admin\ClandoBoardController::class, 'annuler'])->name('clando.board.cancel');
 
 /*

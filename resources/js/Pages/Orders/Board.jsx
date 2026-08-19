@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DemandeDeMotif from '@/Components/Board/DemandeDeMotif';
+import ChoixDuLieu from '@/Components/Board/ChoixDuLieu';
 import { Head } from '@inertiajs/react';
 
 /*
@@ -823,6 +824,45 @@ export default function Board({ initial }) {
      * dont l'information ne se reconstitue pas après coup. On demande donc le
      * motif avant, et le serveur refuse l'annulation sans lui.
      */
+    /*
+     * Changement du lieu de livraison.
+     *
+     * L'adresse était figée à la création : corriger un quartier mal compris au
+     * téléphone obligeait à annuler la commande et à la ressaisir, en perdant
+     * l'historique et l'agent déjà attribué.
+     */
+    const [lieuDemande, setLieuDemande] = useState(null);
+
+    const changerLeLieu = async (id, choix) => {
+        setEnCours((precedent) => new Set([...precedent, id]));
+
+        try {
+            const reponse = await fetch(`/commandes/${id}/lieu`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': jetonCsrf(),
+                },
+                body: JSON.stringify(choix),
+            });
+
+            const charge = await reponse.json();
+
+            if (charge.orders) setDonnees(charge);
+            if (charge.lieu?.message) setRetourPanier(charge.lieu.message);
+            if (charge.lieu?.ok) setLieuDemande(null);
+        } catch {
+            setEnLigne(false);
+        } finally {
+            setEnCours((precedent) => {
+                const copie = new Set(precedent);
+                copie.delete(id);
+                return copie;
+            });
+        }
+    };
+
     const [annulationDemandee, setAnnulationDemandee] = useState(null);
 
     /*
@@ -1260,6 +1300,16 @@ export default function Board({ initial }) {
                                                 </td>
                                                 <td className="max-w-xs px-4 py-4 text-base text-gray-600">
                                                     {commande.address ?? '—'}
+                                                    {/* Corriger le lieu sans annuler la commande : une
+                                                        adresse mal comprise au téléphone obligeait
+                                                        jusqu'ici à tout ressaisir. */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { couperSonneriePourInteraction(); setLieuDemande(commande); }}
+                                                        className="mt-1 block text-xs font-semibold text-brand-700 hover:underline"
+                                                    >
+                                                        Changer le lieu
+                                                    </button>
                                                 </td>
                                                 <td className="whitespace-nowrap px-4 py-4 text-center">
                                                     <button
@@ -1464,6 +1514,16 @@ export default function Board({ initial }) {
                         enCours={enCours.has(commandeDetail.id)}
                     />
                 )}
+
+                <ChoixDuLieu
+                    ouvert={lieuDemande !== null}
+                    titre="Lieu de livraison"
+                    lieux={donnees.lieux ?? []}
+                    actuel={lieuDemande?.address}
+                    enCours={lieuDemande !== null && enCours.has(lieuDemande.id)}
+                    onFermer={() => setLieuDemande(null)}
+                    onValider={(choix) => changerLeLieu(lieuDemande.id, choix)}
+                />
 
                 <DemandeDeMotif
                     ouvert={annulationDemandee !== null}

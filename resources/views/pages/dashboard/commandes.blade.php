@@ -241,6 +241,92 @@ new class extends Component {
         return order_detail::sum('price');
     }
 
+    /*
+    | Changement du lieu de livraison.
+    |
+    | L'adresse était figée à la création de la commande : corriger un quartier
+    | mal compris au téléphone obligeait à annuler et à ressaisir, en perdant
+    | l'historique et l'agent déjà attribué. Le comptoir peut désormais choisir
+    | un lieu enregistré, ou en créer un s'il n'existe pas encore — l'obliger à
+    | passer par l'écran des lieux puis à revenir, c'est l'assurance qu'il
+    | livrera au jugé.
+    */
+    public $lieuCommandeId = null;
+
+    public $lieuChoisi = null;
+
+    public $rechercheLieu = '';
+
+    public $nouveauLieu = '';
+
+    public $nouveauQuartier = '';
+
+    public function getLieuxProperty()
+    {
+        $recherche = trim($this->rechercheLieu);
+
+        return \App\Models\Location::with('quarter:id,name')
+            ->when($recherche !== '', function ($requete) use ($recherche) {
+                $requete->where('name', 'like', '%' . $recherche . '%')
+                    ->orWhereHas('quarter', fn ($q) => $q->where('name', 'like', '%' . $recherche . '%'));
+            })
+            ->orderBy('name')
+            ->limit(40)
+            ->get();
+    }
+
+    public function ouvrirLeLieu($id): void
+    {
+        $this->lieuCommandeId = $id;
+        $this->reset(['lieuChoisi', 'rechercheLieu', 'nouveauLieu', 'nouveauQuartier']);
+    }
+
+    public function fermerLeLieu(): void
+    {
+        $this->reset(['lieuCommandeId', 'lieuChoisi', 'rechercheLieu', 'nouveauLieu', 'nouveauQuartier']);
+    }
+
+    public function appliquerLeLieu($id = null): void
+    {
+        $commande = order_detail::find($this->lieuCommandeId);
+
+        if (! $commande) {
+            $this->fermerLeLieu();
+
+            return;
+        }
+
+        $service = app(\App\Support\LieuDeLivraison::class);
+
+        $lieu = $id ? \App\Models\Location::find($id) : null;
+
+        if (! $lieu) {
+            if (mb_strlen(trim($this->nouveauLieu)) < 2) {
+                $this->dispatch('notify', [
+                    'message' => 'Choisissez un lieu ou nommez-en un nouveau.',
+                    'type' => 'error',
+                ]);
+
+                return;
+            }
+
+            $lieu = $service->creer([
+                'name' => $this->nouveauLieu,
+                'quarter_name' => $this->nouveauQuartier,
+            ], auth()->id());
+        }
+
+        $lieu->loadMissing('quarter:id,name');
+        $service->appliquer($commande, $lieu);
+
+        $this->dispatch('notify', [
+            'message' => 'Livraison déplacée vers ' . $service->libelle($lieu) . '.',
+            'type' => 'success',
+        ]);
+
+        $this->fermerLeLieu();
+    }
+
     public function openModal($id)
     {
         $this->orderId = $id;
@@ -363,7 +449,13 @@ new class extends Component {
                                 <td class="py-3 px-4">{{ $order->id }}</td>
                                 <td class="py-3 px-4">{{ $order->user ? $order->user->name : 'N/A' }}</td>
                                 <td class="py-3 px-4">{{ number_format($order->price, 2, ',', ' ') }} FCFA</td>
-                                <td class="py-3 px-4">{{ $order->address ?? 'N/A' }}</td>
+                                <td class="py-3 px-4">
+                                    {{ $order->address ?? 'N/A' }}
+                                    <button type="button" wire:click="ouvrirLeLieu({{ $order->id }})"
+                                        class="mt-1 block text-xs font-semibold text-blue-700 hover:underline">
+                                        Changer le lieu
+                                    </button>
+                                </td>
                                 <td class="py-3 px-4">{{ $order->ref }}</td>
                                 <td class="py-3 px-4">{{ $order->payment_method }}</td>
                                 <td class="py-3 px-4">
@@ -707,5 +799,63 @@ new class extends Component {
                 toastr.options = { closeButton: true, progressBar: true, positionClass: 'toast-top-right', timeOut: 3000 };
             </script>
         </div>
+            {{-- Choix du lieu de livraison : la liste enregistrée, ou un lieu neuf. --}}
+            @if ($lieuCommandeId)
+                <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+                     wire:key="lieu-{{ $lieuCommandeId }}">
+                    <div class="flex max-h-[85vh] w-full max-w-xl flex-col rounded-2xl bg-white p-5 shadow-2xl">
+                        <h2 class="text-lg font-bold text-gray-900">Lieu de livraison</h2>
+                        <p class="mt-1 text-sm text-gray-500">
+                            Choisissez un lieu enregistré, ou créez-en un : il rejoindra la liste commune
+                            et servira aux prochaines commandes comme aux agents.
+                        </p>
+
+                        <input type="search" wire:model.live.debounce.250ms="rechercheLieu"
+                               placeholder="Chercher un lieu ou un quartier…"
+                               class="mt-4 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-gray-400 focus:ring-0" />
+
+                        <div class="mt-3 min-h-0 flex-1 overflow-y-auto rounded-xl border border-gray-100">
+                            @forelse ($this->lieux as $lieu)
+                                <button type="button" wire:click="appliquerLeLieu({{ $lieu->id }})"
+                                        class="flex w-full items-center justify-between gap-3 border-b border-gray-50 px-4 py-2.5 text-left transition-colors hover:bg-gray-50">
+                                    <span class="text-sm font-semibold text-gray-800">
+                                        {{ $lieu->name }}@if ($lieu->quarter) — {{ $lieu->quarter->name }}@endif
+                                    </span>
+                                    @if (! $lieu->latitude || ! $lieu->longitude)
+                                        {{-- Un lieu sans coordonnées nomme la livraison mais ne se place
+                                             pas sur la carte : le comptoir doit le savoir. --}}
+                                        <span class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
+                                            sans repère
+                                        </span>
+                                    @endif
+                                </button>
+                            @empty
+                                <p class="px-4 py-6 text-center text-sm text-gray-500">
+                                    Aucun lieu ne correspond. Créez-le juste en dessous.
+                                </p>
+                            @endforelse
+                        </div>
+
+                        <div class="mt-4 grid gap-2 border-t border-gray-100 pt-4 sm:grid-cols-2">
+                            <input type="text" wire:model="nouveauLieu" placeholder="Nouveau lieu"
+                                   class="rounded-xl border-gray-300 text-sm shadow-sm focus:border-gray-400 focus:ring-0" />
+                            <input type="text" wire:model="nouveauQuartier" placeholder="Quartier"
+                                   class="rounded-xl border-gray-300 text-sm shadow-sm focus:border-gray-400 focus:ring-0" />
+                        </div>
+
+                        <div class="mt-4 flex items-center justify-end gap-2">
+                            <button type="button" wire:click="fermerLeLieu"
+                                    class="rounded-xl px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100">
+                                Fermer
+                            </button>
+                            <button type="button" wire:click="appliquerLeLieu"
+                                    class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-blue-700">
+                                Enregistrer et livrer ici
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            @endif
+
     @endvolt
 </x-layouts.app>
