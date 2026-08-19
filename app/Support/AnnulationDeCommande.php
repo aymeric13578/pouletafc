@@ -129,6 +129,30 @@ class AnnulationDeCommande
     }
 
     /**
+     * Statuts sur lesquels il n'y a plus rien à annuler.
+     *
+     * « Success » est une commande livrée : l'annuler après coup ne défait pas
+     * la livraison, cela ne ferait que fausser les comptes. « failed » et
+     * « declin » sont déjà des fins de parcours.
+     */
+    private const STATUTS_CLOS = ['Success', self::STATUT, 'declin'];
+
+    /**
+     * Le client peut-il encore annuler lui-même ?
+     *
+     * Tant que rien n'est livré. On ne l'arrête pas au moment où un agent prend
+     * la course : c'est souvent là, en voyant le livreur partir, qu'un client
+     * se rend compte qu'il s'est trompé d'adresse ou qu'il ne sera pas chez lui.
+     * Lui refuser l'annulation à cet instant ne fait pas disparaître le
+     * problème, cela oblige seulement à téléphoner au comptoir.
+     */
+    public static function annulableParLeClient(?Model $ligne): bool
+    {
+        return $ligne !== null
+            && ! in_array($ligne->status, self::STATUTS_CLOS, true);
+    }
+
+    /**
      * Retrouve une commande ou une course par son type et son identifiant.
      */
     public static function retrouver(string $type, $id): ?Model

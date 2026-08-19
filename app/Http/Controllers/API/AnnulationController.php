@@ -99,6 +99,21 @@ class AnnulationController extends Controller
             ? $request->input('by')
             : 'agent';
 
+        /*
+        | Un client n'annule pas une commande déjà livrée.
+        |
+        | Le contrôle est ici et non dans l'application : celle-ci décide quoi
+        | afficher, elle ne décide pas ce qui est permis. Une version installée
+        | il y a trois mois continue d'appeler cette route avec ses propres
+        | idées de ce qui est annulable.
+        */
+        if ($auteur === 'client' && ! AnnulationDeCommande::annulableParLeClient($ligne)) {
+            return response()->json([
+                'response' => 409,
+                'message' => "Cette commande ne peut plus être annulée.",
+            ]);
+        }
+
         if (! AnnulationDeCommande::appliquer($ligne, $motif, $auteur)) {
             return response()->json(['response' => 400, 'message' => "L'annulation n'a pas pu être enregistrée."]);
         }

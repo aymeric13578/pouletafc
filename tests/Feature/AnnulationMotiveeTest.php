@@ -99,6 +99,37 @@ class AnnulationMotiveeTest extends TestCase
             ->assertJsonPath('response', 400);
     }
 
+    public function test_le_client_peut_annuler_tant_que_rien_n_est_livre(): void
+    {
+        $encours = new order_detail(['status' => 'process']);
+        $attente = new order_detail(['status' => 'pending']);
+        $livree = new order_detail(['status' => 'Success']);
+        $annulee = new order_detail(['status' => AnnulationDeCommande::STATUT]);
+        $rendue = new order_detail(['status' => 'declin']);
+
+        // Y compris une fois l'agent parti : c'est souvent là qu'un client
+        // s'aperçoit qu'il ne sera pas chez lui.
+        $this->assertTrue(AnnulationDeCommande::annulableParLeClient($encours));
+        $this->assertTrue(AnnulationDeCommande::annulableParLeClient($attente));
+
+        // Annuler une commande déjà livrée ne défait pas la livraison : cela ne
+        // ferait que fausser les comptes.
+        $this->assertFalse(AnnulationDeCommande::annulableParLeClient($livree));
+        $this->assertFalse(AnnulationDeCommande::annulableParLeClient($annulee));
+        $this->assertFalse(AnnulationDeCommande::annulableParLeClient($rendue));
+    }
+
+    public function test_l_api_refuse_l_annulation_client_sans_motif(): void
+    {
+        // Le motif est contrôlé avant même de chercher la commande : c'est la
+        // règle, pas une conséquence de l'introuvable.
+        $this->postJson('/api/v1.0/annulerCommande', [
+            'type' => 'order',
+            'id' => 999999999,
+            'by' => 'client',
+        ])->assertOk()->assertJsonPath('response', 400);
+    }
+
     public function test_les_motifs_proposes_sont_servis_aux_applications(): void
     {
         $reponse = $this->getJson('/api/v1.0/motifsAnnulation');
