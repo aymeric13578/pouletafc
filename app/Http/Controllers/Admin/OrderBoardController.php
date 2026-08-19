@@ -597,7 +597,14 @@ class OrderBoardController extends Controller
         return [
             'id' => $order->id,
             'ref' => $order->ref,
-            'price' => (int) $order->price,
+            /*
+             | Le montant affiché est la somme des articles, pas la valeur figée
+             | en base. Cette dernière ne couvrait plus qu'une partie du panier
+             | quand celui-ci avait été composé en plusieurs fois, et le comptoir
+             | se retrouvait avec deux chiffres qui se contredisaient.
+             */
+            'price' => \App\Support\MontantDeCommande::total($order),
+            'price_enregistre' => (int) $order->price,
             /*
              | Décomposition du total.
              |
@@ -610,7 +617,8 @@ class OrderBoardController extends Controller
              | avant que la colonne soit renseignée : on retombe alors sur la
              | soustraction plutôt que d'afficher zéro.
              */
-            'panier_price' => (int) ($order->panier_price ?? max(0, $order->price - (int) $order->delivery_fees)),
+            'panier_price' => \App\Support\MontantDeCommande::panier($order)
+                ?? (int) ($order->panier_price ?? max(0, $order->price - (int) $order->delivery_fees)),
             /*
              | Ce que valent réellement les articles du panier, recalculé ici.
              |
@@ -625,7 +633,9 @@ class OrderBoardController extends Controller
              | rapport avec la somme qu'il encaissait, sans rien pour l'alerter.
              | On expose les deux, et l'écran signale la divergence.
              */
-            'panier_calcule' => (int) $items->sum(fn ($item) => (float) $item->amount * (int) $item->quantity),
+            'panier_calcule' => \App\Support\MontantDeCommande::panier($order),
+            // L'écran ne propose l'alignement que si la base diverge de la somme.
+            'montant_diverge' => \App\Support\MontantDeCommande::diverge($order),
             'delivery_fees' => (int) $order->delivery_fees,
             'poids_kg' => $order->poids_kg !== null ? (float) $order->poids_kg : null,
             // Une commande livrée ou annulée ne se corrige plus : le montant a
@@ -709,7 +719,17 @@ class OrderBoardController extends Controller
             'items' => $items->map(fn ($item) => [
                 'name' => $item->product?->name ?? 'Article',
                 'quantity' => (int) ($item->quantity ?? 1),
-                'unit_price' => (int) ($item->price ?? $item->product?->price ?? 0),
+                /*
+                 | Le prix retenu est celui capturé au moment où l'article a
+                 | rejoint le panier, jamais le prix courant du produit.
+                 |
+                 | L'ordre était inverse : sans « price » sur la ligne — ce qui
+                 | est le cas de toutes celles créées par l'application — on
+                 | retombait sur le tarif actuel du catalogue. Une hausse de prix
+                 | aurait donc réécrit le prix unitaire des commandes passées, et
+                 | fait diverger la ligne de son propre total.
+                 */
+                'unit_price' => (int) ($item->amount ?? $item->price ?? $item->product?->price ?? 0),
                 'amount' => (int) ($item->amount ?? 0),
                 'shop' => $item->product?->shop?->shop_name,
             ])->values(),

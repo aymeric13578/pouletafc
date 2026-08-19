@@ -78,8 +78,16 @@ class RealignementDuTotalTest extends TestCase
             ->firstWhere('id', $commande->id);
 
         $this->assertNotNull($ligne, 'La commande doit apparaître sur le mur.');
-        $this->assertSame(2500, $ligne['panier_price']);
-        $this->assertSame(10000, $ligne['panier_calcule'], 'Le panier réel doit être calculé et exposé.');
+
+        // Le montant affiché est la somme des articles, pas la valeur figée en
+        // base : c'est le panier qu'on a sous les yeux, il ne peut pas mentir.
+        $this->assertSame(10000, $ligne['panier_price']);
+        $this->assertSame(10000, $ligne['panier_calcule']);
+
+        // La valeur enregistrée reste accessible — elle sert la comptabilité —
+        // et sa divergence est signalée pour que le comptoir puisse trancher.
+        $this->assertSame(2500, $ligne['price_enregistre']);
+        $this->assertTrue($ligne['montant_diverge']);
     }
 
     public function test_le_comptoir_peut_aligner_le_total(): void

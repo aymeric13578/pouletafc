@@ -30,6 +30,13 @@ class CartController extends Controller
             */
             $carts = Cart::where('user_id', $user->id)
                          ->where('status', 'pending')
+                         // Même règle qu'à l'ajout : un panier déjà commandé
+                         // n'est plus le panier en cours du client.
+                         ->whereNotExists(function ($requete) {
+                             $requete->select(\DB::raw(1))
+                                 ->from('order_details')
+                                 ->whereColumn('order_details.id_cart', 'carts.id');
+                         })
                          ->orderByDesc('id')
                          ->first();
                           //->where('status', 1)
@@ -79,6 +86,24 @@ class CartController extends Controller
         */
         $carts = Cart::where('user_id', $user->id)
             ->where('status', 'pending')
+            /*
+            | Jamais un panier qui a déjà servi à une commande.
+            |
+            | C'est ce qui produisait les montants faux. Un client compose un
+            | panier, commande, revient plus tard et ajoute d'autres produits :
+            | ceux-ci rejoignaient le panier déjà commandé, qui n'avait pas été
+            | refermé. La commande gardait le montant calculé au moment où elle
+            | avait été passée, tandis que son panier continuait de grossir — le
+            | comptoir voyait alors treize articles à préparer pour 2 500 F.
+            |
+            | Le statut du panier suffisait en théorie ; en pratique il pouvait
+            | rester ouvert, et ce contrôle-ci ne dépend pas de lui.
+            */
+            ->whereNotExists(function ($requete) {
+                $requete->select(\DB::raw(1))
+                    ->from('order_details')
+                    ->whereColumn('order_details.id_cart', 'carts.id');
+            })
             ->orderByDesc('id')
             ->first();
 

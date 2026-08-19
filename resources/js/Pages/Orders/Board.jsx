@@ -1284,11 +1284,10 @@ export default function Board({ initial }) {
                                                     {/* Le montant facturé ne couvre pas toujours le panier :
                                                         2 500 F pour treize articles en valant 30 000 sur une
                                                         commande du 19 août. L'écart se voyait nulle part. */}
-                                                    {commande.panier_calcule != null
-                                                        && commande.panier_calcule !== commande.panier_price && (
+                                                    {commande.montant_diverge && (
                                                         <div className="mt-1 text-right">
                                                             <p className="text-xs font-bold text-amber-700">
-                                                                Panier réel : {formatMontant(commande.panier_calcule)} F
+                                                                Enregistré : {formatMontant(commande.price_enregistre)} F
                                                             </p>
                                                             <button
                                                                 type="button"

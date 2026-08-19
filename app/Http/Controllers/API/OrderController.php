@@ -247,6 +247,32 @@ Contact service client : 697 526 980";
              "Votre commande N° " . $ref . " a bien été reçue. Le service client Poulet AFC vous contactera d'ici quelques instants. Merci de patienter.\nContact service client : 697 526 980"
          );
                 
+         /*
+          | Le montant est réaligné sur le panier réellement attaché.
+          |
+          | Il était calculé au début de la méthode, à partir des articles
+          | présents à cet instant. Si le panier avait été composé en plusieurs
+          | fois — le client commande, revient plus tard, ajoute d'autres
+          | produits dans le même panier resté ouvert — la commande gardait le
+          | montant de la dernière composition pendant que son panier en portait
+          | bien plus. Constaté : 2 500 F facturés pour treize articles en valant
+          | 30 000.
+          |
+          | On relit donc le panier après création, et la commande vaut ce qu'il
+          | contient. Deux valeurs qui doivent toujours coïncider n'ont pas à
+          | être calculées à deux moments différents.
+          */
+         $reels = CartItem::where('cart_id', $request->cart_id)->where('status', 'Success')->get();
+         $panierReel = (float) $reels->sum(fn ($ligne) => (float) $ligne->amount * (int) $ligne->quantity);
+
+         if ($panierReel > 0 && (int) $panierReel !== (int) $totalamount) {
+             $order->update([
+                 'panier_price' => $panierReel,
+                 'price' => $panierReel + (float) $request->delivery_fees,
+                 'qty' => (int) $reels->sum('quantity'),
+             ]);
+         }
+
          // Le panier est fermé maintenant, la commande étant enregistrée : le
          // prochain ajout de produit en ouvrira un neuf, ce qui est le bon moment.
          Cart::where('id', $request->cart_id)->update(['status' => 'Success']);
@@ -724,7 +750,32 @@ Contact service client : 697 526 980";
         
         
             
-             $order = order_detail::where('id_user', $request->id_user)->with('carts.cartItems.product')->with('agent')->orderBy('id','desc')->get();
+             $order = order_detail::where('id_user', $request->id_user)
+                 ->with('carts.cartItems.product')
+                 ->with('agent')
+                 ->orderBy('id','desc')
+                 ->get();
+
+             /*
+              | Le prix montré au client est la somme de son panier, et non la
+              | valeur figée en base.
+              |
+              | Les deux divergeaient quand le panier avait été composé en
+              | plusieurs fois : l'écran d'historique annonçait 2 500 F au-dessus
+              | d'un détail de panier en valant 30 000. Le client voyait donc
+              | deux prix pour la même commande, sur le même écran.
+              */
+             $order->each(function ($commande) {
+                 $panier = \App\Support\MontantDeCommande::panier($commande);
+
+                 if ($panier === null) {
+                     return;
+                 }
+
+                 $commande->panier_price = $panier;
+                 $commande->price = $panier + (int) $commande->delivery_fees;
+                 $commande->qty = \App\Support\MontantDeCommande::quantite($commande);
+             });
 
             
              if($order) return response()->json(['response' => 200, 'data'=> $order]);
