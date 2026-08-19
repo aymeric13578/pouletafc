@@ -349,3 +349,55 @@ export function ChoixAgent({ agents, enCours, surChoix, surAnnuler }) {
         </div>
     );
 }
+
+/*
+ * Déplace un marqueur jusqu'à sa nouvelle position, au lieu de l'y téléporter.
+ *
+ * Les positions arrivent par paquets : la carte interroge le serveur toutes les
+ * quatre secondes, et l'agent envoie la sienne quand il a parcouru dix mètres.
+ * Poser brutalement le marqueur à chaque relevé donne une succession de sauts —
+ * on voit des positions, pas un déplacement, et il devient impossible de dire
+ * d'un coup d'œil qui roule et qui est à l'arrêt.
+ *
+ * L'animation ne fabrique aucune donnée : elle ne fait que relier deux points
+ * réellement relevés. Un marqueur qui glisse pendant une seconde vers un point
+ * mesuré reste plus fidèle qu'un marqueur qui y apparaît d'un coup.
+ */
+export function deplacerEnDouceur(marqueur, [lat, lon], duree = 900) {
+    const depart = marqueur.getLatLng();
+
+    if (depart.lat === lat && depart.lng === lon) return;
+
+    // Un écart énorme n'est pas un déplacement : c'est un premier relevé, ou un
+    // saut de GPS. L'animer ferait traverser la ville au marqueur.
+    const ecart = Math.abs(depart.lat - lat) + Math.abs(depart.lng - lon);
+    if (ecart > 0.05) {
+        marqueur.setLatLng([lat, lon]);
+        return;
+    }
+
+    // Une animation par marqueur : sans ça, deux relevés rapprochés lancent deux
+    // animations concurrentes qui se disputent la position.
+    if (marqueur._animationEnCours) cancelAnimationFrame(marqueur._animationEnCours);
+
+    const debut = performance.now();
+
+    const avancer = (maintenant) => {
+        const part = Math.min(1, (maintenant - debut) / duree);
+        // Départ et arrivée adoucis : un mobile ne démarre pas à pleine vitesse.
+        const progression = part < 0.5 ? 2 * part * part : 1 - (-2 * part + 2) ** 2 / 2;
+
+        marqueur.setLatLng([
+            depart.lat + (lat - depart.lat) * progression,
+            depart.lng + (lon - depart.lng) * progression,
+        ]);
+
+        if (part < 1) {
+            marqueur._animationEnCours = requestAnimationFrame(avancer);
+        } else {
+            marqueur._animationEnCours = null;
+        }
+    };
+
+    marqueur._animationEnCours = requestAnimationFrame(avancer);
+}

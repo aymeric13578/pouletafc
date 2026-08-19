@@ -11,6 +11,7 @@ use App\Models\CartItem;
 use App\Models\Parameter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Support\AnnulationDeCommande;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -295,11 +296,31 @@ class OrderBoardController extends Controller
     {
         $valide = $request->validate([
             'status' => ['required', 'string', Rule::in(self::STATUTS_AUTORISES)],
+            /*
+            | Le motif n'est exigé que pour une annulation, et il l'est vraiment :
+            | c'est le seul moment où l'information ne peut plus être reconstituée
+            | après coup. Les autres changements de statut se lisent d'eux-mêmes.
+            */
+            'reason' => [
+                Rule::requiredIf($request->input('status') === AnnulationDeCommande::STATUT),
+                'nullable',
+                'string',
+                'min:' . AnnulationDeCommande::MOTIF_MINIMUM,
+                'max:' . AnnulationDeCommande::MOTIF_MAXIMUM,
+            ],
+        ], [
+            'reason.required' => "Indiquez pourquoi la commande est annulée.",
+            'reason.min' => "Le motif est trop court pour dire quelque chose.",
         ]);
 
         $commande = order_detail::findOrFail($order);
-        $commande->status = $valide['status'];
-        $commande->save();
+
+        if ($valide['status'] === AnnulationDeCommande::STATUT) {
+            AnnulationDeCommande::appliquer($commande, $valide['reason'], 'admin');
+        } else {
+            $commande->status = $valide['status'];
+            $commande->save();
+        }
 
         // On renvoie le mur à jour : le navigateur n'a pas à enchaîner une seconde
         // requête pour rafraîchir l'écran après l'action.
@@ -310,6 +331,36 @@ class OrderBoardController extends Controller
     /**
      * @return array<string, mixed>
      */
+    /**
+     * Les agents en activité, avec la fraîcheur de leur dernière position.
+     *
+     * Volontairement sans coordonnées : le mur n'est pas une carte, et faire
+     * transiter des points toutes les cinq secondes pour ne rien en dessiner
+     * serait du poids pour rien. Ce qu'on veut lire ici est plus simple — qui
+     * est en service, et depuis quand on a de ses nouvelles.
+     */
+    private function agentsEnService(): array
+    {
+        return \App\Models\User::query()
+            ->where('role', 'agent')
+            ->where('in_activity', 1)
+            ->orderBy('name')
+            ->get(['id', 'name', 'phone', 'position_updated_at'])
+            ->map(fn ($agent) => [
+                'id' => $agent->id,
+                'name' => $agent->name,
+                'phone' => $agent->phone,
+                'position_age_s' => $agent->position_updated_at
+                    ? max(0, now()->diffInSeconds($agent->position_updated_at, true))
+                    : null,
+                // Deux minutes : au-delà, la position n'est plus une position,
+                // c'est un souvenir. Même seuil que sur les cartes.
+                'frais' => $agent->position_updated_at !== null
+                    && $agent->position_updated_at->greaterThan(now()->subMinutes(2)),
+            ])
+            ->all();
+    }
+
     private function payload(Request $request): array
     {
         $page = max(1, (int) $request->query('page', 1));
@@ -372,6 +423,22 @@ class OrderBoardController extends Controller
             ->keyBy('id_order');
 
         return [
+            /*
+             | Motifs d'annulation proposés, servis par le serveur plutôt que
+             | recopiés dans l'écran : la liste vit dans AnnulationDeCommande, et
+             | deux copies finiraient par diverger.
+             */
+                        /*
+             | Les agents en service, et depuis combien de temps chacun s'est
+             | signalé.
+             |
+             | Le mur ne montrait aucun agent : pour savoir qui roule, il fallait
+             | ouvrir la carte, donc quitter l'écran qu'on surveille. Une bande
+             | compacte suffit à répondre à la seule question qu'on se pose ici —
+             | qui est joignable maintenant.
+             */
+            'agents_en_service' => $this->agentsEnService(),
+            'motifs_annulation' => \App\Support\AnnulationDeCommande::MOTIFS_COURANTS,
             'orders' => $commandes->getCollection()->map(fn (order_detail $o) => $this->transform($o))->values(),
             'pagination' => [
                 'current_page' => $commandes->currentPage(),
@@ -514,6 +581,14 @@ class OrderBoardController extends Controller
             'panier_modifiable' => ! in_array($order->status, ['Success', 'failed'], true),
             'status' => $order->status,
             'status_paiement' => $order->status_paiement,
+            /*
+             | Motif de l'annulation. Une commande passait en « échec » sans un
+             | mot : le comptoir ne pouvait plus dire, le lendemain, si le client
+             | s'était rétracté ou si le produit manquait — deux causes qui
+             | n'appellent pas la même correction.
+             */
+            'cancel_reason' => $order->cancel_reason ?? null,
+            'cancelled_by' => $order->cancelled_by ?? null,
             /*
              | Nature de la demande. Les gestes du comptoir ne sont pas les mêmes
              | selon qu'on prépare un panier ou qu'on remet un paquet.

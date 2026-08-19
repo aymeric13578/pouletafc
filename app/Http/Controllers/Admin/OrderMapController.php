@@ -201,6 +201,16 @@ class OrderMapController extends Controller
                      | alors que sa position datait parfois de plusieurs semaines.
                      */
                     'frais' => $suivi !== null || $this->positionRecente($u->position_updated_at),
+                    /*
+                     | Âge du relevé, en secondes.
+                     |
+                     | Une date formatée ne dit pas si l'agent bouge maintenant :
+                     | il faut la comparer de tête à l'heure qu'il est. L'écart
+                     | se lit d'un coup d'œil, et l'écran en fait un « il y a 8 s ».
+                     */
+                    'position_age_s' => $u->position_updated_at
+                        ? max(0, now()->diffInSeconds($u->position_updated_at, true))
+                        : null,
                     'position_datee' => $u->position_updated_at
                         ? $u->position_updated_at->setTimezone(self::FUSEAU)->format('d/m H:i')
                         : null,

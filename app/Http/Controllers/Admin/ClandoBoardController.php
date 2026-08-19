@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Clando;
 use App\Models\User;
+use App\Support\AnnulationDeCommande;
 use App\Support\AttributionAgent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -119,6 +120,47 @@ class ClandoBoardController extends Controller
     }
 
     /**
+     * Annule une course, en disant pourquoi.
+     *
+     * La carte savait attribuer une course, jamais l'annuler : une demande sans
+     * suite y restait « active » indéfiniment, gonflant le compteur des courses
+     * en cours et masquant les vraies. Il fallait passer par la base.
+     *
+     * Le motif est exigé pour la même raison que sur le mur des commandes : une
+     * course annulée faute d'agent et une course annulée parce que le client a
+     * renoncé n'appellent pas la même correction, et rien ne permet de les
+     * distinguer après coup.
+     */
+    public function annuler(Request $request, int $course): JsonResponse
+    {
+        $valide = $request->validate([
+            'reason' => [
+                'required',
+                'string',
+                'min:' . AnnulationDeCommande::MOTIF_MINIMUM,
+                'max:' . AnnulationDeCommande::MOTIF_MAXIMUM,
+            ],
+        ], [
+            'reason.required' => "Indiquez pourquoi la course est annulée.",
+            'reason.min' => "Le motif est trop court pour dire quelque chose.",
+        ]);
+
+        $cible = Clando::findOrFail($course);
+
+        if (! in_array($cible->status, self::ACTIFS, true)) {
+            return response()->json($this->payload($request) + [
+                'annulation' => ['ok' => false, 'message' => "Cette course n'est plus en cours."],
+            ], 409)->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+        }
+
+        AnnulationDeCommande::appliquer($cible, $valide['reason'], 'admin');
+
+        return response()->json($this->payload($request) + [
+            'annulation' => ['ok' => true, 'message' => 'Course annulée.'],
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function payload(Request $request): array
@@ -132,6 +174,12 @@ class ClandoBoardController extends Controller
             ->keyBy('id_clando');
 
         return [
+            /*
+             | Motifs d'annulation proposés, servis par le serveur plutôt que
+             | recopiés dans l'écran : la liste vit dans AnnulationDeCommande, et
+             | deux copies finiraient par diverger.
+             */
+            'motifs_annulation' => \App\Support\AnnulationDeCommande::MOTIFS_COURANTS,
             'courses' => $courses->map(fn (Clando $c) => $this->transform($c))->values(),
             'agents' => $this->agents($courses),
             'agents_disponibles' => app(AttributionAgent::class)->agentsDisponibles(),
@@ -262,6 +310,16 @@ class ClandoBoardController extends Controller
                      | alors que sa position datait parfois de plusieurs semaines.
                      */
                     'frais' => $suivi !== null || $this->positionRecente($u->position_updated_at),
+                    /*
+                     | Âge du relevé, en secondes.
+                     |
+                     | Une date formatée ne dit pas si l'agent bouge maintenant :
+                     | il faut la comparer de tête à l'heure qu'il est. L'écart
+                     | se lit d'un coup d'œil, et l'écran en fait un « il y a 8 s ».
+                     */
+                    'position_age_s' => $u->position_updated_at
+                        ? max(0, now()->diffInSeconds($u->position_updated_at, true))
+                        : null,
                     'position_datee' => $u->position_updated_at
                         ? $u->position_updated_at->setTimezone(self::FUSEAU)->format('d/m H:i')
                         : null,
@@ -357,6 +415,10 @@ class ClandoBoardController extends Controller
             // Une course déjà prise ne doit pas proposer de bouton d'attribution :
             // l'écran s'appuie là-dessus, et le serveur le revérifie sous verrou.
             'attribuable' => $course->id_agent === null,
+            // Une course terminée ou déjà annulée ne s'annule plus.
+            'annulable' => in_array($course->status, self::ACTIFS, true),
+            'cancel_reason' => $course->cancel_reason ?? null,
+            'cancelled_by' => $course->cancelled_by ?? null,
             'price' => (int) $course->price,
             // Ce que le client a pensé de la course, une fois terminée.
             'appreciation' => $this->appreciation($course->id),

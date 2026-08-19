@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import DemandeDeMotif from '@/Components/Board/DemandeDeMotif';
 import { Head } from '@inertiajs/react';
 import L from 'leaflet';
 import {
@@ -12,6 +13,7 @@ import {
     useCarteLeaflet,
     useDebounce,
     useSynchronisation,
+    deplacerEnDouceur,
 } from '../Shared/carte';
 
 /*
@@ -26,6 +28,16 @@ import {
 // donnerait rien de neuf, plus lentement ferait sauter les marqueurs.
 const INTERVALLE_MS = 4000;
 const RAPPEL_SONORE_MS = 20000;
+// Depuis combien de temps ce point a-t-il été relevé.
+const ageLisible = (secondes) => {
+    if (secondes === null || secondes === undefined) return 'aucun relevé';
+    if (secondes < 15) return "à l'instant";
+    if (secondes < 90) return `il y a ${Math.round(secondes)} s`;
+    if (secondes < 5400) return `il y a ${Math.round(secondes / 60)} min`;
+
+    return `il y a ${Math.round(secondes / 3600)} h`;
+};
+
 const CLE_SON = 'carte-clando.son-active';
 
 const STATUTS = {
@@ -186,6 +198,52 @@ export default function Board({ initial }) {
         [appliquer],
     );
 
+    /*
+     * Annulation d'une course, motif obligatoire.
+     *
+     * La carte savait attribuer, jamais annuler : une demande sans suite y
+     * restait « active » indéfiniment, gonflant le compteur des courses en cours
+     * et masquant les vraies. Il fallait passer par la base.
+     */
+    const [annulationDemandee, setAnnulationDemandee] = useState(null);
+    const [enCoursAnnulation, setEnCoursAnnulation] = useState(false);
+
+    const annuler = useCallback(
+        async (courseId, motif) => {
+            setEnCoursAnnulation(true);
+            setRetour(null);
+
+            try {
+                const reponse = await fetch(`/clando/${courseId}/annulation`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': jetonCsrf(),
+                    },
+                    body: JSON.stringify({ reason: motif }),
+                });
+
+                const charge = await reponse.json();
+
+                if (charge.courses) appliquer(charge);
+
+                setRetour({
+                    ok: reponse.ok && charge.annulation?.ok,
+                    message: charge.annulation?.message
+                        ?? charge.message
+                        ?? "L'annulation n'a pas abouti.",
+                });
+            } catch {
+                setRetour({ ok: false, message: 'Le serveur n\'a pas répondu.' });
+            } finally {
+                setEnCoursAnnulation(false);
+                setAnnulationDemandee(null);
+            }
+        },
+        [appliquer],
+    );
+
     // Le message de retour s'efface seul : il documente un geste, il n'a pas à
     // rester en travers de l'écran.
     useEffect(() => {
@@ -225,7 +283,7 @@ export default function Board({ initial }) {
             `<div class="text-sm">
                 <div class="font-semibold">${echapper(a.name)}</div>
                 <div class="text-slate-500">${echapper(a.phone ?? '')}</div>
-                <div class="mt-1">${a.frais ? 'Suivi en direct' + (a.course_ref ? ' · course ' + echapper(a.course_ref) : '') : 'Position dormante' + (a.position_datee ? ' · relevée le ' + echapper(a.position_datee) : '')}</div>
+                <div class="mt-1">${a.frais ? 'Suivi en direct' : 'Position dormante'} · ${echapper(ageLisible(a.position_age_s))}${a.frais && a.course_ref ? ' · course ' + echapper(a.course_ref) : ''}</div>
             </div>`;
 
         synchroniser(
@@ -233,7 +291,9 @@ export default function Board({ initial }) {
             elements,
             (a) => L.marker([a.lat, a.lon], { icon: iconeAgent(a.frais), zIndexOffset: 500 }).bindPopup(contenu(a)),
             (marqueur, a) => {
-                marqueur.setLatLng([a.lat, a.lon]);
+                // Le marqueur rejoint sa nouvelle position au lieu d'y sauter :
+                // c'est ce qui rend le déplacement lisible entre deux relevés.
+                deplacerEnDouceur(marqueur, [a.lat, a.lon]);
                 marqueur.setIcon(iconeAgent(a.frais));
                 marqueur.setPopupContent(contenu(a));
             },
@@ -573,6 +633,27 @@ export default function Board({ initial }) {
                                                 )}
                                             </button>
 
+                                            {/* Annuler reste possible même une fois la course
+                                                attribuée : c'est souvent à ce moment qu'on
+                                                apprend que le client a renoncé. */}
+                                            {c.annulable && (
+                                                <div className="px-4 pb-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setAnnulationDemandee(c.id)}
+                                                        className="w-full rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50"
+                                                    >
+                                                        Annuler la course
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {c.cancel_reason && (
+                                                <p className="px-4 pb-3 text-xs text-red-700">
+                                                    Annulée : {c.cancel_reason}
+                                                </p>
+                                            )}
+
                                             {c.attribuable && (
                                                 <div className="px-4 pb-3">
                                                     {attribution === c.id ? (
@@ -629,6 +710,15 @@ export default function Board({ initial }) {
                 <source src="/sounds/notification.mp3" type="audio/mpeg" />
                 <source src="/sounds/notification.wav" type="audio/wav" />
             </audio>
+
+            <DemandeDeMotif
+                ouvert={annulationDemandee !== null}
+                titre="Annuler cette course"
+                motifs={donnees.motifs_annulation ?? []}
+                enCours={enCoursAnnulation}
+                onAnnuler={() => setAnnulationDemandee(null)}
+                onValider={(motif) => annuler(annulationDemandee, motif)}
+            />
         </>
     );
 }

@@ -254,6 +254,19 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
           Route::post('takeClandoCommand', 'ClandoController@takeClandoCommand');
     
 
+    /*
+    | Annulation : constater, prononcer, et proposer des motifs.
+    |
+    | « disponibiliteCommande » est interrogée en boucle par la fenêtre ouverte
+    | sur le téléphone de l'agent. Rien ne la refermait quand le comptoir
+    | annulait : l'agent partait livrer une commande qui n'existait plus.
+    */
+    Route::get('disponibiliteCommande', 'AnnulationController@disponibilite');
+    Route::post('disponibiliteCommande', 'AnnulationController@disponibilite');
+    Route::get('annulerCommande', 'AnnulationController@annuler');
+    Route::post('annulerCommande', 'AnnulationController@annuler');
+    Route::get('motifsAnnulation', 'AnnulationController@motifs');
+
         Route::post('getActiveCommand', 'ClandoController@getActiveCommand');
         Route::get('getActiveCommand', 'ClandoController@getActiveCommand');
         

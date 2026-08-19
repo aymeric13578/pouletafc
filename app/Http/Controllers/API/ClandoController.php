@@ -254,6 +254,38 @@ class ClandoController extends Controller
             
         
         
+                    /*
+          | Une course annulée entre-temps ne se prend plus.
+          |
+          | La fenêtre de l'agent s'ouvre au moment où la course sonne, et rien
+          | ne la refermait ensuite : si le comptoir annulait dans l'intervalle,
+          | l'agent appuyait sur « Prendre » sans rien savoir et partait pour une
+          | course qui n'existait plus. Le contrôle porte sur le statut, et non
+          | sur l'agent : « déjà prise » et « annulée » ne se disent pas pareil à
+          | celui qui attend.
+          */
+          if(!isset($order))
+          {
+              return response()->json(['response' => 404, 'message' => "Cette course est introuvable.", 'retour' => 1, 'indisponible' => true]);
+          }
+
+          if($order->status === \App\Support\AnnulationDeCommande::STATUT)
+          {
+              $motif = $order->cancel_reason ?? null;
+
+              return response()->json([
+                  'response' => 404,
+                  'message' => $motif ? "Course annulée : " . $motif : "Cette course a été annulée.",
+                  'retour' => 1,
+                  'indisponible' => true,
+              ]);
+          }
+
+          if($order->status !== 'want' && $order->status !== 'pending')
+          {
+              return response()->json(['response' => 404, 'message' => "Cette course n'est plus à prendre.", 'retour' => 1, 'indisponible' => true]);
+          }
+
           if($order->id_agent==null)
           {
              $insert =  $order->update([
@@ -447,28 +479,49 @@ class ClandoController extends Controller
     }
     
       public function declinCommandAfterTake(Request $request)
-    {
-        
-        $order = Clando::where('ref',$request->ref)->update([
-                
-                  'status'=>  'declin'
-                  
-                  
-                  ]);
-                  
-                  
-        $freeStatusAgent = Agent::where('id_user',$request->id_user)->update([
-            
-            'freeStatus' => 1
-            
-            ]);
-         
-         if($order)
-         {
-             return response()->json(['response' => 200]);
-         }
-          return response()->json(['response' => 400 ]);
-            
+        {
+        /*
+         | L'agent rend la commande : c'est une annulation, et le motif est ce
+         | qui la rend exploitable. « declin » sans un mot ne dit pas si le
+         | client était absent, l'adresse fausse, ou l'agent en panne — trois
+         | situations qui n'appellent pas la même suite.
+         |
+         | Le statut reste « declin » : c'est celui que lisent l'historique et
+         | les écrans existants, et le changer casserait leur lecture.
+         */
+        $ligne = Clando::where('ref', $request->ref)->first();
+
+        if (! $ligne) {
+            return response()->json(['response' => 400, 'message' => 'Course introuvable.']);
+        }
+
+        $motif = (string) $request->input('reason', $request->input('motif'));
+
+        $champs = ['status' => 'declin'];
+
+        foreach ([
+            'cancel_reason' => \App\Support\AnnulationDeCommande::motifValide($motif)
+                ? \App\Support\AnnulationDeCommande::nettoyerLeMotif($motif)
+                : null,
+            'cancelled_at' => now(),
+            'cancelled_by' => 'agent',
+        ] as $colonne => $valeur) {
+            if ($valeur !== null && \App\Support\ColonnesDisponibles::existe($ligne->getTable(), $colonne)) {
+                $champs[$colonne] = $valeur;
+            }
+        }
+
+        $order = $ligne->update($champs);
+
+        $freeStatusAgent = Agent::where('id_user', $request->id_user)->update([
+            'freeStatus' => 1,
+        ]);
+
+        if ($order) {
+            return response()->json(['response' => 200]);
+        }
+
+        return response()->json(['response' => 400]);
     }
     
     public function mapAftertake(Request $request)

@@ -12,6 +12,7 @@ import {
     useCarteLeaflet,
     useDebounce,
     useSynchronisation,
+    deplacerEnDouceur,
 } from '../Shared/carte';
 
 /*
@@ -25,6 +26,16 @@ import {
  * Trois points par commande, qui ne se confondent pas : la boutique d'où part le
  * colis, le point de livraison où il va, et l'agent qui roule entre les deux.
  */
+
+// Depuis combien de temps ce point a-t-il été relevé.
+const ageLisible = (secondes) => {
+    if (secondes === null || secondes === undefined) return 'aucun relevé';
+    if (secondes < 15) return "à l'instant";
+    if (secondes < 90) return `il y a ${Math.round(secondes)} s`;
+    if (secondes < 5400) return `il y a ${Math.round(secondes / 60)} min`;
+
+    return `il y a ${Math.round(secondes / 3600)} h`;
+};
 
 const INTERVALLE_MS = 4000;
 const RAPPEL_SONORE_MS = 20000;
@@ -231,7 +242,7 @@ export default function CarteLivraisons({ initial }) {
             `<div class="text-sm">
                 <div class="font-semibold">${echapper(a.name)}</div>
                 <div class="text-slate-500">${echapper(a.phone ?? '')}</div>
-                <div class="mt-1">${a.frais ? 'Suivi en direct' + (a.commande_ref ? ' · commande ' + echapper(a.commande_ref) : '') : 'Position dormante' + (a.position_datee ? ' · relevée le ' + echapper(a.position_datee) : '')}</div>
+                <div class="mt-1">${a.frais ? 'Suivi en direct' : 'Position dormante'} · ${echapper(ageLisible(a.position_age_s))}${a.frais && a.commande_ref ? ' · commande ' + echapper(a.commande_ref) : ''}</div>
             </div>`;
 
         synchroniser(
@@ -239,7 +250,9 @@ export default function CarteLivraisons({ initial }) {
             elements,
             (a) => L.marker([a.lat, a.lon], { icon: iconeAgent(a.frais), zIndexOffset: 500 }).bindPopup(contenu(a)),
             (marqueur, a) => {
-                marqueur.setLatLng([a.lat, a.lon]);
+                // Le marqueur rejoint sa nouvelle position au lieu d'y sauter :
+                // c'est ce qui rend le déplacement lisible entre deux relevés.
+                deplacerEnDouceur(marqueur, [a.lat, a.lon]);
                 marqueur.setIcon(iconeAgent(a.frais));
                 marqueur.setPopupContent(contenu(a));
             },

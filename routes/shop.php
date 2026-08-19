@@ -87,6 +87,8 @@ Route::get('/commandes/{order}/complements', [\App\Http\Controllers\Admin\OrderB
 Route::get('/clando', [\App\Http\Controllers\Admin\ClandoBoardController::class, 'index'])->name('clando.board');
 Route::get('/clando/flux', [\App\Http\Controllers\Admin\ClandoBoardController::class, 'feed'])->name('clando.board.feed');
 Route::post('/clando/{course}/agent', [\App\Http\Controllers\Admin\ClandoBoardController::class, 'assign'])->name('clando.board.assign');
+// Annulation d'une course, motif obligatoire.
+Route::post('/clando/{course}/annulation', [\App\Http\Controllers\Admin\ClandoBoardController::class, 'annuler'])->name('clando.board.cancel');
 
 /*
 | Carte des livraisons : activité des agents et points de livraison, atteinte

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import DemandeDeMotif from '@/Components/Board/DemandeDeMotif';
 import { Head } from '@inertiajs/react';
 
 /*
@@ -817,7 +818,19 @@ export default function Board({ initial }) {
      * directement, sans attendre le prochain cycle de cinq secondes, sinon le
      * bouton semble ne rien faire.
      */
-    const changerStatut = async (id, statut) => {
+    /*
+     * Annuler n'est pas un changement de statut comme un autre : c'est le seul
+     * dont l'information ne se reconstitue pas après coup. On demande donc le
+     * motif avant, et le serveur refuse l'annulation sans lui.
+     */
+    const [annulationDemandee, setAnnulationDemandee] = useState(null);
+
+    const changerStatut = async (id, statut, motif = null) => {
+        if (statut === 'failed' && !motif) {
+            setAnnulationDemandee(id);
+            return;
+        }
+
         couperSonneriePourInteraction();
         setEnCours((precedent) => new Set([...precedent, id]));
 
@@ -829,7 +842,7 @@ export default function Board({ initial }) {
                     Accept: 'application/json',
                     'X-CSRF-TOKEN': jetonCsrf(),
                 },
-                body: JSON.stringify({ status: statut }),
+                body: JSON.stringify(motif ? { status: statut, reason: motif } : { status: statut }),
             });
 
             if (!reponse.ok) throw new Error(String(reponse.status));
@@ -1093,6 +1106,8 @@ export default function Board({ initial }) {
                     </div>
                 </header>
 
+                <BandeDesAgents agents={donnees.agents_en_service ?? []} />
+
                 {!sonActif ? (
                     <button
                         type="button"
@@ -1237,6 +1252,13 @@ export default function Board({ initial }) {
                                                     <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
                                                         {commande.payment_method ?? '—'}
                                                     </p>
+                                                    {/* Le motif s'affiche là où on lit l'échec : sans lui,
+                                                        « Échec » ne dit rien de ce qui s'est passé. */}
+                                                    {commande.cancel_reason && (
+                                                        <p className="mt-1 max-w-[16rem] whitespace-normal text-xs text-red-700">
+                                                            {commande.cancel_reason}
+                                                        </p>
+                                                    )}
                                                 </td>
                                                 <td className="whitespace-nowrap px-4 py-4">
                                                     <span className={`rounded-full px-3 py-1 text-sm font-bold ring-1 ring-inset ${paiement.classe}`}>
@@ -1387,7 +1409,78 @@ export default function Board({ initial }) {
                         enCours={enCours.has(commandeDetail.id)}
                     />
                 )}
+
+                <DemandeDeMotif
+                    ouvert={annulationDemandee !== null}
+                    titre="Annuler cette commande"
+                    motifs={donnees.motifs_annulation ?? []}
+                    enCours={annulationDemandee !== null && enCours.has(annulationDemandee)}
+                    onAnnuler={() => setAnnulationDemandee(null)}
+                    onValider={(motif) => {
+                        const id = annulationDemandee;
+                        setAnnulationDemandee(null);
+                        changerStatut(id, 'failed', motif);
+                    }}
+                />
             </div>
         </>
     );
 }
+
+/**
+ * Qui est en service, et depuis quand on a de ses nouvelles.
+ *
+ * Le mur ne montrait aucun agent : pour savoir qui roulait, il fallait ouvrir la
+ * carte, donc quitter l'écran qu'on surveille toute la journée. La question
+ * posée ici est pourtant simple — qui est joignable maintenant — et n'a pas
+ * besoin d'une carte pour trouver sa réponse.
+ *
+ * La pastille dit l'essentiel : verte, l'agent s'est signalé il y a moins de
+ * deux minutes ; grise, sa position est un souvenir.
+ */
+function BandeDesAgents({ agents }) {
+    if (agents.length === 0) return null;
+
+    const enDirect = agents.filter((a) => a.frais).length;
+
+    return (
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-gray-200 bg-white px-5 py-3 shadow-sm">
+            <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
+                Agents en service · {enDirect}/{agents.length} en direct
+            </span>
+
+            {agents.map((agent) => (
+                <span
+                    key={agent.id}
+                    className="inline-flex items-center gap-2 rounded-full bg-gray-50 px-3 py-1 text-sm ring-1 ring-gray-200"
+                    title={agent.phone ?? ''}
+                >
+                    <span
+                        className={`inline-block h-2 w-2 rounded-full ${
+                            agent.frais ? 'animate-pulse bg-emerald-500' : 'bg-gray-300'
+                        }`}
+                    />
+                    <span className="font-semibold text-gray-800">{agent.name}</span>
+                    <span className="text-xs text-gray-500">{ageLisible(agent.position_age_s)}</span>
+                </span>
+            ))}
+
+            <a
+                href="/commandes/carte"
+                className="ml-auto text-xs font-semibold text-brand-700 hover:underline"
+            >
+                Voir sur la carte →
+            </a>
+        </div>
+    );
+}
+
+// Depuis combien de temps ce point a-t-il été relevé.
+const ageLisible = (secondes) => {
+    if (secondes === null || secondes === undefined) return 'aucun relevé';
+    if (secondes < 15) return "à l'instant";
+    if (secondes < 90) return `il y a ${Math.round(secondes)} s`;
+    if (secondes < 5400) return `il y a ${Math.round(secondes / 60)} min`;
+
+    return `il y a ${Math.round(secondes / 3600)} h`;
+};
