@@ -436,6 +436,17 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
  Route::post('createOrder', 'OrderController@CreateOrder');
 Route::get('createOrder', 'OrderController@CreateOrder');
 
+/*
+| Validation d'un panier composé sur le téléphone.
+|
+| Le panier n'existe plus côté serveur avant d'être commandé : il arrive ici d'un
+| bloc, et le panier, ses articles et la commande sont écrits dans une seule
+| transaction. « createOrder » reste en service pour les versions déjà
+| installées, qui construisent encore le panier au fur et à mesure.
+*/
+Route::post('validerPanier', 'PanierValideController');
+Route::get('validerPanier', 'PanierValideController');
+
 Route::get('getOrder', 'OrderController@getOrder');
 Route::get('getUserOrder', 'OrderController@getUserOrder');
 

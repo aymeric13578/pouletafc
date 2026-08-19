@@ -57,7 +57,19 @@ class order_detail extends Model
         'phone_customer',
         'email_customer',
         'shop_id',
-        'date'
+        'date',
+        /*
+        | Clé de la tentative de commande, et motif d'annulation.
+        |
+        | Absentes de cette liste, elles étaient silencieusement écartées à la
+        | création : la commande s'enregistrait sans sa clé, et un second envoi
+        | de la même tentative repartait donc pour une nouvelle commande. Le
+        | garde-fou existait, il n'avait simplement rien à comparer.
+        */
+        'cle_unique',
+        'cancel_reason',
+        'cancelled_at',
+        'cancelled_by',
     ];
 
     public function carts()

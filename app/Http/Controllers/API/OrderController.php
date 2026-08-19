@@ -17,6 +17,74 @@ use App\Models\Parameter;
 use DB;
 class OrderController extends Controller
 {
+    /**
+     * Crée la commande d'un panier déjà constitué.
+     *
+     * Extrait de CreateOrder pour que la validation d'un panier venu du
+     * téléphone — panier, articles et commande écrits d'une seule transaction —
+     * emprunte exactement le même chemin : même référence, même résolution du
+     * point de livraison, même commission, mêmes messages au client. Deux
+     * manières de créer une commande auraient fini par diverger.
+     */
+    public function creerDepuisPanier(Request $request, User $client, $panier, float $totalArticles, int $quantite, string $cleUnique = '')
+    {
+        do {
+            $ref = 'REF_' . (new Fonction())->genUniqueID('10');
+            $find_ref = \DB::select('select * from order_details where ref="' . $ref . '"');
+        } while (!empty($find_ref));
+
+        [$lat, $lon, $origineDuPoint] = app(\App\Support\PointDeLivraison::class)
+            ->resoudre($request, $client);
+
+        $parameter = Parameter::where('status', 'Success')->first();
+        $commission_agent = 0;
+
+        if (isset($parameter)) {
+            $commission_agent = $totalArticles * $parameter->clando_agent_commission / 100;
+        }
+
+        $fraisDeLivraison = (float) $request->input('delivery_fees', 0);
+
+        $commande = order_detail::create([
+            'id_user' => $client->id,
+            'id_cart' => $panier->id,
+            'qty' => $quantite,
+            'price' => $totalArticles + $fraisDeLivraison,
+            'panier_price' => $totalArticles,
+            'ref' => $ref,
+            'status' => 'pending',
+            'latitude' => $lat,
+            'longitude' => $lon,
+            'delivery_code' => rand(0, 10000),
+            'address' => $request->input('delivery_address'),
+            'commission_agent' => $commission_agent,
+            'delivery_fees' => $fraisDeLivraison,
+        ] + ($cleUnique !== '' && app(\App\Support\CommandeSansDoublon::class)->peutRetenirLaCle()
+            ? ['cle_unique' => $cleUnique]
+            : []));
+
+        /*
+         | Tracer les commandes dont l'adresse n'a pas pu être résolue : le point
+         | retenu est alors la position du téléphone, ou rien. C'est le signe que
+         | l'adresse choisie ne correspond à aucun lieu enregistré.
+         */
+        if (in_array($origineDuPoint, ['position_client', 'aucune'], true)) {
+            \Illuminate\Support\Facades\Log::info('Commande sans adresse résolue', [
+                'ref' => $ref,
+                'adresse' => $request->input('delivery_address'),
+                'origine_du_point' => $origineDuPoint,
+            ]);
+        }
+
+        app(\App\Support\NotificationClient::class)->prevenir(
+            $client,
+            'Poulet AFC - commande ' . $ref,
+            "Votre commande N° " . $ref . " a bien été reçue. Le service client Poulet AFC vous contactera d'ici quelques instants. Merci de patienter.\nContact service client : 697 526 980"
+        );
+
+        return $commande;
+    }
+
     public function CreateOrder(Request $request)
     {
         
