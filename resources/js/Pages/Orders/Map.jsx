@@ -252,7 +252,10 @@ export default function CarteLivraisons({ initial }) {
             (marqueur, a) => {
                 // Le marqueur rejoint sa nouvelle position au lieu d'y sauter :
                 // c'est ce qui rend le déplacement lisible entre deux relevés.
-                deplacerEnDouceur(marqueur, [a.lat, a.lon]);
+                // Étalé sur l'intervalle d'interrogation : le marqueur arrive au
+                // moment où le relevé suivant se présente, et le déplacement se
+                // lit comme un mouvement plutôt que comme une suite de sauts.
+                deplacerEnDouceur(marqueur, [a.lat, a.lon], INTERVALLE_MS);
                 marqueur.setIcon(iconeAgent(a.frais));
                 marqueur.setPopupContent(contenu(a));
             },

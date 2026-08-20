@@ -360,10 +360,16 @@ export function ChoixAgent({ agents, enCours, surChoix, surAnnuler }) {
  * d'un coup d'œil qui roule et qui est à l'arrêt.
  *
  * L'animation ne fabrique aucune donnée : elle ne fait que relier deux points
- * réellement relevés. Un marqueur qui glisse pendant une seconde vers un point
- * mesuré reste plus fidèle qu'un marqueur qui y apparaît d'un coup.
+ * réellement relevés. Un marqueur qui glisse vers un point mesuré reste plus
+ * fidèle qu'un marqueur qui y apparaît d'un coup.
+ *
+ * La durée par défaut est celle qui sépare deux interrogations du serveur, et
+ * non une valeur choisie pour l'œil. Un glissement plus court laissait le
+ * marqueur filer en une seconde puis se figer trois : on lisait encore des
+ * sauts, simplement plus lents. Étalé sur l'intervalle, le marqueur arrive au
+ * moment où le point suivant se présente, et le déplacement paraît continu.
  */
-export function deplacerEnDouceur(marqueur, [lat, lon], duree = 900) {
+export function deplacerEnDouceur(marqueur, [lat, lon], duree = 4000) {
     const depart = marqueur.getLatLng();
 
     if (depart.lat === lat && depart.lng === lon) return;
