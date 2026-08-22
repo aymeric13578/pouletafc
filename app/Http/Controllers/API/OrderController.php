@@ -907,10 +907,26 @@ Contact service client : 697 526 980";
           */
          if ($codeSaisi !== null && trim((string) $order->delivery_code) === trim((string) $codeSaisi))
          {
+             /*
+              | Le client a pu annuler pendant que l'agent était déjà en route :
+              | cette écriture passait outre, ressuscitant silencieusement une
+              | livraison que le client croyait annulée (voir le même correctif
+              | sur ClandoController::terminatedCourse). L'agent est quand même
+              | libéré : il n'a plus rien à livrer sur cette commande.
+              */
+             if (\App\Support\AnnulationDeCommande::estAnnulee($order)) {
+                 Agent::where('id_user', $request->id_user)->update(['freeStatus' => 1]);
+
+                 return response()->json([
+                     'response' => 409,
+                     'message' => 'Cette commande a été annulée par le client entre-temps.',
+                 ]);
+             }
+
              $update =$order->update([
-                
+
                   'status'=>  'Success'
-                  
+
                   ]);
                   
                   

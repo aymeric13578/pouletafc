@@ -557,19 +557,42 @@ class ClandoController extends Controller
     }
        public function terminatedCourse(Request $request)
     {
-         $order = Clando::where('ref',$request->ref)->update([
-                
+         $clando = Clando::where('ref',$request->ref)->first();
+
+         if (! $clando) {
+             return response()->json(['response' => 400, 'message' => 'Course introuvable']);
+         }
+
+         /*
+          | Le client a pu annuler pendant que l'agent était déjà en route :
+          | ce bouton écrivait "Success" sans jamais le vérifier, ce qui
+          | ressuscitait silencieusement une course que le client croyait
+          | annulée (les traces d'annulation restaient sur la ligne, mais le
+          | statut repassait à "Success" par-dessus). L'agent est quand même
+          | libéré : il n'a plus rien à livrer sur cette course.
+          */
+         if (\App\Support\AnnulationDeCommande::estAnnulee($clando)) {
+             Agent::where('id_user', $request->id_user)->update(['freeStatus' => 1]);
+
+             return response()->json([
+                 'response' => 409,
+                 'message' => 'Cette course a été annulée par le client entre-temps.',
+             ]);
+         }
+
+         $order = $clando->update([
+
                   'status'=>  'Success'
-                  
+
                   ]);
-                  
-                                
+
+
         $freeStatusAgent = Agent::where('id_user',$request->id_user)->update([
-            
+
             'freeStatus' => 1
-            
+
             ]);
-        
+
           if($order)
          {
              return response()->json(['response' => 200]);
