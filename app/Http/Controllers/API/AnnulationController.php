@@ -10,10 +10,12 @@ use Illuminate\Http\Request;
 /**
  * Ce qu'une application a besoin de savoir d'une annulation.
  *
- * Deux besoins distincts, mais une même notion : une commande annulée n'est plus
- * là. L'application agent doit pouvoir le constater sans attendre — sa fenêtre
- * reste ouverte tant que l'agent n'y touche pas — et pouvoir elle-même annuler
- * en disant pourquoi.
+ * Trois besoins distincts, mais une même notion : une commande annulée n'est
+ * plus là. L'application agent doit pouvoir le constater sans attendre — sa
+ * fenêtre reste ouverte tant que l'agent n'y touche pas (disponibilite) ;
+ * l'application cliente doit savoir, avant même d'afficher un bouton
+ * « Annuler », ce qu'elle a le droit de proposer (eligibilite) ; et les deux
+ * doivent pouvoir annuler elles-mêmes en disant pourquoi (annuler).
  */
 class AnnulationController extends Controller
 {
@@ -107,11 +109,16 @@ class AnnulationController extends Controller
         | il y a trois mois continue d'appeler cette route avec ses propres
         | idées de ce qui est annulable.
         */
-        if ($auteur === 'client' && ! AnnulationDeCommande::annulableParLeClient($ligne)) {
-            return response()->json([
-                'response' => 409,
-                'message' => "Cette commande ne peut plus être annulée.",
-            ]);
+        if ($auteur === 'client') {
+            $motifDeBlocage = AnnulationDeCommande::motifDeBlocageClient($ligne, (string) $request->input('type'));
+
+            if ($motifDeBlocage !== null) {
+                return response()->json([
+                    'response' => 409,
+                    'message' => "Cette commande ne peut plus être annulée.",
+                    'cancel_block_reason' => $motifDeBlocage,
+                ]);
+            }
         }
 
         if (! AnnulationDeCommande::appliquer($ligne, $motif, $auteur)) {
@@ -131,12 +138,52 @@ class AnnulationController extends Controller
      * Servis par l'API plutôt que figés dans les applications : la liste évolue
      * avec l'activité, et une application ne se met pas à jour d'un claquement
      * de doigts sur les téléphones déjà installés.
+     *
+     * « for=client » sert la liste écrite à la première personne pour l'app
+     * cliente ; par défaut, celle du comptoir/de l'agent qui annule pour
+     * quelqu'un d'autre (comportement inchangé pour les appelants existants).
      */
-    public function motifs(): JsonResponse
+    public function motifs(Request $request): JsonResponse
     {
         return response()->json([
             'response' => 200,
-            'data' => AnnulationDeCommande::MOTIFS_COURANTS,
+            'data' => $request->input('for') === 'client'
+                ? AnnulationDeCommande::MOTIFS_CLIENT
+                : AnnulationDeCommande::MOTIFS_COURANTS,
+        ]);
+    }
+
+    /**
+     * Ce que l'app cliente doit afficher avant même de proposer d'annuler.
+     *
+     * Ne jamais laisser le téléphone décider seul avec un minuteur : la
+     * réponse reflète l'état réel côté serveur au moment de l'appel, pas une
+     * estimation locale qui peut avoir dérivé.
+     */
+    public function eligibilite(Request $request): JsonResponse
+    {
+        $type = (string) $request->input('type');
+        $ligne = AnnulationDeCommande::retrouver($type, $request->input('id'));
+
+        $motifDeBlocage = AnnulationDeCommande::motifDeBlocageClient($ligne, $type);
+
+        if ($motifDeBlocage !== null) {
+            return response()->json([
+                'response' => 200,
+                'can_cancel' => false,
+                'cancel_block_reason' => $motifDeBlocage,
+                // Aucun frais d'annulation n'existe dans ce système aujourd'hui :
+                // le champ est là pour que l'app n'ait pas à distinguer « pas de
+                // frais » de « le champ n'existe pas », le jour où ça change.
+                'cancellation_fee' => 0,
+            ]);
+        }
+
+        return response()->json([
+            'response' => 200,
+            'can_cancel' => true,
+            'cancellation_reason_required' => true,
+            'cancellation_fee' => 0,
         ]);
     }
 }

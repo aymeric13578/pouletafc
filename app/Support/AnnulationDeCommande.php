@@ -52,6 +52,23 @@ class AnnulationDeCommande
     ];
 
     /**
+     * Motifs proposés au client lui-même, à la première personne.
+     *
+     * Distincts de MOTIFS_COURANTS : ceux-là sont écrits pour le comptoir ou
+     * l'agent qui annule *pour* quelqu'un d'autre (« Client injoignable »,
+     * « Adresse introuvable »...). Un client qui annule sa propre commande ne
+     * parle pas de lui à la troisième personne.
+     */
+    public const MOTIFS_CLIENT = [
+        'J\'ai changé d\'avis',
+        'J\'ai trouvé une autre solution',
+        'Le temps d\'attente est trop long',
+        'Je me suis trompé d\'adresse',
+        'Le prix ne me convient plus',
+        'Autre raison',
+    ];
+
+    /**
      * Le motif est-il exploitable ?
      *
      * Refuser le vide n'est pas de la rigidité : une annulation sans motif est
@@ -140,16 +157,88 @@ class AnnulationDeCommande
     /**
      * Le client peut-il encore annuler lui-même ?
      *
-     * Tant que rien n'est livré. On ne l'arrête pas au moment où un agent prend
-     * la course : c'est souvent là, en voyant le livreur partir, qu'un client
-     * se rend compte qu'il s'est trompé d'adresse ou qu'il ne sera pas chez lui.
-     * Lui refuser l'annulation à cet instant ne fait pas disparaître le
-     * problème, cela oblige seulement à téléphoner au comptoir.
+     * Mince enveloppe booléenne autour de motifDeBlocageClient() : gardée pour
+     * les appelants qui n'ont besoin que d'un oui/non (takeClandoCommand et
+     * consorts vérifient encorePrenable/estAnnulee, pas celle-ci — seuls
+     * declinCommand et AnnulationController::annuler s'en servent, tous deux
+     * dans un contexte où le motif précis n'est pas nécessaire).
      */
-    public static function annulableParLeClient(?Model $ligne): bool
+    public static function annulableParLeClient(?Model $ligne, string $type = 'clando'): bool
     {
-        return $ligne !== null
-            && ! in_array($ligne->status, self::STATUTS_CLOS, true);
+        return self::motifDeBlocageClient($ligne, $type) === null;
+    }
+
+    /**
+     * Pourquoi le client ne peut plus annuler lui-même, ou null s'il le peut.
+     *
+     * Décision unique, utilisée à la fois par la vérification d'éligibilité
+     * (avant d'afficher un formulaire d'annulation) et par l'annulation
+     * elle-même (avant de l'appliquer) : les deux doivent toujours être
+     * d'accord, sinon un client verrait « vous pouvez annuler » puis se
+     * ferait refuser au moment de confirmer.
+     *
+     * Trois obstacles, du plus tardif au plus précoce :
+     *  - la commande est déjà à son terme (livrée, déjà annulée, déjà déclinée) ;
+     *  - la course a déjà commencé (l'agent a récupéré le client/le colis,
+     *    statut « take ») — annuler ne défait pas un trajet en cours ;
+     *  - pour un clando seulement, l'agent est arrivé au point de prise en
+     *    charge sans avoir encore récupéré le client : rien ne le signale par
+     *    un statut dédié, seule la proximité entre sa position et celle du
+     *    client permet de le déduire.
+     */
+    public static function motifDeBlocageClient(?Model $ligne, string $type = 'clando'): ?string
+    {
+        if ($ligne === null) {
+            return 'INTROUVABLE';
+        }
+
+        if (in_array($ligne->status, self::STATUTS_CLOS, true)) {
+            return 'ALREADY_CLOSED';
+        }
+
+        if ($ligne->status === 'take') {
+            return 'COURSE_STARTED';
+        }
+
+        if ($type === 'clando' && $ligne->status === 'process' && $ligne instanceof Clando
+            && self::agentEstArriveAuPointDePriseEnCharge($ligne)) {
+            return 'DRIVER_ARRIVED';
+        }
+
+        return null;
+    }
+
+    /**
+     * L'agent est-il tout près du point de prise en charge du client ?
+     *
+     * Ni le clando ni son statut ne portent de case « arrivé » : le seul
+     * signal disponible est la distance entre la position de l'agent
+     * (latAgent/lonAgent, rafraîchie en continu par l'app agent) et celle du
+     * client au moment de sa demande (latMyPosition/lonMyPosition). En
+     * dessous du rayon, on considère l'agent arrivé.
+     */
+    private static function agentEstArriveAuPointDePriseEnCharge(Clando $clando, float $rayonMetres = 150.0): bool
+    {
+        if ($clando->latAgent === null || $clando->lonAgent === null
+            || $clando->latMyPosition === null || $clando->lonMyPosition === null) {
+            return false;
+        }
+
+        return self::distanceMetres(
+            (float) $clando->latMyPosition, (float) $clando->lonMyPosition,
+            (float) $clando->latAgent, (float) $clando->lonAgent
+        ) <= $rayonMetres;
+    }
+
+    /** Distance à vol d'oiseau entre deux points, en mètres (formule de Haversine). */
+    private static function distanceMetres(float $lat1, float $lon1, float $lat2, float $lon2): float
+    {
+        $rayonTerre = 6371000.0;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLon = deg2rad($lon2 - $lon1);
+        $a = sin($dLat / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLon / 2) ** 2;
+
+        return $rayonTerre * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
     /**
