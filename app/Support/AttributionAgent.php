@@ -86,6 +86,25 @@ class AttributionAgent
                 return $this->echec('Déjà attribué à un agent.', 409);
             }
 
+            /*
+             | Même garde que takeClandoCommand/takeOrderCommand : une course ou
+             | commande annulée entre-temps (par le client, le comptoir, ou déjà
+             | close) ne se réattribue pas. Sans ce contrôle, l'attribution
+             | manuelle depuis le tableau de bord restait le seul des trois
+             | chemins (mobile, ici, carte) à ignorer une annulation — un
+             | opérateur pouvait attribuer un agent à une course que le client
+             | venait d'annuler.
+             */
+            if (AnnulationDeCommande::estAnnulee($frais)) {
+                $motif = $frais->cancel_reason ?? null;
+
+                return $this->echec($motif ? 'Annulé : '.$motif : 'Cet élément a été annulé.', 409);
+            }
+
+            if (! in_array($frais->status, ['want', 'pending'], true)) {
+                return $this->echec('Cet élément n\'est plus à prendre.', 409);
+            }
+
             $frais->update([
                 'id_agent' => $idAgent,
                 'status' => 'process',

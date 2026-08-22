@@ -460,22 +460,38 @@ class ClandoController extends Controller
     
      public function declinCommand(Request $request)
     {
-        
+
          $order = DB::table('declin_command')->insert([
-             'id_user' => $request->id_user, 
+             'id_user' => $request->id_user,
              'id_clando'=>$request->id_clando
-             
-             
+
+
              ]);
-             
-  
-         
+
+
+
          if($order)
          {
+             /*
+              | Jusqu'ici cette route n'écrivait que la ligne d'audit
+              | ci-dessus : le statut de la course restait "want", donc
+              | parfaitement prenable par n'importe quel agent malgré
+              | l'annulation du client. On applique la même annulation que
+              | le mur des commandes/la carte clando, via la classe déjà
+              | prévue pour ça — takeClandoCommand et les listes d'agents
+              | (getClandoWithoutAgent, getActiveCommand) savent déjà exclure
+              | ce statut, elles n'attendaient que cette écriture.
+              */
+             $clando = Clando::find($request->id_clando);
+
+             if ($clando && \App\Support\AnnulationDeCommande::annulableParLeClient($clando)) {
+                 \App\Support\AnnulationDeCommande::appliquer($clando, 'Annulé par le client', 'client');
+             }
+
              return response()->json(['response' => 200]);
          }
           return response()->json(['response' => 400 ]);
-            
+
     }
     
       public function declinCommandAfterTake(Request $request)
