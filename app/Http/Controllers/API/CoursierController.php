@@ -126,6 +126,31 @@ class CoursierController extends Controller
     }
 
     /**
+     * Demandes de coursier en attente, pour l'application agent.
+     *
+     * Mêmes critères d'« en attente » que getAllWithoutSellerOrder
+     * (id_agent nul, statuts waiting/want/take/process, journée en cours) —
+     * seul le filtre delivery_type='coursier' + id_cart nul change, pour
+     * isoler les demandes de coursier des commandes boutique ordinaires qui
+     * partagent la même table.
+     */
+    public function getPendingCoursierRequests(Request $request): JsonResponse
+    {
+        $debut = now()->setTimezone('Africa/Douala')->startOfDay();
+
+        $demandes = order_detail::where('id_agent', null)
+            ->where('delivery_type', 'coursier')
+            ->whereNull('id_cart')
+            ->whereIn('status', ['waiting', 'want', 'take', 'process', 'pending'])
+            ->whereBetween('created_at', [$debut->copy()->utc(), $debut->copy()->endOfDay()->utc()])
+            ->with('user')
+            ->orderByDesc('id')
+            ->get();
+
+        return response()->json(['response' => 200, 'data' => $demandes]);
+    }
+
+    /**
      * Range la photo du colis à côté des autres images du site.
      *
      * Même dossier public/upload que les produits, les catégories et les pièces

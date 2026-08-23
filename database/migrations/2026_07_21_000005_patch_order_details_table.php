@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -36,8 +37,18 @@ return new class extends Migration
             }
         });
 
+        // id_order référence orders.id (clé étrangère bigint unsigned) : le convertir
+        // en VARCHAR via ->string()->change() casserait la contrainte FK (MySQL error 1832).
+        // On l'assouplit en NULL en conservant son type d'origine, sans toucher à la FK.
+        if (Schema::hasColumn('order_details', 'id_order')) {
+            DB::statement('ALTER TABLE order_details MODIFY id_order BIGINT UNSIGNED NULL');
+        }
+
         Schema::table('order_details', function (Blueprint $table) {
             foreach ($this->relaxColumns as $column) {
+                if ($column === 'id_order') {
+                    continue;
+                }
                 if (Schema::hasColumn('order_details', $column)) {
                     $table->string($column)->nullable()->change();
                 }

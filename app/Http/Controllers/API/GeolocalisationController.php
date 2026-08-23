@@ -31,6 +31,7 @@ class GeolocalisationController extends Controller
          'longitude.numeric' => 'Position invalide',
          'latitude.between' => 'Position invalide',
          'longitude.between' => 'Position invalide',
+         'type.max' => 'Catégorie invalide',
      ];
 
      public function getLocationAgent()
@@ -129,7 +130,7 @@ class GeolocalisationController extends Controller
      public function getQuarters()
      {
          $data = Quarter::with(['locations' => function ($requete) {
-                 $requete->select('id', 'id_quarter', 'name', 'status', 'latitude', 'longitude', 'created_at')
+                 $requete->select('id', 'id_quarter', 'name', 'type', 'status', 'latitude', 'longitude', 'created_at')
                      ->orderBy('name');
              }])
              ->select('id', 'name', 'status', 'id_user', 'created_at')
@@ -211,6 +212,7 @@ class GeolocalisationController extends Controller
              'id_user' => 'required|exists:users,id',
              'latitude' => 'required|numeric|between:-90,90',
              'longitude' => 'required|numeric|between:-180,180',
+             'type' => 'nullable|string|max:32',
          ], self::MESSAGES_VALIDATION);
 
          if ($validation->fails()) {
@@ -238,6 +240,7 @@ class GeolocalisationController extends Controller
          $lieu = Location::create([
              'id_quarter' => $idQuartier,
              'name' => $nom,
+             'type' => $request->input('type'),
              // Voir createQuarter : enum sans défaut, aligné sur l'existant.
              'status' => 'pending',
              'id_user' => $request->input('id_user'),
@@ -284,7 +287,7 @@ class GeolocalisationController extends Controller
 
          $lieux = Location::where('id_user', $idUser)
              ->with('quarter:id,name')
-             ->select('id', 'id_quarter', 'name', 'status', 'latitude', 'longitude', 'created_at')
+             ->select('id', 'id_quarter', 'name', 'type', 'status', 'latitude', 'longitude', 'created_at')
              ->orderByDesc('id')
              ->get();
 

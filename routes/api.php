@@ -103,6 +103,14 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
     // demande de coursier n'aboutissait.
     Route::post('storeDeliveryOrder', 'CoursierController@storeDeliveryOrder');
 
+    // Demandes de coursier en attente, pour l'application agent.
+    //
+    // storeDeliveryOrder écrit dans order_details comme une commande boutique
+    // ordinaire (delivery_type='coursier', id_cart=null) : sans cette route,
+    // rien ne les distinguait des commandes boutique dans les listes que
+    // l'agent interroge déjà (getAllOrder/getAllWithoutSellerOrder).
+    Route::get('getPendingCoursierRequests', 'CoursierController@getPendingCoursierRequests');
+
     // Reprise du suivi après fermeture de l'application.
     //
     // Répond « où cet utilisateur doit-il être ramené » : la course ou la
