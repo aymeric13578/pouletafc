@@ -111,6 +111,13 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
     // l'agent interroge déjà (getAllOrder/getAllWithoutSellerOrder).
     Route::get('getPendingCoursierRequests', 'CoursierController@getPendingCoursierRequests');
 
+    // Objectifs et primes — application agent (lecture des campagnes en
+    // cours + engagement sur une option). Pas d'écran dashboard pour créer
+    // une campagne pour l'instant : tant qu'aucune ligne n'existe dans
+    // goal_campaigns, getGoalCampaigns renvoie une liste vide.
+    Route::get('getGoalCampaigns', 'GoalController@getGoalCampaigns');
+    Route::post('enrollGoalCampaign', 'GoalController@enrollGoalCampaign');
+
     // Reprise du suivi après fermeture de l'application.
     //
     // Répond « où cet utilisateur doit-il être ramené » : la course ou la
