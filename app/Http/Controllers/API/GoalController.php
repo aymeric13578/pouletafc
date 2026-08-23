@@ -3,11 +3,9 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Models\Clando;
 use App\Models\GoalCampaign;
 use App\Models\GoalEnrollment;
-use App\Models\GoalProgress;
-use App\Models\order_detail;
+use App\Support\ObjectifProgression;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -18,9 +16,11 @@ use Illuminate\Support\Carbon;
  * Un agent ne peut s'engager que sur une seule option par campagne
  * (contrainte unique campaign_id+agent_id sur goal_enrollments), et
  * l'engagement se verrouille dès la première course comptabilisée
- * (locked_at) : voir le document de conception du 2026-08-23. La création
- * et la clôture des campagnes n'ont pas d'écran dashboard pour l'instant —
- * ce contrôleur ne couvre que la lecture et l'engagement côté agent.
+ * (locked_at) : voir le document de conception du 2026-08-23. La création,
+ * la publication et la clôture des campagnes se font depuis le tableau de
+ * bord (page Folio dashboard/objectifs.blade.php) — ce contrôleur ne couvre
+ * que la lecture et l'engagement côté agent. Le calcul de progression vit
+ * dans App\Support\ObjectifProgression, partagé avec le tableau de bord.
  *
  * Trois types de courses existent réellement dans cette app (clando,
  * livraison boutique, coursier), alors que le document d'origine ne
@@ -50,7 +50,7 @@ class GoalController extends Controller
             $progress = null;
 
             if ($enrollment) {
-                $progress = $this->calculerEtEnregistrerProgression($campaign, $agentId, (int) $enrollment->option_id);
+                $progress = ObjectifProgression::calculerEtEnregistrer($campaign, $agentId, (int) $enrollment->option_id);
             }
 
             return [
@@ -124,84 +124,5 @@ class GoalController extends Controller
         }
 
         return response()->json(['response' => 200, 'message' => 'Engagement enregistré.']);
-    }
-
-    /**
-     * Recalculée à chaque appel depuis les courses réelles, jamais
-     * incrémentée — une course annulée après coup doit pouvoir faire
-     * baisser la progression, pas seulement monter.
-     */
-    private function calculerEtEnregistrerProgression(GoalCampaign $campaign, $agentId, int $optionId): array
-    {
-        $debut = $campaign->starts_at;
-        $fin = $campaign->ends_at;
-
-        $refsClando = collect();
-        $refsLivraisonEtCourse = collect();
-
-        if ($campaign->ride_kind === null || $campaign->ride_kind === 'clando') {
-            $refsClando = Clando::where('id_agent', $agentId)
-                ->where('status', 'Success')
-                ->whereBetween('created_at', [$debut, $fin])
-                ->pluck('created_at', 'ref');
-        }
-
-        if ($campaign->ride_kind !== 'clando') {
-            $query = order_detail::where('id_agent', $agentId)
-                ->where('status', 'Success')
-                ->whereBetween('created_at', [$debut, $fin]);
-
-            if ($campaign->ride_kind === 'delivery') {
-                $query->where('delivery_type', '!=', 'coursier');
-            } elseif ($campaign->ride_kind === 'courier') {
-                $query->where('delivery_type', 'coursier');
-            }
-
-            $refsLivraisonEtCourse = $query->pluck('created_at', 'ref');
-        }
-
-        $toutesLesDates = $refsClando->merge($refsLivraisonEtCourse);
-
-        $progress = match ($campaign->metric) {
-            'rides' => $toutesLesDates->count(),
-            'active_days' => $toutesLesDates->map(fn ($d) => Carbon::parse($d)->toDateString())->unique()->count(),
-            // Aucune colonne de distance n'existe sur les courses de cette
-            // app : on ne fabrique pas de valeur, la progression reste à 0
-            // plutôt que d'afficher un chiffre inventé.
-            default => 0,
-        };
-
-        $option = $campaign->options()->find($optionId);
-        $target = $option?->threshold ?? 0;
-        $achieved = $target > 0 && $progress >= $target;
-
-        $row = GoalProgress::firstOrNew([
-            'campaign_id' => $campaign->id,
-            'agent_id' => $agentId,
-        ]);
-        $row->progress = $progress;
-        if ($achieved && ! $row->achieved_at) {
-            $row->achieved_at = Carbon::now();
-        } elseif (! $achieved) {
-            $row->achieved_at = null;
-        }
-        $row->save();
-
-        if ($toutesLesDates->isNotEmpty()) {
-            $enrollment = GoalEnrollment::where('campaign_id', $campaign->id)
-                ->where('agent_id', $agentId)
-                ->first();
-            if ($enrollment && $enrollment->locked_at === null) {
-                $enrollment->update(['locked_at' => Carbon::now()]);
-            }
-        }
-
-        return [
-            'progress' => $progress,
-            'target' => $target,
-            'achieved' => $achieved,
-            'achieved_at' => $row->achieved_at,
-            'reward' => $option?->reward ?? 0,
-        ];
     }
 }
