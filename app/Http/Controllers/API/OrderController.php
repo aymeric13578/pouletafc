@@ -698,11 +698,14 @@ Contact service client : 697 526 980";
     
        public function getSellerOrder(Request $request)
     {
-        
-        
-             $order = order_detail::where('id_agent', $request->id_agent)->with('carts')->with('user')->get();
 
-            
+
+             // La course la plus récente doit apparaître en tête côté app agent
+             // (écran Historique) : sans tri explicite, MySQL ne garantit aucun
+             // ordre particulier.
+             $order = order_detail::where('id_agent', $request->id_agent)->with('carts')->with('user')->orderByDesc('id')->get();
+
+
              if($order) return response()->json(['response' => 200, 'data'=> $order]);
              else return response()->json(['response' => 404]);
         

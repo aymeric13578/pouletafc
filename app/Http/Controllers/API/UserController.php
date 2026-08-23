@@ -123,7 +123,15 @@ class UserController extends Controller
     public function getInfoUser(Request $request)
     {
         $ref = $request->input('ref');
-        $data = User::where('ref', $ref)->get();
+        /*
+         | Le dossier "agent" (photo, type de véhicule, matricule) vit dans la
+         | table `agents` du tableau de bord — jamais alimenté depuis l'app
+         | mobile, uniquement saisi par un admin. Chargé ici en relation
+         | (User::agent(), via id_user) plutôt que dupliqué sur `users` :
+         | c'est le tableau de bord qui gère cette paperasse, l'app ne fait que
+         | l'afficher.
+         */
+        $data = User::where('ref', $ref)->with('agent')->get();
 
         if ($data->isNotEmpty()) {
             return response()->json([
