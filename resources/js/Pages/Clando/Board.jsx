@@ -68,6 +68,34 @@ export default function Board({ initial }) {
     const [attribution, setAttribution] = useState(null);
     const [enCoursAttribution, setEnCoursAttribution] = useState(false);
     const [retour, setRetour] = useState(null);
+    const [classementAgents, setClassementAgents] = useState(null);
+
+    /*
+     * Classement (DistributionScore) calculé à la demande, seulement quand
+     * l'opérateur ouvre le menu d'attribution d'une course précise — pas à
+     * chaque poll de la carte. En cas d'échec, ChoixAgent retombe sur la
+     * liste plate (classementAgents reste null).
+     */
+    useEffect(() => {
+        if (attribution === null) {
+            setClassementAgents(null);
+            return undefined;
+        }
+
+        let annule = false;
+        setClassementAgents(null);
+
+        fetch(`/clando/${attribution}/agents-classes`, { headers: { Accept: 'application/json' } })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => {
+                if (!annule && d?.agents) setClassementAgents(d.agents);
+            })
+            .catch(() => {});
+
+        return () => {
+            annule = true;
+        };
+    }, [attribution]);
 
     const dernierIdRef = useRef(initial.latest_id ?? 0);
     const conteneurRef = useRef(null);
@@ -715,6 +743,7 @@ export default function Board({ initial }) {
                                                     {attribution === c.id ? (
                                                         <ChoixAgent
                                                             agents={agentsDisponibles}
+                                                            classement={attribution === c.id ? classementAgents : null}
                                                             enCours={enCoursAttribution}
                                                             surChoix={(agent) => attribuer(c.id, agent)}
                                                             surAnnuler={() => setAttribution(null)}

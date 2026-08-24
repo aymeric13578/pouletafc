@@ -168,6 +168,49 @@ class AttributionAgent
     }
 
     /**
+     * Agents candidats pour UNE course précise, classés par DistributionScore
+     * (ETA/distance/qualité/fiabilité/acceptation/priorité) — contrairement à
+     * agentsDisponibles() qui liste tout le monde sans tenir compte d'où se
+     * trouve la course. N'appelle rien de plus lourd qu'une ouverture de menu
+     * d'attribution : pas de recalcul à chaque poll de la carte.
+     *
+     * @param  Model  $cible  une course (Clando) ou une commande (order_detail)
+     * @return array<int, array<string, mixed>>
+     */
+    public function agentsClasses(Model $cible): array
+    {
+        $candidats = DistributionScore::candidatsEligibles($cible);
+
+        if ($candidats->isEmpty()) {
+            return [];
+        }
+
+        $classement = DistributionScore::classerCandidats($cible, $candidats);
+
+        $infos = Agent::query()
+            ->leftJoin('users', 'users.id', '=', 'agents.id_user')
+            ->whereIn('agents.id_user', $candidats->pluck('id_user'))
+            ->select(['agents.id_user', 'agents.agent_name', 'agents.matricule_vehicule', 'agents.vehicule', 'users.phone'])
+            ->get()
+            ->keyBy('id_user');
+
+        return collect($classement)
+            ->map(function (array $c) use ($infos) {
+                $agent = $infos[$c['id_user']] ?? null;
+
+                return [
+                    'id_user' => $c['id_user'],
+                    'name' => $agent->agent_name ?? ('Agent #'.$c['id_user']),
+                    'phone' => $agent->phone ?? null,
+                    'vehicule' => $agent->vehicule ?? null,
+                    'matricule' => $agent->matricule_vehicule ?? null,
+                ] + $c;
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
      * @return array{ok: bool, message: string, code: int}
      */
     private function echec(string $message, int $code): array

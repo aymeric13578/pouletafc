@@ -99,6 +99,19 @@ class OrderMapController extends Controller
     }
 
     /**
+     * Agents candidats pour cette commande précise, classés par
+     * DistributionScore — appelé uniquement à l'ouverture du menu
+     * d'attribution, pas à chaque poll de la carte.
+     */
+    public function classerAgents(int $order, AttributionAgent $attribution): JsonResponse
+    {
+        $cible = order_detail::findOrFail($order);
+
+        return response()->json(['agents' => $attribution->agentsClasses($cible)])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function payload(Request $request): array

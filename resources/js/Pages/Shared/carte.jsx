@@ -275,16 +275,36 @@ export function Compteur({ libelle, valeur, ton = 'slate' }) {
  * Les agents occupés restent listés mais grisés : les masquer ferait croire à un
  * opérateur qu'un agent n'existe pas, alors qu'il est simplement en course.
  */
-export function ChoixAgent({ agents, enCours, surChoix, surAnnuler }) {
+export function ChoixAgent({ agents, classement, enCours, surChoix, surAnnuler }) {
     const [recherche, setRecherche] = useState('');
     const terme = useDebounce(recherche.trim().toLowerCase(), 120);
 
+    /*
+     * Le classement (DistributionScore) ne couvre que les candidats
+     * éligibles pour CETTE course précise (en service, position fraîche,
+     * dans le rayon) — il n'écrase donc jamais la liste complète, il vient
+     * seulement enrichir/réordonner par-dessus. Un agent absent du
+     * classement (hors service, occupé, trop loin) reste visible : le
+     * masquer ferait croire à l'opérateur qu'il n'existe pas.
+     */
+    const agentsClasses = useMemo(() => {
+        const scores = new Map((classement ?? []).map((c) => [c.id_user, c]));
+
+        return [...agents]
+            .map((a) => ({ ...a, ...(scores.get(a.id_user) ?? {}) }))
+            .sort((a, b) => {
+                const sa = scores.has(a.id_user) ? a.score : -Infinity;
+                const sb = scores.has(b.id_user) ? b.score : -Infinity;
+                return sb - sa;
+            });
+    }, [agents, classement]);
+
     const liste = useMemo(() => {
-        if (!terme) return agents;
-        return agents.filter((a) =>
+        if (!terme) return agentsClasses;
+        return agentsClasses.filter((a) =>
             [a.name, a.phone, a.matricule].filter(Boolean).some((v) => String(v).toLowerCase().includes(terme)),
         );
-    }, [agents, terme]);
+    }, [agentsClasses, terme]);
 
     return (
         <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -325,6 +345,16 @@ export function ChoixAgent({ agents, enCours, surChoix, surAnnuler }) {
                                     {a.phone}
                                     {a.matricule ? ` · ${a.matricule}` : ''}
                                 </span>
+                                {typeof a.score === 'number' && (
+                                    <span className="block truncate text-[10px] text-slate-400" title="Score de distribution : arrivée, distance, qualité, fiabilité, acceptation, priorité">
+                                        {Math.round(a.score)} pts
+                                        {typeof a.distance_km === 'number' ? ` · ${a.distance_km} km` : ''}
+                                        {typeof a.eta_min === 'number' ? ` · ~${Math.round(a.eta_min)} min` : ''}
+                                        {' · qualité '}{Math.round(a.qualite)}
+                                        {' · fiabilité '}{Math.round(a.fiabilite)}
+                                        {' · acceptation '}{Math.round(a.acceptation)}
+                                    </span>
+                                )}
                             </span>
                             <span className="flex shrink-0 flex-col items-end gap-0.5">
                                 <span

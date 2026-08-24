@@ -122,6 +122,19 @@ class ClandoBoardController extends Controller
     }
 
     /**
+     * Agents candidats pour cette course précise, classés par
+     * DistributionScore — appelé uniquement à l'ouverture du menu
+     * d'attribution pour une course donnée, pas à chaque poll de la carte.
+     */
+    public function classerAgents(int $course, AttributionAgent $attribution): JsonResponse
+    {
+        $cible = Clando::findOrFail($course);
+
+        return response()->json(['agents' => $attribution->agentsClasses($cible)])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+
+    /**
      * Annule une course, en disant pourquoi.
      *
      * La carte savait attribuer une course, jamais l'annuler : une demande sans
