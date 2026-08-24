@@ -17,7 +17,12 @@ class Note extends Model
         'note',
         'id_clando',
         'id_order',
-        'comment'
+        'comment',
+        'reasons'
+    ];
+
+    protected $casts = [
+        'reasons' => 'array',
     ];
 
     /**

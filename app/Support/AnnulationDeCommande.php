@@ -224,21 +224,10 @@ class AnnulationDeCommande
             return false;
         }
 
-        return self::distanceMetres(
+        return Distance::metres(
             (float) $clando->latMyPosition, (float) $clando->lonMyPosition,
             (float) $clando->latAgent, (float) $clando->lonAgent
         ) <= $rayonMetres;
-    }
-
-    /** Distance à vol d'oiseau entre deux points, en mètres (formule de Haversine). */
-    private static function distanceMetres(float $lat1, float $lon1, float $lat2, float $lon2): float
-    {
-        $rayonTerre = 6371000.0;
-        $dLat = deg2rad($lat2 - $lat1);
-        $dLon = deg2rad($lon2 - $lon1);
-        $a = sin($dLat / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLon / 2) ** 2;
-
-        return $rayonTerre * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
     /**

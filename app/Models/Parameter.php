@@ -46,6 +46,17 @@ class Parameter extends Model
         'note_points_good',
         'note_points_excellent',
         /*
+         | Fenêtre/crédibilité de la note affichée (moyenne pondérée +
+         | stabilisation bayésienne, voir NotationAgent::noteAffichee) et
+         | réglages du score de distribution (voir DistributionScore).
+         */
+        'note_fenetre_recente',
+        'note_credibilite_c',
+        'distribution_vitesse_kmh',
+        'distribution_rayon_km',
+        'distribution_delai_vague_s',
+        'distribution_taille_vague',
+        /*
          | Lieu de repli quand le client ne choisit pas sa zone. Désigné parmi
          | ceux que les agents ont enregistrés, plutôt que laissé à la dernière
          | position connue du compte — périmée et identique pour tous.
@@ -145,6 +156,18 @@ class Parameter extends Model
             'note_points_average' => 'nullable|numeric|min:-10|max:10',
             'note_points_good' => 'nullable|numeric|min:-10|max:10',
             'note_points_excellent' => 'nullable|numeric|min:-10|max:10',
+            /*
+             | Fenêtre/crédibilité de la note affichée et réglages du score de
+             | distribution. Bornes larges mais pas infinies : au-delà, la
+             | valeur n'a plus de sens pratique (une fenêtre de 10000 notes,
+             | un rayon de 500km) et trahit une saisie erronée.
+             */
+            'note_fenetre_recente' => 'nullable|integer|min:10|max:2000',
+            'note_credibilite_c' => 'nullable|integer|min:1|max:500',
+            'distribution_vitesse_kmh' => 'nullable|numeric|min:1|max:120',
+            'distribution_rayon_km' => 'nullable|numeric|min:0.5|max:100',
+            'distribution_delai_vague_s' => 'nullable|integer|min:1|max:300',
+            'distribution_taille_vague' => 'nullable|integer|min:1|max:50',
             /*
              | Facultatif : sans lieu désigné, on ne force rien et le point reste
              | indéterminé comme aujourd'hui. « exists » empêche de pointer un
