@@ -144,6 +144,22 @@ class UserController extends Controller
             ->with(['agent' => fn ($q) => $q->select('id', 'id_user', 'photo', 'vehicule', 'matricule_vehicule', 'type')])
             ->get();
 
+        /*
+         | agents.photo est stocké tantôt en chemin relatif ("upload/x.jpg",
+         | convention actuelle), tantôt en URL absolue historique (anciennes
+         | lignes créées avant ce format) — le dashboard gère déjà les deux
+         | avec url(), qui laisse une URL absolue inchangée et complète un
+         | chemin relatif. L'app mobile ne le faisait pas : elle passait le
+         | chemin relatif tel quel à NetworkImage(), qui ne peut pas le
+         | résoudre — l'avatar restait vide (ni photo ni repli sur les
+         | initiales) dès qu'un agent avait une vraie photo.
+         */
+        foreach ($data as $u) {
+            if ($u->agent && $u->agent->photo) {
+                $u->agent->photo = url($u->agent->photo);
+            }
+        }
+
         if ($data->isNotEmpty()) {
             return response()->json([
                 "response" => 200,
