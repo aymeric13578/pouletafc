@@ -416,6 +416,12 @@ class OrderBoardController extends Controller
         } else {
             $commande->status = $valide['status'];
             $commande->save();
+
+            // "Colis prêt" (want) est le seul statut qui met la commande
+            // devant les agents : c'est le point de calcul des vagues d'offre.
+            if ($valide['status'] === 'want') {
+                \App\Support\OffresDeCourse::calculerVagues($commande);
+            }
         }
 
         // On renvoie le mur à jour : le navigateur n'a pas à enchaîner une seconde

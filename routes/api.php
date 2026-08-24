@@ -444,7 +444,10 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
  
  
           Route::get('takeOrderCommand', 'OrderController@takeOrderCommand');
-          Route::post('takeOrderCommand', 'OrderController@takeOrderClandoCommand');
+          // Pointait vers OrderController@takeOrderClandoCommand, une methode
+          // qui n'existe pas (violation de la regle CLAUDE.md GET/POST meme
+          // methode) - sans risque : l'app agent n'appelle cette route qu'en GET.
+          Route::post('takeOrderCommand', 'OrderController@takeOrderCommand');
  
  
   Route::post('createclandoorder', 'OrderController@createclandoorder');

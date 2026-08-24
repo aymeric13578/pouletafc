@@ -79,12 +79,18 @@ class ClandoController extends Controller
              
             ]);
             
-          if($order) return response()->json(['response' => 200, 'data'=>  $order ]);
+          if($order) {
+              if ($order->status === 'want') {
+                  \App\Support\OffresDeCourse::calculerVagues($order);
+              }
+
+              return response()->json(['response' => 200, 'data'=>  $order ]);
+          }
         else return response()->json(['response' => 404]);
-        
-        
+
+
     }
-    
+
     public function getClandoHistorique(Request $request)
     {
         $order = order_detail::where('ref', $request->ref)->first();
@@ -353,75 +359,98 @@ class ClandoController extends Controller
          
          
          $agent = Agent::where('id_user',$request->id_user)->first();
-      
-      
+
           /*
            | Le test du compte agent commençait à « $agent->freeStatus », sans
            | vérifier que la recherche avait trouvé quelque chose. Un identifiant
            | qui n'est pas un agent renvoie null, et la lecture de propriété sur
            | null faisait répondre 500 — une panne serveur là où la réponse
            | attendue est simplement « rien pour vous ».
+           |
+           | in_activity se lit maintenant sur users, pas sur agents : la colonne
+           | agents.in_activity ne vaut 1 que par defaut de creation et n'est
+           | jamais remise a jour ensuite (users.in_activity, elle, est ecrite en
+           | continu par takeDay/takeDayDesactive) - ce filtre par statut de
+           | service n'a donc jamais reellement fonctionne jusqu'ici.
            */
-          if(!$agent || $agent->freeStatus == 0  || $agent->in_activity == 0)
-             
+          $enService = User::where('id', $request->id_user)->value('in_activity');
+
+          if(!$agent || $agent->freeStatus == 0  || (int) $enService === 0)
+
              {
                  return response()->json(['response' => 400 ]);
              }
-             
-           
-             
-         
+
+         /*
+          | Vague d'offre : un agent absent de course_offer_waves pour cette
+          | course precise (hors du pool de candidats, ou vague pas encore
+          | ouverte) ne la voit pas encore - c'est ce qui fait que les mieux
+          | classes par DistributionScore voient l'offre en premier. Applique
+          | independamment a $order et $order_detail : l'un peut etre visible
+          | pendant que l'autre ne l'est pas encore.
+          */
+         if ($order && ! $this->visiblePourAgent($request->id_user, 'id_clando', $order->id)) {
+             $order = null;
+         }
+
+         if ($order_detail && ! $this->visiblePourAgent($request->id_user, 'id_order', $order_detail->id)) {
+             $order_detail = null;
+         }
+
          if($order ||  $order_detail)
          {
-               
-  
-         
-             
                if($order && !isset($order_detail))
          {
-             
-            
+
+
             $declin = DB::table('declin_command')->where('id_user',$request->id_user)->where('id_clando',$order->id)->get();
-            
+
             if($declin->isNotEmpty())
-             
+
              {
                  return response()->json(['response' => 400 ]);
              }
-             
-             
-            
-         }  
-             
-             
+
+
+
+         }
+
+
                  if($order_detail  && !isset($order))
          {
-             
-            
+
+
             $declin_order = DB::table('declin_command')->where('id_user',$request->id_user)->where('id_order',$order_detail->id)->get();
-            
+
             if($declin_order->isNotEmpty())
-             
+
              {
                  return response()->json(['response' => 400]);
              }
-            
-         }  
-        
-          
-             
-             
-             
+
+         }
+
+
+
              return response()->json(['response' => 200, 'data'=>$order , 'order_detail'=>$order_detail ]);
          }
-         
+
           return response()->json(['response' => 400 ]);
-            
+
     }
-    
-    
-    
-    
+
+    /** L'agent a-t-il une vague ouverte (visible_at <= maintenant) pour cette course ? */
+    private function visiblePourAgent(int $idUser, string $colonne, int $idCible): bool
+    {
+        return DB::table('course_offer_waves')
+            ->where('id_user', $idUser)
+            ->where($colonne, $idCible)
+            ->where('visible_at', '<=', now())
+            ->exists();
+    }
+
+
+
          public function updateClandoStatus(Request $request)
     {
          $order = Clando::where('ref',$request->ref_order)->update([
