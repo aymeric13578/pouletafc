@@ -342,24 +342,35 @@ new class extends Component {
          | move the file". rename() sur le vrai chemin temporaire
          | (getRealPath()) n'a pas cette contrainte et fonctionne pour un
          | fichier Livewire comme pour un upload classique.
+         |
+         | ->extension() (pas ->getClientOriginalExtension()) : la règle
+         | "mimes:..." ne valide que le CONTENU du fichier, pas le nom que le
+         | client a choisi de lui donner. getClientOriginalExtension() reste
+         | donc entièrement contrôlé par l'attaquant — un PNG valide nommé
+         | "x.php" passait la validation puis était enregistré sous
+         | "xxxx.php" dans public/upload, exécutable par le serveur web
+         | (aucun .htaccess n'y désactive PHP). ->extension() déduit
+         | l'extension du contenu réellement détecté (déjà ce que "mimes"
+         | vérifie), donc le nom de fichier ne peut plus sortir de
+         | jpg/png/pdf selon le champ.
          */
         if ($this->location_plan_file) {
-            $nom = hexdec(uniqid()) . '.' . $this->location_plan_file->getClientOriginalExtension();
+            $nom = hexdec(uniqid()) . '.' . $this->location_plan_file->extension();
             rename($this->location_plan_file->getRealPath(), public_path('upload') . DIRECTORY_SEPARATOR . $nom);
             $data['location_plan_file'] = 'upload/' . $nom;
         }
         if ($this->identity_card_file) {
-            $nom = hexdec(uniqid()) . '.' . $this->identity_card_file->getClientOriginalExtension();
+            $nom = hexdec(uniqid()) . '.' . $this->identity_card_file->extension();
             rename($this->identity_card_file->getRealPath(), public_path('upload') . DIRECTORY_SEPARATOR . $nom);
             $data['identity_card_file'] = 'upload/' . $nom;
         }
         if ($this->photo) {
-            $nom = hexdec(uniqid()) . '.' . $this->photo->getClientOriginalExtension();
+            $nom = hexdec(uniqid()) . '.' . $this->photo->extension();
             rename($this->photo->getRealPath(), public_path('upload') . DIRECTORY_SEPARATOR . $nom);
             $data['photo'] = 'upload/' . $nom;
         }
         if ($this->contrat) {
-            $nom = hexdec(uniqid()) . '.' . $this->contrat->getClientOriginalExtension();
+            $nom = hexdec(uniqid()) . '.' . $this->contrat->extension();
             rename($this->contrat->getRealPath(), public_path('upload') . DIRECTORY_SEPARATOR . $nom);
             $data['contrat'] = 'upload/' . $nom;
         }

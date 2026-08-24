@@ -130,8 +130,19 @@ class UserController extends Controller
          | (User::agent(), via id_user) plutôt que dupliqué sur `users` :
          | c'est le tableau de bord qui gère cette paperasse, l'app ne fait que
          | l'afficher.
+         |
+         | Colonnes explicitement listées : cette route v1.0 n'a aucune
+         | authentification (voir CLAUDE.md règle 8), n'importe qui connaissant
+         | un `ref` peut l'appeler pour n'importe quel utilisateur. Un
+         | ->with('agent') sans restriction aurait renvoyé en clair le numéro
+         | de carte d'identité, le solde de l'agent et les chemins vers ses
+         | photos de pièces d'identité — aucun de ces champs n'est affiché par
+         | l'app (qui ne lit que photo/vehicule/matricule_vehicule), ils
+         | n'ont donc rien à faire dans cette réponse.
          */
-        $data = User::where('ref', $ref)->with('agent')->get();
+        $data = User::where('ref', $ref)
+            ->with(['agent' => fn ($q) => $q->select('id', 'id_user', 'photo', 'vehicule', 'matricule_vehicule')])
+            ->get();
 
         if ($data->isNotEmpty()) {
             return response()->json([

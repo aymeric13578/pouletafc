@@ -767,9 +767,18 @@ Contact service client : 697 526 980";
         
         
             
+             /*
+              | Colonnes explicitement listées sur "agent" : cette route v1.0 n'a
+              | aucune authentification (voir CLAUDE.md règle 8), n'importe qui
+              | connaissant un id_user peut lister les commandes de n'importe
+              | quel client. Un ->with('agent') sans restriction renvoyait en
+              | clair le numéro de carte d'identité, le solde et les chemins
+              | des pièces d'identité du livreur assigné — l'app cliente ne lit
+              | que agent_name/phone (voir history_screen.dart).
+              */
              $order = order_detail::where('id_user', $request->id_user)
                  ->with('carts.cartItems.product')
-                 ->with('agent')
+                 ->with(['agent' => fn ($q) => $q->select('id', 'id_user', 'agent_name', 'phone')])
                  ->orderBy('id','desc')
                  ->get();
 
