@@ -137,11 +137,11 @@ class UserController extends Controller
          | ->with('agent') sans restriction aurait renvoyé en clair le numéro
          | de carte d'identité, le solde de l'agent et les chemins vers ses
          | photos de pièces d'identité — aucun de ces champs n'est affiché par
-         | l'app (qui ne lit que photo/vehicule/matricule_vehicule), ils
-         | n'ont donc rien à faire dans cette réponse.
+         | l'app (qui lit photo/vehicule/matricule_vehicule/type), ils n'ont
+         | donc rien à faire dans cette réponse.
          */
         $data = User::where('ref', $ref)
-            ->with(['agent' => fn ($q) => $q->select('id', 'id_user', 'photo', 'vehicule', 'matricule_vehicule')])
+            ->with(['agent' => fn ($q) => $q->select('id', 'id_user', 'photo', 'vehicule', 'matricule_vehicule', 'type')])
             ->get();
 
         if ($data->isNotEmpty()) {
