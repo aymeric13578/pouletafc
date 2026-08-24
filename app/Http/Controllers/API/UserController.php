@@ -351,9 +351,28 @@ class UserController extends Controller
         $title = "Poulet AFC - votre code de confirmation";
         $object = 'Poulet AFC - votre code de confirmation';
 
+        // TEMPORAIRE — diagnostic SMS, deuxieme passe : le short code reel
+        // est en place mais rien ne parvient toujours pas au telephone.
+        // On expose ici le jeton (juste sa presence/validite, pas sa valeur)
+        // et la reponse Orange completes, pour verifier si le token lui-meme
+        // est en cause plutot que l'adresse d'emission.
+        $fonction = new \App\Fonction\Fonction();
+        $tokenResponse = null;
+        $smsResponse = null;
+        try {
+            $tokenResponse = $fonction->getToken();
+        } catch (\Throwable $e) {
+            $tokenResponse = ['exception' => $e->getMessage()];
+        }
+        try {
+            $smsResponse = $fonction->sendSms($content, $user->phone ?: $user->whatsapp);
+        } catch (\Throwable $e) {
+            $smsResponse = ['exception' => $e->getMessage()];
+        }
+
         app(\App\Support\NotificationClient::class)->prevenirDirectement(
             $user->email,
-            $user->phone ?: $user->whatsapp,
+            null,
             $object,
             $content,
             $title
@@ -362,6 +381,15 @@ class UserController extends Controller
         return response()->json([
             "response" => 200,
             "message" => "Un nouveau code vous a été envoyé",
+            "debug_token" => [
+                "has_access_token" => isset($tokenResponse['access_token']),
+                "token_type" => $tokenResponse['token_type'] ?? null,
+                "expires_in" => $tokenResponse['expires_in'] ?? null,
+                "error" => $tokenResponse['error'] ?? null,
+                "error_description" => $tokenResponse['error_description'] ?? null,
+            ],
+            "debug_sms" => $smsResponse,
+            "debug_sender_address" => config('orange_sms.sender_address'),
         ]);
     }
 
