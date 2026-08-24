@@ -1,6 +1,7 @@
 <?php
 use function Laravel\Folio\{name};
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 use App\Models\Agent;
 use App\Models\User;
 use App\Models\Clando;
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\Hash;
 name('dashboard.agents');
 
 new class extends Component {
+    use WithFileUploads;
+
     public $search = '';
 
     /** Affiche ou masque le bloc de partage de l'application agent. */
@@ -328,25 +331,36 @@ new class extends Component {
          | garantit qu'il est à la fois servi et préservé à chaque déploiement
          | (voir .github/deploy-release.sh) — c'est déjà la convention utilisée
          | par CoursierController et l'ancien AgentController.
+         |
+         | ->move() (hérité de Symfony\UploadedFile) appelle en interne
+         | move_uploaded_file(), qui exige que le fichier vienne d'un vrai
+         | upload HTTP synchrone de LA requête courante. Un champ
+         | wire:model="photo" upload le fichier de façon asynchrone lors
+         | d'une requête précédente (/livewire/upload-file) : au moment de
+         | saveAgent(), ce n'est déjà plus "cette requête-ci", donc ->move()
+         | échoue systématiquement (pas seulement en local) avec "Could not
+         | move the file". rename() sur le vrai chemin temporaire
+         | (getRealPath()) n'a pas cette contrainte et fonctionne pour un
+         | fichier Livewire comme pour un upload classique.
          */
         if ($this->location_plan_file) {
             $nom = hexdec(uniqid()) . '.' . $this->location_plan_file->getClientOriginalExtension();
-            $this->location_plan_file->move(public_path('upload'), $nom);
+            rename($this->location_plan_file->getRealPath(), public_path('upload') . DIRECTORY_SEPARATOR . $nom);
             $data['location_plan_file'] = 'upload/' . $nom;
         }
         if ($this->identity_card_file) {
             $nom = hexdec(uniqid()) . '.' . $this->identity_card_file->getClientOriginalExtension();
-            $this->identity_card_file->move(public_path('upload'), $nom);
+            rename($this->identity_card_file->getRealPath(), public_path('upload') . DIRECTORY_SEPARATOR . $nom);
             $data['identity_card_file'] = 'upload/' . $nom;
         }
         if ($this->photo) {
             $nom = hexdec(uniqid()) . '.' . $this->photo->getClientOriginalExtension();
-            $this->photo->move(public_path('upload'), $nom);
+            rename($this->photo->getRealPath(), public_path('upload') . DIRECTORY_SEPARATOR . $nom);
             $data['photo'] = 'upload/' . $nom;
         }
         if ($this->contrat) {
             $nom = hexdec(uniqid()) . '.' . $this->contrat->getClientOriginalExtension();
-            $this->contrat->move(public_path('upload'), $nom);
+            rename($this->contrat->getRealPath(), public_path('upload') . DIRECTORY_SEPARATOR . $nom);
             $data['contrat'] = 'upload/' . $nom;
         }
 
@@ -600,7 +614,7 @@ new class extends Component {
                                 <select id="id_user" wire:model="id_user" class="w-full p-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" required>
                                     <option value="">Sélectionner</option>
                                     @foreach ($this->agentUsers as $user)
-                                        <option value="{{ $user->id }}">{{ $user->name }} ({{ $user->email }})</option>
+                                        <option value="{{ $user->id }}" @selected($id_user == $user->id)>{{ $user->name }} ({{ $user->email }})</option>
                                     @endforeach
                                 </select>
                                 @error('id_user') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
