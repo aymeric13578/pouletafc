@@ -302,26 +302,52 @@ new class extends Component {
             'id_user' => $this->id_user,
             'agent_name' => $this->agent_name,
             'phone' => $this->phone,
-            'ref Aleppo: ref' => $this->editMode ? $this->ref : 'REF_' . Str::random(10),
+            'ref' => $this->editMode ? $this->ref : 'REF_' . Str::random(10),
             'national_identity_card_number' => $this->national_identity_card_number,
             'city' => $this->city,
             'type' => $this->type,
             'vehicule' => $this->vehicule,
             'matricule_vehicule' => $this->matricule_vehicule,
-            'status' => 'pending',
         ];
 
+        // Statut "pending" uniquement à la création : sur une modification, ce
+        // champ écrasait silencieusement le statut existant, désactivant un
+        // agent "Actif" au moindre changement d'un autre champ (téléphone,
+        // véhicule...) sans que personne ne le décide ni ne le voie.
+        if (! $this->editMode) {
+            $data['status'] = 'pending';
+        }
+
+        /*
+         | Les 4 fichiers écrivaient via le disque "public" de
+         | config/filesystems.php, dont la racine (storage_path('../../pouletafc'))
+         | résout à la racine du projet — ni servie par le serveur web, ni
+         | forcément inscriptible par l'utilisateur PHP sur cet hébergement.
+         | L'écriture échouait et provoquait l'erreur 500 au moindre fichier
+         | joint. public_path('upload') est le seul chemin dont ce projet
+         | garantit qu'il est à la fois servi et préservé à chaque déploiement
+         | (voir .github/deploy-release.sh) — c'est déjà la convention utilisée
+         | par CoursierController et l'ancien AgentController.
+         */
         if ($this->location_plan_file) {
-            $data['location_plan_file'] = $this->location_plan_file->store('agents/location_plans', 'public');
+            $nom = hexdec(uniqid()) . '.' . $this->location_plan_file->getClientOriginalExtension();
+            $this->location_plan_file->move(public_path('upload'), $nom);
+            $data['location_plan_file'] = 'upload/' . $nom;
         }
         if ($this->identity_card_file) {
-            $data['identity_card_file'] = $this->identity_card_file->store('agents/identity_cards', 'public');
+            $nom = hexdec(uniqid()) . '.' . $this->identity_card_file->getClientOriginalExtension();
+            $this->identity_card_file->move(public_path('upload'), $nom);
+            $data['identity_card_file'] = 'upload/' . $nom;
         }
         if ($this->photo) {
-            $data['photo'] = $this->photo->store('agents/photos', 'public');
+            $nom = hexdec(uniqid()) . '.' . $this->photo->getClientOriginalExtension();
+            $this->photo->move(public_path('upload'), $nom);
+            $data['photo'] = 'upload/' . $nom;
         }
         if ($this->contrat) {
-            $data['contrat'] = $this->contrat->store('agents/contracts', 'public');
+            $nom = hexdec(uniqid()) . '.' . $this->contrat->getClientOriginalExtension();
+            $this->contrat->move(public_path('upload'), $nom);
+            $data['contrat'] = 'upload/' . $nom;
         }
 
         if ($this->editMode) {
@@ -519,16 +545,16 @@ new class extends Component {
                                 </td>
                                 <td class="py-3 px-4">
                                     @if ($agent->location_plan_file)
-                                        <button wire:click="openFileModal('{{ Storage::url($agent->location_plan_file) }}', 'document')" class="text-blue-600 hover:text-blue-800 text-xs mr-2">Voir Plan</button>
+                                        <button wire:click="openFileModal('{{ url($agent->location_plan_file) }}', 'document')" class="text-blue-600 hover:text-blue-800 text-xs mr-2">Voir Plan</button>
                                     @endif
                                     @if ($agent->identity_card_file)
-                                        <button wire:click="openFileModal('{{ Storage::url($agent->identity_card_file) }}', 'document')" class="text-blue-600 hover:text-blue-800 text-xs mr-2">Voir CNI</button>
+                                        <button wire:click="openFileModal('{{ url($agent->identity_card_file) }}', 'document')" class="text-blue-600 hover:text-blue-800 text-xs mr-2">Voir CNI</button>
                                     @endif
                                     @if ($agent->photo)
-                                        <button wire:click="openFileModal('{{ Storage::url($agent->photo) }}', 'image')" class="text-blue-600 hover:text-blue-800 text-xs mr-2">Voir Photo</button>
+                                        <button wire:click="openFileModal('{{ url($agent->photo) }}', 'image')" class="text-blue-600 hover:text-blue-800 text-xs mr-2">Voir Photo</button>
                                     @endif
                                     @if ($agent->contrat)
-                                        <button wire:click="openFileModal('{{ Storage::url($agent->contrat) }}', 'document')" class="text-blue-600 hover:text-blue-800 text-xs">Voir Contrat</button>
+                                        <button wire:click="openFileModal('{{ url($agent->contrat) }}', 'document')" class="text-blue-600 hover:text-blue-800 text-xs">Voir Contrat</button>
                                     @endif
                                 </td>
                                 <td class="py-3 px-4">
