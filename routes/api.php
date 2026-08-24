@@ -375,6 +375,10 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
     Route::post('validateCompte', 'UserController@validateCompte');
     Route::get('validateCompte', 'UserController@validateCompte');
 
+                    //resend confirmation code
+    Route::post('resendConfirmationCode', 'UserController@resendConfirmationCode');
+    Route::get('resendConfirmationCode', 'UserController@resendConfirmationCode');
+
 
 
 
@@ -411,8 +415,10 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
   
   Route::get('getfinanceAgent', 'FinanceController@getfinanceAgent');
     Route::post('getfinanceAgent', 'FinanceController@getfinanceAgent');
-  
- 
+  Route::get('getPaymentsAgent', 'FinanceController@getPaymentsAgent');
+    Route::post('getPaymentsAgent', 'FinanceController@getPaymentsAgent');
+
+
  //order
  
  Route::get('updateOrderStatus', 'OrderController@updateOrderStatus');

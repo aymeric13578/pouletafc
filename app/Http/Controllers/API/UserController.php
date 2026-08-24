@@ -307,6 +307,64 @@ class UserController extends Controller
         ]);
     }
 
+    /**
+     * Renvoie le code de confirmation d'une inscription encore en attente.
+     *
+     * Sans authentification comme le reste de v1.0 (voir CLAUDE.md règle 8) :
+     * n'importe qui connaissant un numéro peut demander un renvoi tant que le
+     * compte associé est encore "pending". Pas de limite de fréquence côté
+     * serveur — seul le compte à rebours de 120 s côté app dissuade les appels
+     * répétés — donc un appel direct à cette route peut déclencher des SMS
+     * facturés (voir NotificationClient) sans y être invité par l'app.
+     */
+    public function resendConfirmationCode(Request $request)
+    {
+        $phone = trim((string) $request->input('phone', ''));
+        if ($phone === '') {
+            return response()->json([
+                "response" => 400,
+                "message" => "Numéro de téléphone manquant",
+            ]);
+        }
+
+        $user = User::where(function ($q) use ($phone) {
+                $q->where('phone', $phone)->orWhere('whatsapp', $phone);
+            })
+            ->where('status', 'pending')
+            ->first();
+
+        if (!$user) {
+            return response()->json([
+                "response" => 400,
+                "message" => "Aucune inscription en attente pour ce numéro",
+            ]);
+        }
+
+        do {
+            $confirmation_code = (string) rand(10000, 99999);
+            $find_confirmation_code = DB::table('users')->where('confirmation_code', $confirmation_code)->exists();
+        } while ($find_confirmation_code);
+
+        $user->update(['confirmation_code' => $confirmation_code]);
+
+        $content = "Votre code de confirmation Poulet AFC est " . $confirmation_code;
+        $title = "Poulet AFC - votre code de confirmation";
+        $object = 'Poulet AFC - votre code de confirmation';
+
+        app(\App\Support\NotificationClient::class)->prevenirDirectement(
+            $user->email,
+            $user->phone ?: $user->whatsapp,
+            $object,
+            $content,
+            $title
+        );
+
+        return response()->json([
+            "response" => 200,
+            "message" => "Un nouveau code vous a été envoyé",
+        ]);
+    }
+
     public function updateUser(Request $request)
     {
         $ref = $request->input('ref');

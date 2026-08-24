@@ -75,8 +75,16 @@ class ClandoController extends Controller
                   */
                  'status'=>$request->input('status', 'want'),
                  'type'=>$request->type,
-                 'commission_agent'=>$commission_agent
-             
+                 'commission_agent'=>$commission_agent,
+                 // 'pending' par défaut — même convention que
+                 // order_details/CoursierController::statutPaiement() pour
+                 // « pas encore payé » : le paiement Orange Money (voir
+                 // PaymentController::verifiedOrangePaymentStatus) le
+                 // repasse à 'Success' une fois la transaction confirmée.
+                 // Une course payée en espèces à l'agent reste 'pending'
+                 // ici, ce champ ne concerne que l'aller-retour OM.
+                 'status_paiement'=>'pending'
+
             ]);
             
           if($order) {

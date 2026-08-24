@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Models\Clando;
 use App\Models\Deposit;
 use App\Models\order_detail;
 use App\Models\Payment;
@@ -12,17 +13,17 @@ use DB;
 
 class PaymentController extends Controller
 {
-    // Fonction utilitaire pour nettoyer les chaînes et forcer l'encodage UTF-8
+    // Fonction utilitaire pour nettoyer les chaï¿½nes et forcer l'encodage UTF-8
     private function ensureUtf8($value)
     {
         if (is_string($value)) {
-            // Détecter l'encodage et convertir en UTF-8 si nécessaire
+            // Dï¿½tecter l'encodage et convertir en UTF-8 si nï¿½cessaire
             if (!mb_check_encoding($value, 'UTF-8')) {
                 $value = mb_convert_encoding($value, 'UTF-8', 'auto');
             }
             return $value;
         } elseif (is_array($value)) {
-            // Si c'est un tableau, appliquer récursivement
+            // Si c'est un tableau, appliquer rï¿½cursivement
             return array_map([$this, 'ensureUtf8'], $value);
         }
         return $value;
@@ -72,7 +73,7 @@ class PaymentController extends Controller
             if ($phase2 == "0") {
                 return response()->json([
                     "response" => "error",
-                    "message" => "Aucune réponse de l'opérateur !!! Veuillez recommencer le paiement"
+                    "message" => "Aucune rï¿½ponse de l'opï¿½rateur !!! Veuillez recommencer le paiement"
                 ]);
             }
 
@@ -89,7 +90,7 @@ class PaymentController extends Controller
 
             $phase3Response = $phase2function->OrangePhase3($data->id,"deposit");
 
-            // Nettoyer la réponse de Phase 3 pour s'assurer qu'elle est en UTF-8
+            // Nettoyer la rï¿½ponse de Phase 3 pour s'assurer qu'elle est en UTF-8
             $phase3Response = $this->ensureUtf8($phase3Response);
 
             return response()->json([
@@ -101,7 +102,7 @@ class PaymentController extends Controller
 
         return response()->json([
             "response" => "error",
-            "message" => "Échec de l'obtention du jeton d'accès"
+            "message" => "ï¿½chec de l'obtention du jeton d'accï¿½s"
         ]);
     }
 
@@ -154,7 +155,7 @@ class PaymentController extends Controller
             if ($phase2 == "0") {
                 return response()->json([
                     "response" => "error",
-                    "message" => "Aucune réponse de l'opérateur !!! Veuillez recommencer le paiement"
+                    "message" => "Aucune rï¿½ponse de l'opï¿½rateur !!! Veuillez recommencer le paiement"
                 ]);
             }
 
@@ -168,11 +169,16 @@ class PaymentController extends Controller
                 "amount" => $this->ensureUtf8($request->amount),
                 "num_transaction" => $this->ensureUtf8($request->number),
                  "id_order_details" => $this->ensureUtf8($request->id_order),
+                 // 'order_details' par dÃ©faut : les appelants existants
+                 // (commande boutique, course coursier) n'envoient pas ce
+                 // paramÃ¨tre et doivent continuer Ã  cibler order_details
+                 // exactement comme avant.
+                 "order_type" => $request->input('order_type', 'order_details'),
             ]);
 
             $phase3Response = $phase2function->OrangePhase3($data->id,"paymentUser");
 
-            // Nettoyer la réponse de Phase 3 pour s'assurer qu'elle est en UTF-8
+            // Nettoyer la rï¿½ponse de Phase 3 pour s'assurer qu'elle est en UTF-8
             $phase3Response = $this->ensureUtf8($phase3Response);
 
             return response()->json([
@@ -184,7 +190,7 @@ class PaymentController extends Controller
 
     return response()->json([
     "response" => "error",
-    "message" => "Échec de l'obtention du jeton d'accès"
+    "message" => "ï¿½chec de l'obtention du jeton d'accï¿½s"
 ]);
 
 
@@ -287,7 +293,7 @@ public function testfunction()
         if ($data[0]->status == "Success") {
             return [
                 "response" => "error",
-                "message" => "Transaction déjà valide"
+                "message" => "Transaction dï¿½jï¿½ valide"
             ];
         }
 
@@ -329,7 +335,7 @@ public function testfunction()
                 $rep['message'] == "A transaction associated with the payToken " . $data[0]->paytoken . " has already been initiated") {
                 return [
                     "response" => 200,
-                    "message" => "Paiement en cours de traitement !!! Veuillez valider le paiement après réception du SMS pour compléter la commande ou saisissez #150*50#"
+                    "message" => "Paiement en cours de traitement !!! Veuillez valider le paiement aprï¿½s rï¿½ception du SMS pour complï¿½ter la commande ou saisissez #150*50#"
                 ];
             }
             return [
@@ -493,16 +499,24 @@ public function testfunction()
       Payment::where('id',$request->id)->update([
      'status'=>'Success'
      ]);
-     
-     
-     $order = order_detail::where('id',$deposit->id_order_details)->update([
-     'status_paiement'=>'Success'
-     ]);
-     
+
+     // order_type distingue la table rÃ©ellement visÃ©e par
+     // id_order_details : 'clando' pour une course moto, sinon
+     // order_details comme avant (commande boutique, course coursier).
+     if ($deposit->order_type === 'clando') {
+         Clando::where('id', $deposit->id_order_details)->update([
+             'status_paiement' => 'Success',
+         ]);
+     } else {
+         order_detail::where('id', $deposit->id_order_details)->update([
+             'status_paiement' => 'Success',
+         ]);
+     }
+
                  return response()->json([
                         'response'=> 200,
                         'message'=>"Transaction validee avec success"
-                        
+
                     ]);
 
 

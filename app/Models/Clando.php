@@ -32,7 +32,8 @@ class Clando extends Model
         'delivery_type',
         'id_order',
         'commission_seller',
-        'commission_agent'
+        'commission_agent',
+        'status_paiement'
     ];
 
     public function agent()

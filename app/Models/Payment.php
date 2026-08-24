@@ -21,7 +21,12 @@ class Payment extends Model
         'paytoken',
         'id_agent',
         'amount',
-        'num_transaction'
+        'num_transaction',
+        // Quelle table id_order_details désigne réellement — 'order_details'
+        // (défaut, commandes boutique et courses coursier) ou 'clando'
+        // (courses moto). Sans ça, verifiedOrangePaymentStatus n'avait
+        // aucun moyen de savoir où écrire le paiement confirmé.
+        'order_type'
 
     ];
 
