@@ -29,11 +29,14 @@ return [
     /*
     | Adresse d'émission.
     |
-    | Orange ne la contrôle pas : le remplissage « tel:+2370000000 », un numéro
-    | réel ou un numéro inventé sont acceptés à l'identique — testé, trois fois
-    | 201. Elle n'est donc pas un levier sur la remise des messages.
+    | Un précédent test avait comparé uniquement le code retour de l'API
+    | (toujours 201, quel que soit l'expéditeur) et conclu que ce champ
+    | n'avait pas d'effet — mais 201 ne veut dire qu'« accepté », pas
+    | « délivré » (voir NotificationClient). Remplacé ici par le vrai
+    | short code du contrat Orange pour retester avec confirmation de
+    | réception réelle côté téléphone, cette fois.
     */
-    'sender_address' => env('ORANGE_SMS_SENDER_ADDRESS', 'tel:+2370000000'),
+    'sender_address' => env('ORANGE_SMS_SENDER_ADDRESS', 'tel:+2370000'),
 
     /*
     | Indicatif préfixé aux numéros locaux à neuf chiffres.
