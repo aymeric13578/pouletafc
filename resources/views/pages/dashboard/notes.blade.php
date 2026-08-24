@@ -8,6 +8,7 @@ use App\Models\Note;
 use App\Models\order_detail;
 use App\Models\Parameter;
 use App\Models\User;
+use App\Support\IndicateursAgent;
 use App\Support\NotationAgent;
 
 name('dashboard.notes');
@@ -129,6 +130,8 @@ new class extends Component {
         }
 
         $bilans = NotationAgent::pourAgents($idsNotes);
+        $notesAffichees = NotationAgent::noteAfficheePourAgents($idsNotes);
+        $indicateurs = IndicateursAgent::pourAgents($idsNotes);
         $agents = User::whereIn('id', $idsNotes)->get(['id', 'name', 'phone'])->keyBy('id');
 
         return collect($bilans)
@@ -136,8 +139,10 @@ new class extends Component {
                 'id' => $id,
                 'nom' => $agents[$id]->name ?? 'Agent #' . $id,
                 'phone' => $agents[$id]->phone ?? null,
+                'note_affichee' => $notesAffichees[$id] ?? null,
+                'indicateurs' => $indicateurs[$id] ?? null,
             ] + $bilan)
-            ->sortByDesc(fn ($ligne) => [$ligne['sur_cinq'] ?? -1, $ligne['nombre']])
+            ->sortByDesc(fn ($ligne) => [$ligne['note_affichee'] ?? -1, $ligne['nombre']])
             ->values();
     }
 
@@ -148,9 +153,26 @@ new class extends Component {
 
         return [
             'total' => $global['nombre'],
-            'moyenne' => $global['sur_cinq'],
+            'moyenne' => $global['nombre'] === 0 ? null : round(NotationAgent::moyenneGlobale(), 1),
             'commentaires' => Note::whereNotNull('comment')->where('comment', '!=', '')->count(),
             'meilleur' => $meilleur,
+        ];
+    }
+
+    /** Moyennes des indicateurs internes sur les agents affichés dans le classement. */
+    public function getIndicateursMoyensProperty(): array
+    {
+        $valeurs = $this->classement->pluck('indicateurs')->filter();
+
+        if ($valeurs->isEmpty()) {
+            return ['ponctualite' => null, 'qualite' => null, 'fiabilite' => null, 'acceptation' => null];
+        }
+
+        return [
+            'ponctualite' => round($valeurs->avg('ponctualite'), 1),
+            'qualite' => round($valeurs->avg('qualite'), 1),
+            'fiabilite' => round($valeurs->avg('fiabilite'), 1),
+            'acceptation' => round($valeurs->avg('acceptation'), 1),
         ];
     }
 
@@ -232,9 +254,32 @@ new class extends Component {
 
                 <x-ui.stat label="Mieux noté"
                     :value="$this->stats['meilleur']['nom'] ?? '—'"
-                    :hint="$this->stats['meilleur'] ? $this->stats['meilleur']['sur_cinq'] . ' / 5 sur ' . $this->stats['meilleur']['nombre'] . ' avis' : 'aucune note'"
+                    :hint="$this->stats['meilleur'] ? $this->stats['meilleur']['note_affichee'] . ' / 5 sur ' . $this->stats['meilleur']['nombre'] . ' avis' : 'aucune note'"
                     tone="success"
                     icon="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 002.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 012.916.52 6.003 6.003 0 01-5.395 4.972m0 0a6.726 6.726 0 01-2.749 1.35m0 0a6.772 6.772 0 01-3.044 0" />
+            </div>
+
+            {{-- Indicateurs internes : separes de la note affichee ci-dessus, ne servent qu'a la qualite/distribution --}}
+            <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <x-ui.stat label="Ponctualité"
+                    :value="$this->indicateursMoyens['ponctualite'] === null ? '—' : $this->indicateursMoyens['ponctualite'] . ' / 100'"
+                    hint="rapidité de réponse aux offres" tone="info"
+                    icon="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+
+                <x-ui.stat label="Qualité"
+                    :value="$this->indicateursMoyens['qualite'] === null ? '—' : $this->indicateursMoyens['qualite'] . ' / 100'"
+                    hint="rescale de la note affichée" tone="accent"
+                    icon="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+
+                <x-ui.stat label="Fiabilité"
+                    :value="$this->indicateursMoyens['fiabilite'] === null ? '—' : $this->indicateursMoyens['fiabilite'] . ' / 100'"
+                    hint="hors annulation par l'agent, 90j" tone="success"
+                    icon="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+
+                <x-ui.stat label="Acceptation"
+                    :value="$this->indicateursMoyens['acceptation'] === null ? '—' : $this->indicateursMoyens['acceptation'] . ' / 100'"
+                    hint="pris / (pris + décliné), 90j" tone="brand"
+                    icon="M4.5 12.75l6 6 9-13.5" />
             </div>
 
             {{-- Barème : ce que vaut chaque appréciation --}}
@@ -298,8 +343,8 @@ new class extends Component {
                                 </td>
 
                                 <td class="whitespace-nowrap px-4 py-3">
-                                    <x-ui.badge :tone="($ligne['sur_cinq'] ?? 0) >= 3.5 ? 'success' : (($ligne['sur_cinq'] ?? 0) >= 2 ? 'warning' : 'danger')">
-                                        {{ $ligne['sur_cinq'] === null ? '—' : $ligne['sur_cinq'] . ' / 5' }}
+                                    <x-ui.badge :tone="($ligne['note_affichee'] ?? 0) >= 3.5 ? 'success' : (($ligne['note_affichee'] ?? 0) >= 2 ? 'warning' : 'danger')">
+                                        {{ $ligne['note_affichee'] === null ? '—' : $ligne['note_affichee'] . ' / 5' }}
                                     </x-ui.badge>
                                 </td>
 
@@ -369,7 +414,7 @@ new class extends Component {
 
                 <div class="mt-4">
                     <x-ui.table target="search,prestationFiltre,appreciationFiltre,agentFiltre,gotoPage,previousPage,nextPage"
-                        :headers="['Appréciation', 'Prestation', 'Client', 'Agent', 'Commentaire', 'Date']">
+                        :headers="['Appréciation', 'Prestation', 'Client', 'Agent', 'Commentaire', 'Raisons', 'Date']">
                         @forelse ($this->appreciations as $note)
                             @php
                                 $commande = $note->id_order ? ($this->prestations['commandes'][$note->id_order] ?? null) : null;
@@ -423,12 +468,16 @@ new class extends Component {
                                     @endif
                                 </td>
 
+                                <td class="max-w-xs px-4 py-3 text-xs text-gray-600">
+                                    {{ $note->reasons ? implode(', ', $note->reasons) : '—' }}
+                                </td>
+
                                 <td class="whitespace-nowrap px-4 py-3 text-xs text-gray-500">
                                     {{ $note->created_at?->timezone('Africa/Douala')->format('d/m/Y H:i') ?? '—' }}
                                 </td>
                             </tr>
                         @empty
-                            <x-ui.empty :colspan="6" title="Aucune appréciation"
+                            <x-ui.empty :colspan="7" title="Aucune appréciation"
                                 message="Aucune note ne correspond à ces filtres." />
                         @endforelse
                     </x-ui.table>

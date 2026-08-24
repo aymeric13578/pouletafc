@@ -204,12 +204,13 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
             Route::post('getBaremeNotation', 'NoteController@getBaremeNotation');
             Route::get('getAgentNote', 'NoteController@getAgentNote');
             Route::post('getAgentNote', 'NoteController@getAgentNote');
-      
+            // Raisons proposées pour une appréciation basse — calqué sur
+            // motifsAnnulation, GET seul comme lui.
+            Route::get('getMotifsNotation', 'NoteController@getMotifsNotation');
+
       Route::get('makeNote', 'NoteController@makeNote');
        Route::post('makeNote', 'NoteController@makeNote');
-       
-        Route::post('makeNote', 'NoteController@makeNote');
-        
+
         
        Route::get('verifiedStatusClandoNote', 'NoteController@verifiedStatusClandoNote');
        Route::post('verifiedStatusClandoNote', 'NoteController@verifiedStatusClandoNote');

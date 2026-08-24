@@ -236,8 +236,12 @@ class NotationAgent
         return $resultat;
     }
 
-    /** Moyenne (1-5) de toutes les notes de la plateforme — la référence de la stabilisation bayésienne. */
-    private static function moyenneGlobale(): float
+    /**
+     * Moyenne (1-5) de toutes les notes de la plateforme — la référence de
+     * la stabilisation bayésienne, et aussi la "note moyenne toutes
+     * prestations confondues" affichée au tableau de bord.
+     */
+    public static function moyenneGlobale(): float
     {
         $comptes = Note::selectRaw('note, COUNT(*) as nombre')->groupBy('note')->pluck('nombre', 'note');
 
@@ -317,6 +321,7 @@ class NotationAgent
             'emoji' => self::EMOJIS[$note->note] ?? '',
             'points' => $bareme[$note->note] ?? 0,
             'commentaire' => $note->comment,
+            'reasons' => $note->reasons ?: [],
             'id_order' => $note->id_order,
             'id_clando' => $note->id_clando,
             // Le client sait ce qu'il a noté ; l'administrateur qui lit un

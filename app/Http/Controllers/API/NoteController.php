@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Note;
 use App\Models\Parameter;
+use App\Support\IndicateursAgent;
 use App\Support\NotationAgent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,6 +33,8 @@ class NoteController extends Controller
              | partout. Un client mécontent n'avait pas de case à cocher.
              */
             'note' => 'required|in:' . implode(',', Parameter::APPRECIATIONS),
+            'reasons' => 'nullable|array',
+            'reasons.*' => 'string|max:191',
         ]);
 
         if (! $request->filled('id_order') && ! $request->filled('id_clando')) {
@@ -48,6 +51,16 @@ class NoteController extends Controller
             ]);
         }
 
+        /*
+         | Les raisons ne sont acceptées que pour une appréciation basse
+         | (les 3 du bas) — un client qui envoie quand même des raisons sur
+         | une bonne note (bug ou tentative) est ignoré silencieusement,
+         | plutôt que de refuser toute la note pour un champ superflu.
+         */
+        $reasons = in_array($valide['note'], ['verybad', 'bad', 'average'], true)
+            ? array_values(array_filter($valide['reasons'] ?? []))
+            : null;
+
         $note = Note::create([
             'id_user' => $valide['id_user'],
             'id_agent' => $valide['id_agent'],
@@ -55,6 +68,7 @@ class NoteController extends Controller
             'id_clando' => $request->input('id_clando'),
             'comment' => $request->input('comment'),
             'note' => $valide['note'],
+            'reasons' => $reasons ?: null,
         ]);
 
         return response()->json([
@@ -98,16 +112,25 @@ class NoteController extends Controller
         }
 
         $bilan = NotationAgent::pourAgent($idAgent);
+        $indicateurs = IndicateursAgent::pourAgent($idAgent);
 
         return response()->json([
             'response' => 200,
             // Les anciennes applications lisent data.bad, data.good, data.total
             // à plat : on garde ces clés pour ne pas les casser au déploiement.
+            // sur_cinq est retiré (c'est justement la métrique naïve
+            // remplacée) et note_affichee prend sa place sous une clé
+            // différente, pour qu'aucun code ne puisse confondre l'ancien
+            // chiffre avec le nouveau.
             'data' => $bilan['compte'] + [
                 'total' => $bilan['total'],
                 'moyenne' => $bilan['moyenne'],
-                'sur_cinq' => $bilan['sur_cinq'],
+                'note_affichee' => NotationAgent::noteAffichee($idAgent),
                 'nombre' => $bilan['nombre'],
+                'ponctualite' => $indicateurs['ponctualite'],
+                'qualite' => $indicateurs['qualite'],
+                'fiabilite' => $indicateurs['fiabilite'],
+                'acceptation' => $indicateurs['acceptation'],
             ],
         ]);
     }
@@ -136,9 +159,25 @@ class NoteController extends Controller
         return response()->json([
             'response' => 200,
             'data' => [
-                'bilan' => NotationAgent::pourAgent($idAgent),
+                'bilan' => NotationAgent::pourAgent($idAgent) + [
+                    'note_affichee' => NotationAgent::noteAffichee($idAgent),
+                ],
                 'appreciations' => NotationAgent::appreciations($idAgent, $limite > 0 ? $limite : null),
+                'indicateurs' => IndicateursAgent::pourAgent($idAgent),
             ],
+        ]);
+    }
+
+    /**
+     * Raisons proposées pour une appréciation basse, pour que le client
+     * choisisse dans une liste plutôt que de taper un commentaire libre —
+     * calqué sur AnnulationController::motifs()/motifsAnnulation.
+     */
+    public function getMotifsNotation(): JsonResponse
+    {
+        return response()->json([
+            'response' => 200,
+            'data' => NotationAgent::MOTIFS_NOTATION,
         ]);
     }
 
