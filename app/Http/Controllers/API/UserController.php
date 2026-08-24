@@ -351,21 +351,9 @@ class UserController extends Controller
         $title = "Poulet AFC - votre code de confirmation";
         $object = 'Poulet AFC - votre code de confirmation';
 
-        // TEMPORAIRE — diagnostic du SMS qui n'arrive pas : appel direct au
-        // lieu de NotificationClient::prevenirDirectement pour récupérer la
-        // réponse brute d'Orange (celle-ci ne renvoie jamais le jeton, donc
-        // rien de sensible à exposer). L'e-mail passe par le canal habituel,
-        // avec numéro null pour ne pas déclencher un second SMS réel.
-        $smsResponse = null;
-        try {
-            $smsResponse = (new \App\Fonction\Fonction())->sendSms($content, $user->phone ?: $user->whatsapp);
-        } catch (\Throwable $e) {
-            $smsResponse = ['exception' => $e->getMessage()];
-        }
-
         app(\App\Support\NotificationClient::class)->prevenirDirectement(
             $user->email,
-            null,
+            $user->phone ?: $user->whatsapp,
             $object,
             $content,
             $title
@@ -374,7 +362,6 @@ class UserController extends Controller
         return response()->json([
             "response" => 200,
             "message" => "Un nouveau code vous a été envoyé",
-            "debug_sms" => $smsResponse,
         ]);
     }
 
