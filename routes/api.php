@@ -257,7 +257,10 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
              
             Route::get('getClandoAgent', 'ClandoController@getClandoAgent');
             Route::post('getClandoAgent', 'ClandoController@getClandoAgent');
-    
+
+            Route::get('getSellerClando', 'ClandoController@getSellerClando');
+            Route::post('getSellerClando', 'ClandoController@getSellerClando');
+
          Route::post('insertclando', 'ClandoController@Insertclando');
            
          Route::get('insertclando', 'ClandoController@Insertclando');

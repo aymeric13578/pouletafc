@@ -26,7 +26,10 @@ class ClandoController extends Controller
           
           if($user->status != 'Success')
           {
-              return response()->json(['response' => 404]);
+              return response()->json([
+                  'response' => 404,
+                  'message' => "Veuillez valider votre compte (code reçu par SMS ou e-mail) avant de commander une course.",
+              ]);
           }
           
           
@@ -94,7 +97,7 @@ class ClandoController extends Controller
 
               return response()->json(['response' => 200, 'data'=>  $order ]);
           }
-        else return response()->json(['response' => 404]);
+        else return response()->json(['response' => 404, 'message' => "Impossible de créer la course. Veuillez réessayer."]);
 
 
     }
@@ -115,11 +118,35 @@ class ClandoController extends Controller
         public function getClandoAgent(Request $request)
         {
             $order = Clando::where('id_agent',$request->id_user)->where('status',"!=","Success")->get();
-            
+
         if($order) return response()->json(['response' => 200, 'data'=>  $order ]);
         else return response()->json(['response' => 404]);
         }
-    
+
+    /**
+     * Historique complet des courses Clando d'un agent, tous statuts
+     * confondus — équivalent de getSellerOrder (order_details) mais pour
+     * clando. getClandoAgent ci-dessus exclut délibérément 'Success' (il
+     * sert aux courses actives, pas à un historique) ; getfinanceAgent ne
+     * garde que 'Success' (il sert au calcul des gains). Aucun des deux ne
+     * convient à un écran d'historique, qui doit montrer aussi les courses
+     * annulées/refusées comme le fait déjà getSellerOrder côté commandes.
+     */
+    public function getSellerClando(Request $request)
+    {
+        // Colonnes explicitement listées sur "users" : cette route v1.0 n'a
+        // aucune authentification (CLAUDE.md règle 8), et un ->with('users')
+        // sans restriction renverrait confirmation_code/recoveryPass_code en
+        // clair — l'app agent ne lit que le nom du client.
+        $clando = Clando::where('id_agent', $request->id_agent)
+            ->with(['users' => fn ($q) => $q->select('id', 'name', 'last_name')])
+            ->orderByDesc('id')
+            ->get();
+
+        if ($clando) return response()->json(['response' => 200, 'data' => $clando]);
+        else return response()->json(['response' => 404]);
+    }
+
     
       public function getclando(Request $request)
     {
