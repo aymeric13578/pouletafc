@@ -65,7 +65,8 @@ class MaBoutiqueController extends Controller
                 'email2' => $boutique->email2,
                 'description' => $boutique->description,
                 'status' => $boutique->status,
-                'logo' => $boutique->logo ? url('upload/' . $boutique->logo) : null,
+                'logo' => $this->urlImage($boutique->logo),
+                'banner' => $this->urlImage($boutique->banner),
                 'stats' => [
                     'produits' => (clone $produits)->count(),
                     'commandes' => $this->commandesDe($boutique->id)->count(),
@@ -119,22 +120,30 @@ class MaBoutiqueController extends Controller
             'email2' => ['nullable', 'email', 'max:191'],
             'description' => ['nullable', 'string'],
             'logo' => ['nullable', 'image', 'max:4096'],
+            'banner' => ['nullable', 'image', 'max:4096'],
         ]);
 
-        if ($request->hasFile('logo')) {
-            $nom = uniqid('logo_', true) . '.' . $request->file('logo')->getClientOriginalExtension();
+        // getAllshops (vitrine client) renvoie logo/banner tels quels, sans
+        // les préfixer — contrairement à getMyShop/verifiedShopUser plus
+        // bas, qui préfixaient eux-mêmes un nom de fichier brut. Stocker
+        // l'URL complète ici, comme le fait déjà saveMyShopProduct pour les
+        // photos de produit, évite ce genre d'image invisible côté client
+        // alors que « Ma boutique » l'affichait très bien.
+        foreach (['logo', 'banner'] as $champ) {
+            if (! $request->hasFile($champ)) {
+                unset($valide[$champ]);
+                continue;
+            }
+
+            $nom = uniqid($champ . '_', true) . '.' . $request->file($champ)->getClientOriginalExtension();
 
             try {
-                // Même dossier que les autres images du site : le tableau de
-                // bord et la vitrine les y servent déjà.
-                $request->file('logo')->move(public_path('upload'), $nom);
-                $valide['logo'] = $nom;
+                $request->file($champ)->move(public_path('upload'), $nom);
+                $valide[$champ] = url('upload/' . $nom);
             } catch (\Throwable $e) {
-                Log::warning('Logo de boutique non enregistré : ' . $e->getMessage());
-                unset($valide['logo']);
+                Log::warning(ucfirst($champ) . ' de boutique non enregistré : ' . $e->getMessage());
+                unset($valide[$champ]);
             }
-        } else {
-            unset($valide['logo']);
         }
 
         $boutique->update($valide);
@@ -142,6 +151,14 @@ class MaBoutiqueController extends Controller
         return response()->json([
             'response' => 200,
             'message' => 'Boutique mise à jour.',
+            // Sans ça, l'écran ne pouvait afficher le nouveau logo/bannière
+            // qu'après avoir rouvert « Ma boutique » depuis le menu — ce
+            // second appel refaisait le même travail que celui-ci vient de
+            // faire.
+            'data' => [
+                'logo' => $this->urlImage($boutique->logo),
+                'banner' => $this->urlImage($boutique->banner),
+            ],
         ]);
     }
 
@@ -252,8 +269,8 @@ class MaBoutiqueController extends Controller
                 'email1' => $boutique->email1,
                 'description' => $boutique->description,
                 'status' => $boutique->status,
-                'logo' => $boutique->logo ? url('upload/' . $boutique->logo) : null,
-                'banner' => $boutique->banner ? url('upload/' . $boutique->banner) : null,
+                'logo' => $this->urlImage($boutique->logo),
+                'banner' => $this->urlImage($boutique->banner),
                 'product_count' => Product::where('id_shop', $boutique->id)->count(),
             ]], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         ]);
@@ -556,6 +573,23 @@ class MaBoutiqueController extends Controller
         }
 
         return response()->json(['response' => 200, 'message' => 'Promotion supprimée.']);
+    }
+
+    /**
+     * updateMyShop enregistre désormais l'URL complète (comme
+     * saveMyShopProduct le fait déjà pour les photos de produit), mais des
+     * boutiques éditées avant ce correctif — ou par un autre chemin
+     * d'écriture — peuvent encore avoir un simple nom de fichier en base.
+     * Préfixer seulement ce qui n'est pas déjà une URL absolue gère les deux
+     * sans avoir à corriger les données existantes.
+     */
+    private function urlImage(?string $valeur): ?string
+    {
+        if (! $valeur) {
+            return null;
+        }
+
+        return str_starts_with($valeur, 'http') ? $valeur : url('upload/' . $valeur);
     }
 
     private function commandesDe(int $idBoutique)
