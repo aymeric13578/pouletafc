@@ -747,31 +747,22 @@ class ClandoController extends Controller
      */
     public function getClandoStops(Request $request)
     {
-        // DIAGNOSTIC TEMPORAIRE — à retirer dès la cause du 500 identifiée.
-        try {
-            $clando = Clando::where('ref', $request->ref)->first();
+        $clando = Clando::where('ref', $request->ref)->first();
 
-            if (! $clando) {
-                return response()->json(['response' => 404, 'message' => 'Course introuvable']);
-            }
-
-            return response()->json([
-                'response' => 200,
-                'data' => [
-                    'stops' => $clando->stops()->get(),
-                    'price' => $clando->price,
-                    'base_price' => $clando->base_price ?? $clando->price,
-                    'stops_surcharge' => $clando->stops_surcharge,
-                    'distance' => $clando->distance,
-                ],
-            ]);
-        } catch (\Throwable $e) {
-            return response()->json([
-                'response' => 500,
-                'debug_message' => $e->getMessage(),
-                'debug_file' => $e->getFile() . ':' . $e->getLine(),
-            ]);
+        if (! $clando) {
+            return response()->json(['response' => 404, 'message' => 'Course introuvable']);
         }
+
+        return response()->json([
+            'response' => 200,
+            'data' => [
+                'stops' => $clando->stops()->get(),
+                'price' => $clando->price,
+                'base_price' => $clando->base_price ?? $clando->price,
+                'stops_surcharge' => $clando->stops_surcharge,
+                'distance' => $clando->distance,
+            ],
+        ]);
     }
 
     public function historiqueClandoUser(Request $request)
