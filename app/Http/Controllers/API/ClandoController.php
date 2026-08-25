@@ -134,27 +134,17 @@ class ClandoController extends Controller
      */
     public function getSellerClando(Request $request)
     {
-        // TEMPORAIRE (diagnostic) — 500 sans corps observé en production sur
-        // ce nouvel endpoint, cause inconnue faute d'accès aux logs serveur.
-        try {
-            // Colonnes explicitement listées sur "users" : cette route v1.0 n'a
-            // aucune authentification (CLAUDE.md règle 8), et un ->with('users')
-            // sans restriction renverrait confirmation_code/recoveryPass_code en
-            // clair — l'app agent ne lit que le nom du client.
-            $clando = Clando::where('id_agent', $request->id_agent)
-                ->with(['users' => fn ($q) => $q->select('id', 'name', 'last_name')])
-                ->orderByDesc('id')
-                ->get();
+        // Colonnes explicitement listées sur "users" : cette route v1.0 n'a
+        // aucune authentification (CLAUDE.md règle 8), et un ->with('users')
+        // sans restriction renverrait confirmation_code/recoveryPass_code en
+        // clair — l'app agent ne lit que le nom du client.
+        $clando = Clando::where('id_agent', $request->id_agent)
+            ->with(['users' => fn ($q) => $q->select('id', 'name', 'last_name')])
+            ->orderByDesc('id')
+            ->get();
 
-            if ($clando) return response()->json(['response' => 200, 'data' => $clando]);
-            else return response()->json(['response' => 404]);
-        } catch (\Throwable $e) {
-            return response()->json([
-                'response' => 500,
-                'debug_message' => $e->getMessage(),
-                'debug_file' => $e->getFile() . ':' . $e->getLine(),
-            ]);
-        }
+        if ($clando) return response()->json(['response' => 200, 'data' => $clando]);
+        else return response()->json(['response' => 404]);
     }
 
     
