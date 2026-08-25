@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\order_detail;
 use App\Models\Product;
+use App\Models\Promotion;
 use App\Models\Shop;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -409,6 +410,152 @@ class MaBoutiqueController extends Controller
             'message' => 'Produit créé. Il sera visible après validation par Poulet AFC.',
             'data' => ['id' => $produit->id],
         ]);
+    }
+
+    /**
+     * Promotions de la boutique de l'appelant, produit associé inclus (nom
+     * et prix : l'écran en a besoin pour afficher le prix avant/après sans
+     * un second appel).
+     */
+    public function getMyShopPromotions(Request $request): JsonResponse
+    {
+        $boutique = $this->boutiqueDe($request->input('id_user'));
+
+        if (! $boutique) {
+            return response()->json(['response' => 404, 'data' => []]);
+        }
+
+        $promotions = Promotion::where('id_shop', $boutique->id)
+            ->with('product:id,name,price,product_image1')
+            ->orderByDesc('id')
+            ->get();
+
+        return response()->json([
+            'response' => 200,
+            'data' => $promotions->map(fn (Promotion $promo) => [
+                'id' => $promo->id,
+                'title' => $promo->title,
+                'discount_type' => $promo->discount_type,
+                'discount_value' => $promo->discount_value,
+                'starts_at' => $promo->starts_at?->toIso8601String(),
+                'ends_at' => $promo->ends_at?->toIso8601String(),
+                'status' => $promo->status,
+                'id_product' => $promo->id_product,
+                'product_name' => $promo->product?->name,
+                'product_image' => $promo->product?->product_image1,
+                'product_price' => (float) ($promo->product?->price ?? 0),
+                'price_after' => $promo->product
+                    ? round($promo->prixApres((float) $promo->product->price), 2)
+                    : null,
+            ])->values(),
+        ]);
+    }
+
+    /**
+     * Crée ou modifie une promotion de la boutique de l'appelant.
+     *
+     * Même garde que saveMyShopProduct : le produit ciblé est cherché par
+     * where('id_shop')->find(), jamais par un id seul, pour qu'une remise ne
+     * puisse jamais viser le produit d'une autre boutique.
+     */
+    public function saveMyShopPromotion(Request $request): JsonResponse
+    {
+        $this->exigerReponseJson($request);
+
+        $boutique = $this->boutiqueDe($request->input('id_user'));
+
+        if (! $boutique) {
+            return response()->json([
+                'response' => 404,
+                'message' => "Aucune boutique n'est rattachée à ce compte.",
+            ]);
+        }
+
+        $modification = $request->filled('id_promotion');
+
+        $valide = $request->validate([
+            'id_product' => ['required', 'integer'],
+            'title' => ['required', 'string', 'max:191'],
+            'discount_type' => ['required', 'in:percentage,fixed'],
+            'discount_value' => ['required', 'numeric', 'min:0'],
+            'starts_at' => ['required', 'date'],
+            'ends_at' => ['required', 'date', 'after:starts_at'],
+        ]);
+
+        if ($valide['discount_type'] === 'percentage' && $valide['discount_value'] > 100) {
+            return response()->json([
+                'response' => 422,
+                'message' => 'Une remise en pourcentage ne peut pas dépasser 100.',
+            ]);
+        }
+
+        $produit = Product::where('id_shop', $boutique->id)->find($valide['id_product']);
+
+        if (! $produit) {
+            return response()->json([
+                'response' => 404,
+                'message' => "Ce produit n'appartient pas à votre boutique.",
+            ]);
+        }
+
+        if ($modification) {
+            $promotion = Promotion::where('id_shop', $boutique->id)
+                ->find((int) $request->input('id_promotion'));
+
+            if (! $promotion) {
+                return response()->json([
+                    'response' => 404,
+                    'message' => "Cette promotion n'appartient pas à votre boutique.",
+                ]);
+            }
+
+            $promotion->update($valide);
+
+            return response()->json([
+                'response' => 200,
+                'message' => 'Promotion modifiée.',
+                'data' => ['id' => $promotion->id],
+            ]);
+        }
+
+        $valide['id_shop'] = $boutique->id;
+        // Comme un produit créé depuis ce même espace (saveMyShopProduct) :
+        // en attente de validation avant d'apparaître aux clients.
+        $valide['status'] = 'pending';
+
+        $promotion = Promotion::create($valide);
+
+        return response()->json([
+            'response' => 200,
+            'message' => 'Promotion créée. Elle sera visible après validation par Poulet AFC.',
+            'data' => ['id' => $promotion->id],
+        ]);
+    }
+
+    /** Retire une promotion de la boutique de l'appelant. */
+    public function deleteMyShopPromotion(Request $request): JsonResponse
+    {
+        $boutique = $this->boutiqueDe($request->input('id_user'));
+
+        if (! $boutique) {
+            return response()->json([
+                'response' => 404,
+                'message' => "Aucune boutique n'est rattachée à ce compte.",
+            ]);
+        }
+
+        $supprimee = Promotion::where('id_shop', $boutique->id)
+            ->where('id', (int) $request->input('id_promotion'))
+            ->delete();
+
+        if (! $supprimee) {
+            return response()->json([
+                'response' => 404,
+                'message' => "Cette promotion n'appartient pas à votre boutique.",
+            ]);
+        }
+
+        return response()->json(['response' => 200, 'message' => 'Promotion supprimée.']);
     }
 
     private function commandesDe(int $idBoutique)
