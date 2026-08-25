@@ -13,6 +13,7 @@ class ClandoStop extends Model
         'lat',
         'lon',
         'label',
+        'type',
     ];
 
     public function clando()

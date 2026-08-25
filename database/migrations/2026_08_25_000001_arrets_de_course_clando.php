@@ -48,6 +48,14 @@ return new class extends Migration
                 $table->decimal('lat', 10, 7)->nullable();
                 $table->decimal('lon', 10, 7)->nullable();
                 $table->string('label')->nullable();
+                // 'attente' : la course marque une pause là où le
+                // chauffeur se trouve déjà, aucun impact sur la distance.
+                // 'detour' : un lieu choisi à l'avance, la route est
+                // recalculée pour y passer avant la destination finale
+                // (voir App\Support\RecalculDistanceDetours) — impacte la
+                // distance et donc base_price, en plus de la majoration au
+                // temps commune aux deux types.
+                $table->string('type', 20)->default('attente');
                 $table->timestamps();
                 $table->index('id_clando');
             });

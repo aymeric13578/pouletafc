@@ -676,11 +676,16 @@ class ClandoController extends Controller
     }
 
     /*
-     | Ajoute un arrêt à une course déjà acceptée par un agent — chaque
-     | arrêt majore le prix de 100 F par tranche de 10 min écoulée depuis
-     | son ajout (App\Support\SurchargeArrets). Refusé sur une course déjà
-     | terminée ou annulée : la facture ne doit plus bouger une fois la
-     | course close.
+     | Ajoute un arrêt à une course déjà acceptée par un agent — deux types
+     | (voir SurchargeArrets et RecalculDistanceDetours) :
+     |  - 'attente' (par défaut) : pause à la position actuelle du
+     |    chauffeur, aucun impact sur la distance.
+     |  - 'detour' : un lieu choisi à l'avance (lat/lon obligatoires), qui
+     |    recalcule tout l'itinéraire (départ → détours dans l'ordre
+     |    d'ajout → destination) et donc le prix au km, en plus de la même
+     |    majoration au temps que les arrêts d'attente.
+     | Refusé sur une course déjà terminée ou annulée : la facture ne doit
+     | plus bouger une fois la course close.
      */
     public function addClandoStop(Request $request)
     {
@@ -694,12 +699,32 @@ class ClandoController extends Controller
             return response()->json(['response' => 409, 'message' => 'Cette course est déjà terminée.']);
         }
 
+        $type = in_array($request->type, ['attente', 'detour'], true) ? $request->type : 'attente';
+
+        if ($type === 'detour' && ($request->lat === null || $request->lon === null)) {
+            return response()->json(['response' => 422, 'message' => 'Position du détour manquante']);
+        }
+
+        // Capturé une seule fois, avant le tout premier arrêt (quel que
+        // soit son type) — une course sans arrêt n'est jamais touchée.
+        // RecalculDistanceDetours le réajuste ensuite lui-même si le type
+        // est 'detour'.
+        if ($clando->base_price === null) {
+            $clando->base_price = $clando->price;
+            $clando->save();
+        }
+
         $arret = \App\Models\ClandoStop::create([
             'id_clando' => $clando->id,
             'lat' => $request->lat,
             'lon' => $request->lon,
             'label' => $request->label,
+            'type' => $type,
         ]);
+
+        if ($type === 'detour') {
+            \App\Support\RecalculDistanceDetours::recalculer($clando);
+        }
 
         $clando = \App\Support\SurchargeArrets::recalculerPrix($clando);
 
@@ -708,6 +733,8 @@ class ClandoController extends Controller
             'data' => [
                 'stop' => $arret,
                 'price' => $clando->price,
+                'base_price' => $clando->base_price,
+                'distance' => $clando->distance,
                 'stops_surcharge' => $clando->stops_surcharge,
             ],
         ]);
@@ -733,6 +760,7 @@ class ClandoController extends Controller
                 'price' => $clando->price,
                 'base_price' => $clando->base_price ?? $clando->price,
                 'stops_surcharge' => $clando->stops_surcharge,
+                'distance' => $clando->distance,
             ],
         ]);
     }

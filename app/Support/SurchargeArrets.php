@@ -41,21 +41,21 @@ class SurchargeArrets
 
     /**
      * Recalcule et enregistre le prix total d'une course (base + arrêts) à
-     * l'instant donné. `base_price` est capturé au passage s'il ne l'était
-     * pas encore — c'est-à-dire au tout premier arrêt ajouté à la course,
-     * jamais à sa création : une course sans arrêt n'est jamais touchée par
-     * cette classe.
+     * l'instant donné. Suppose `base_price` déjà initialisé — par le
+     * contrôleur au tout premier arrêt ajouté (type 'attente'), ou par
+     * App\Support\RecalculDistanceDetours (type 'detour', qui le
+     * recalcule lui-même à chaque détour ajouté).
      */
     public static function recalculerPrix(Clando $clando, ?Carbon $jusqua = null): Clando
     {
-        if ($clando->base_price === null) {
-            $clando->base_price = $clando->price;
-        }
-
         $majoration = self::calculer($clando->stops()->get(), $jusqua);
+        // Repli défensif : ne devrait pas arriver (le contrôleur initialise
+        // toujours base_price avant d'appeler cette méthode), mais mieux
+        // vaut retomber sur le prix courant que perdre la base du calcul.
+        $base = $clando->base_price ?? $clando->price;
 
         $clando->stops_surcharge = $majoration;
-        $clando->price = $clando->base_price + $majoration;
+        $clando->price = $base + $majoration;
         $clando->save();
 
         return $clando;
