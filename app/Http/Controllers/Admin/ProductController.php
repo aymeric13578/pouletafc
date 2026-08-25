@@ -115,8 +115,16 @@ class ProductController extends Controller
 
         $category_name = Category::where('id', $request->{'category_id'})->value('category_name');
 
+        // 'product_img' n'est pas un champ fillable de Product (les vraies
+        // colonnes sont 'img' et 'product_image1') : Laravel refusait cette
+        // écriture en masse et l'admin recevait une erreur 500 à chaque
+        // tentative de changement de photo. Les deux champs réels sont mis
+        // à jour ensemble — le tableau de bord et l'application mobile ne
+        // lisent pas le même des deux (voir MaBoutiqueController::
+        // saveMyShopProduct, qui applique déjà cette même règle).
         Product::findOrFail($id)->update([
-            'product_img' => $img_url,
+            'img' => $img_url,
+            'product_image1' => $img_url,
         ]);
 
         return redirect()->route('listProduct')->with('message', 'Image modifiée avec succès!');
