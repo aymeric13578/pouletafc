@@ -670,7 +670,17 @@ class ClandoController extends Controller
 
           if($order)
          {
-             return response()->json(['response' => 200]);
+             // La majoration d'arrêts est recalculée juste au-dessus : sans
+             // renvoyer le prix final ici, l'app agent n'a aucun moyen de
+             // le connaître (elle réutilisait le prix figé au moment de
+             // l'acceptation de la course, avant tout arrêt).
+             return response()->json([
+                 'response' => 200,
+                 'data' => [
+                     'price' => $clando->price,
+                     'stops_surcharge' => $clando->stops_surcharge,
+                 ],
+             ]);
          }
           return response()->json(['response' => 400 ]);
     }
