@@ -644,6 +644,17 @@ class ClandoController extends Controller
              ]);
          }
 
+         /*
+          | Recalcul final de la majoration d'arrêts : la tranche de 10 min
+          | en cours au moment de l'arrivée doit être incluse dans la
+          | facture, pas seulement ce qui avait été calculé au dernier
+          | arrêt ajouté. Sans effet si la course n'a aucun arrêt
+          | (base_price reste null, voir SurchargeArrets::recalculerPrix).
+          */
+         if ($clando->stops()->exists()) {
+             \App\Support\SurchargeArrets::recalculerPrix($clando);
+         }
+
          $order = $clando->update([
 
                   'status'=>  'Success'
@@ -663,12 +674,69 @@ class ClandoController extends Controller
          }
           return response()->json(['response' => 400 ]);
     }
-    
-    
-    
-    
-    
-        
+
+    /*
+     | Ajoute un arrêt à une course déjà acceptée par un agent — chaque
+     | arrêt majore le prix de 100 F par tranche de 10 min écoulée depuis
+     | son ajout (App\Support\SurchargeArrets). Refusé sur une course déjà
+     | terminée ou annulée : la facture ne doit plus bouger une fois la
+     | course close.
+     */
+    public function addClandoStop(Request $request)
+    {
+        $clando = Clando::where('ref', $request->ref)->first();
+
+        if (! $clando) {
+            return response()->json(['response' => 404, 'message' => 'Course introuvable']);
+        }
+
+        if (in_array($clando->status, ['Success', 'failed', 'declin'], true)) {
+            return response()->json(['response' => 409, 'message' => 'Cette course est déjà terminée.']);
+        }
+
+        $arret = \App\Models\ClandoStop::create([
+            'id_clando' => $clando->id,
+            'lat' => $request->lat,
+            'lon' => $request->lon,
+            'label' => $request->label,
+        ]);
+
+        $clando = \App\Support\SurchargeArrets::recalculerPrix($clando);
+
+        return response()->json([
+            'response' => 200,
+            'data' => [
+                'stop' => $arret,
+                'price' => $clando->price,
+                'stops_surcharge' => $clando->stops_surcharge,
+            ],
+        ]);
+    }
+
+    /*
+     | Liste des arrêts d'une course + majoration courante — utilisé par le
+     | client pour afficher le détail d'une course en cours (voir
+     | ActiveClandoBanner côté app cliente).
+     */
+    public function getClandoStops(Request $request)
+    {
+        $clando = Clando::where('ref', $request->ref)->first();
+
+        if (! $clando) {
+            return response()->json(['response' => 404, 'message' => 'Course introuvable']);
+        }
+
+        return response()->json([
+            'response' => 200,
+            'data' => [
+                'stops' => $clando->stops()->get(),
+                'price' => $clando->price,
+                'base_price' => $clando->base_price ?? $clando->price,
+                'stops_surcharge' => $clando->stops_surcharge,
+            ],
+        ]);
+    }
+
     public function historiqueClandoUser(Request $request)
     {
         $clando = Clando::where('id_user',$request->id_user)->get();

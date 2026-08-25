@@ -33,8 +33,15 @@ class Clando extends Model
         'id_order',
         'commission_seller',
         'commission_agent',
-        'status_paiement'
+        'status_paiement',
+        'base_price',
+        'stops_surcharge'
     ];
+
+    public function stops()
+    {
+        return $this->hasMany(ClandoStop::class, 'id_clando')->orderBy('id');
+    }
 
     public function agent()
     {

@@ -308,6 +308,11 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
             Route::get('terminatedCourse', 'ClandoController@terminatedCourse');
             Route::post('terminatedCourse', 'ClandoController@terminatedCourse');
 
+            Route::get('addClandoStop', 'ClandoController@addClandoStop');
+            Route::post('addClandoStop', 'ClandoController@addClandoStop');
+            Route::get('getClandoStops', 'ClandoController@getClandoStops');
+            Route::post('getClandoStops', 'ClandoController@getClandoStops');
+
 
     //subcategories
     Route::get('getAllSubCategory', 'SubcategoriesController@getAllSubCategory');
