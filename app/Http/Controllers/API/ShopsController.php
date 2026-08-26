@@ -10,11 +10,39 @@ class ShopsController extends Controller
 {
     public function getAllShops()
     {
-        $shops = Shop::where('status','Success')->get();
-        return response()->json([
-            "response"=>200,
-            "data"=>$shops,
+        $shops = Shop::where('status', 'Success')->get();
 
+        return response()->json([
+            'response' => 200,
+            /*
+             | Champs choisis plutôt que le modèle brut : commercial_register
+             | et commercial_register_file (pièces d'identification légale du
+             | marchand) ne doivent pas partir sur un endpoint sans
+             | authentification consulté par n'importe quel client. is_open_now
+             | est calculé ici plutôt que renvoyé tel quel : voir
+             | Shop::estOuverteMaintenant(), le badge « Ouvert »/« Fermé »
+             | affiché côté client ne doit refléter que les horaires réels, pas
+             | shop_status (déjà filtré à 'Success' par la requête ci-dessus).
+             */
+            'data' => $shops->map(fn (Shop $s) => [
+                'id' => $s->id,
+                'shop_name' => $s->shop_name,
+                'ref' => $s->ref,
+                'status' => $s->status,
+                'city' => $s->city,
+                'address' => $s->address,
+                'phone1' => $s->phone1,
+                'phone2' => $s->phone2,
+                'email1' => $s->email1,
+                'email2' => $s->email2,
+                'description' => $s->description,
+                'logo' => $s->logo,
+                'banner' => $s->banner,
+                'type' => $s->type,
+                'product_count' => $s->product_count,
+                'opening_hours' => $s->opening_hours,
+                'is_open_now' => $s->estOuverteMaintenant(),
+            ])->values(),
         ]);
     }
     public function addShop(Request $request)

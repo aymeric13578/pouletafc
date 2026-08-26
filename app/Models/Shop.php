@@ -39,7 +39,12 @@ class Shop extends Model
         'slug',
         'id_merchand',
         'description',
-        'type'
+        'type',
+        'opening_hours',
+    ];
+
+    protected $casts = [
+        'opening_hours' => 'array',
     ];
 
     public function merchand()
@@ -70,6 +75,35 @@ class Shop extends Model
     public function category()
     {
         return $this->hasOne(Category::class, 'id_shop');
+    }
+
+    /**
+     * La boutique accepte-t-elle une commande en ce moment, d'après ses
+     * horaires hebdomadaires ?
+     *
+     * Sans horaire renseigné, la boutique est considérée toujours ouverte :
+     * un marchand qui n'a pas encore rempli ce formulaire ne doit pas se
+     * retrouver bloqué de fait. Comparaison en "HH:MM" — ne gère pas un
+     * créneau à cheval sur minuit, aucune boutique de cet écosystème n'en a
+     * besoin aujourd'hui.
+     */
+    public function estOuverteMaintenant(): bool
+    {
+        if (empty($this->opening_hours)) {
+            return true;
+        }
+
+        $maintenant = now()->setTimezone('Africa/Douala');
+        $horaire = $this->opening_hours[(string) $maintenant->dayOfWeekIso] ?? null;
+
+        if (! $horaire || ($horaire['closed'] ?? false)) {
+            return false;
+        }
+
+        $heure = $maintenant->format('H:i');
+
+        return $heure >= ($horaire['opens_at'] ?? '00:00')
+            && $heure <= ($horaire['closes_at'] ?? '23:59');
     }
 
 }

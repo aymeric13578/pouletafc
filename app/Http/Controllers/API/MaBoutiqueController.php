@@ -67,6 +67,8 @@ class MaBoutiqueController extends Controller
                 'status' => $boutique->status,
                 'logo' => $this->urlImage($boutique->logo),
                 'banner' => $this->urlImage($boutique->banner),
+                'opening_hours' => $boutique->opening_hours,
+                'is_open_now' => $boutique->estOuverteMaintenant(),
                 'stats' => [
                     'produits' => (clone $produits)->count(),
                     'commandes' => $this->commandesDe($boutique->id)->count(),
@@ -121,7 +123,15 @@ class MaBoutiqueController extends Controller
             'description' => ['nullable', 'string'],
             'logo' => ['nullable', 'image', 'max:4096'],
             'banner' => ['nullable', 'image', 'max:4096'],
+            // Envoyé en JSON par une requête multipart (les fichiers logo/
+            // banner l'imposent) : {"1": {"closed": false, "opens_at":
+            // "08:00", "closes_at": "20:00"}, ..., "7": {...}}.
+            'opening_hours' => ['nullable', 'json'],
         ]);
+
+        if ($request->filled('opening_hours')) {
+            $valide['opening_hours'] = json_decode($valide['opening_hours'], true) ?? [];
+        }
 
         // getAllshops (vitrine client) renvoie logo/banner tels quels, sans
         // les préfixer — contrairement à getMyShop/verifiedShopUser plus
@@ -158,6 +168,7 @@ class MaBoutiqueController extends Controller
             'data' => [
                 'logo' => $this->urlImage($boutique->logo),
                 'banner' => $this->urlImage($boutique->banner),
+                'opening_hours' => $boutique->fresh()->opening_hours,
             ],
         ]);
     }
@@ -271,6 +282,8 @@ class MaBoutiqueController extends Controller
                 'status' => $boutique->status,
                 'logo' => $this->urlImage($boutique->logo),
                 'banner' => $this->urlImage($boutique->banner),
+                'opening_hours' => $boutique->opening_hours,
+                'is_open_now' => $boutique->estOuverteMaintenant(),
                 'product_count' => Product::where('id_shop', $boutique->id)->count(),
             ]], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         ]);

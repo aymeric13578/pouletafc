@@ -7,6 +7,7 @@ use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Product;
 use App\Models\Promotion;
+use App\Models\Shop;
 use App\Models\User;
 use App\Support\CommandeSansDoublon;
 use Illuminate\Http\JsonResponse;
@@ -48,6 +49,30 @@ class PanierValideController extends Controller
 
         if ($articles->isEmpty()) {
             return response()->json(['response' => 400, 'message' => 'Le panier est vide.']);
+        }
+
+        /*
+         | Un même panier peut mêler plusieurs boutiques (voir
+         | MaBoutiqueController::commandesDe) : chacune est vérifiée, pas
+         | seulement la première. La fenêtre entre "le client compose son
+         | panier" et "il valide" peut suffire à faire fermer une boutique
+         | entre-temps — l'écran l'affichait peut-être ouverte au moment de
+         | l'ajout, rien ne le revérifiait à la validation.
+         */
+        $boutiquesFermees = $articles
+            ->map(fn ($article) => $article['produit']->shop)
+            ->filter()
+            ->unique('id')
+            ->filter(fn (Shop $boutique) => ! $boutique->estOuverteMaintenant());
+
+        if ($boutiquesFermees->isNotEmpty()) {
+            return response()->json([
+                'response' => 409,
+                'message' => $boutiquesFermees->count() === 1
+                    ? "La boutique « {$boutiquesFermees->first()->shop_name} » est actuellement fermée."
+                    : 'Ces boutiques de votre panier sont actuellement fermées : '
+                        . $boutiquesFermees->pluck('shop_name')->implode(', ') . '.',
+            ]);
         }
 
         $cle = trim((string) $request->input('cle_unique'));
@@ -176,6 +201,7 @@ class PanierValideController extends Controller
 
         $produits = Product::whereIn('id', $recus->pluck('product_id')->filter()->all())
             ->where('status', 'Success')
+            ->with('shop')
             ->get()
             ->keyBy('id');
 
