@@ -360,6 +360,7 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
     Route::post('getInfoUser', 'UserController@getInfoUser');
 
     Route::get('getAppVersion', 'AppVersionController');
+    Route::post('getAppVersion', 'AppVersionController');
     
     
     

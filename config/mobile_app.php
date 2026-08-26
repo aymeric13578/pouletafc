@@ -76,6 +76,10 @@ return [
 
         'version' => env('MOBILE_APP_AGENT_VERSION'),
 
+        // Voir le même réglage côté android ci-dessus (AppVersionController) —
+        // à incrémenter à chaque nouvel APK agent mis en ligne.
+        'version_code' => (int) env('MOBILE_APP_AGENT_VERSION_CODE', 0),
+
         'min_os' => env('MOBILE_APP_AGENT_MIN_OS', 'Android 7.0'),
     ],
 
