@@ -39,14 +39,17 @@ class ArticleController extends Controller
         Article::insert([
             'title' => $request->{'title'},
             'id_user'=> Auth::user()->id,
-            'image' =>"https://pouletafc.2gether-network.com/".$banner_url,
+            // L'ancien domaine "2gether-network.com" ne répond plus depuis longtemps
+            // (déjà relevé dans dashboard/products.blade.php) : toute image stockée
+            // avec ce préfixe était invisible côté client, quel que soit son statut.
+            'image' => url($banner_url),
             'description' => $request->{'description'},
 
         ]);
 
-        session()->flash("good","Article  ajout�e avec success");
+        session()->flash("good","Article  ajout�e avec success");
 
 
-        return redirect()->route('listArticle')->with('message', 'Article ajout�e avec succ�s!');
+        return redirect()->route('listArticle')->with('message', 'Article ajout�e avec succ�s!');
     }
 }
