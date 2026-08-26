@@ -428,6 +428,10 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
     Route::post('getfinanceAgent', 'FinanceController@getfinanceAgent');
   Route::get('getPaymentsAgent', 'FinanceController@getPaymentsAgent');
     Route::post('getPaymentsAgent', 'FinanceController@getPaymentsAgent');
+  Route::get('requestWithdrawal', 'FinanceController@requestWithdrawal');
+    Route::post('requestWithdrawal', 'FinanceController@requestWithdrawal');
+  Route::get('getWithdrawalStatus', 'FinanceController@getWithdrawalStatus');
+    Route::post('getWithdrawalStatus', 'FinanceController@getWithdrawalStatus');
 
 
  //order
