@@ -36,7 +36,8 @@ class Clando extends Model
         'status_paiement',
         'payment_method',
         'base_price',
-        'stops_surcharge'
+        'stops_surcharge',
+        'agent_arrived_at'
     ];
 
     public function stops()
