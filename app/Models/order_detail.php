@@ -70,6 +70,7 @@ class order_detail extends Model
         'cancel_reason',
         'cancelled_at',
         'cancelled_by',
+        'agent_arrived_at',
     ];
 
     public function carts()

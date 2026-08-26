@@ -885,8 +885,36 @@ Contact service client : 697 526 980";
 
         return response()->json(['response' => 400]);
     }
-    
-  
+
+    /**
+     * L'agent signale qu'il est arrivé chez le client — avant même de
+     * saisir le code de livraison. Même dispositif que
+     * ClandoController::arriveeAgent : une colonne à part
+     * (order_details.agent_arrived_at), lue par l'application cliente pour
+     * ouvrir d'elle-même l'écran de paiement Orange Money. Couvre à la fois
+     * les livraisons boutique et le service coursier, qui partagent cette
+     * même table et ce même contrôleur.
+     *
+     * Idempotent : un second appel (double-tap, retry réseau) ne réécrit
+     * pas l'horodatage déjà posé.
+     */
+    public function arriveeAgentOrder(Request $request)
+    {
+        $order = order_detail::where('ref', $request->ref)
+            ->where('id_agent', $request->id_user)
+            ->first();
+
+        if (! $order) {
+            return response()->json(['response' => 400, 'message' => 'Commande introuvable']);
+        }
+
+        if (! $order->agent_arrived_at) {
+            $order->update(['agent_arrived_at' => now()]);
+        }
+
+        return response()->json(['response' => 200]);
+    }
+
        public function terminatedCourseOrder(Request $request)
     {
         

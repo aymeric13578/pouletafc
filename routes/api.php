@@ -457,6 +457,8 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
  
              Route::get('terminatedCourseOrder', 'OrderController@terminatedCourseOrder');
             Route::post('terminatedCourseOrder', 'OrderController@terminatedCourseOrder');
+            Route::get('arriveeOrder', 'OrderController@arriveeAgentOrder');
+            Route::post('arriveeOrder', 'OrderController@arriveeAgentOrder');
   
          Route::post('mapAftertakeOrder', 'OrderController@mapAftertakeOrder');
           Route::get('mapAftertakeOrder', 'OrderController@mapAftertakeOrder');
