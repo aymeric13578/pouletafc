@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Product;
+use App\Models\Promotion;
 use App\Fonction\Fonction;
 use response;
 
@@ -13,9 +14,35 @@ class ProductsController extends Controller
     public function getAllProducts()
     {
         $product = Product::where('status','Success')->get();
+
+        // Promotions actives (validées par l'équipe et dans leur fenêtre de
+        // dates) : voir MaBoutiqueController::saveMyShopPromotion. Sans cet
+        // enrichissement, une promotion pouvait être créée puis activée sans
+        // jamais devenir visible côté client — aucun champ ne la reliait à
+        // son produit dans la réponse consommée par l'app mobile.
+        $promotions = Promotion::where('status', 'Success')
+            ->where('starts_at', '<=', now())
+            ->where('ends_at', '>=', now())
+            ->get()
+            ->keyBy('id_product');
+
+        $data = $product->map(function ($item) use ($promotions) {
+            $array = $item->toArray();
+            $promotion = $promotions->get($item->id);
+            if ($promotion) {
+                $array['promotion'] = [
+                    'title' => $promotion->title,
+                    'discount_type' => $promotion->discount_type,
+                    'discount_value' => $promotion->discount_value,
+                    'price_after' => round($promotion->prixApres((float) $item->price)),
+                ];
+            }
+            return $array;
+        });
+
         return response()->json([
             "response"=>200,
-            "data"=>$product,
+            "data"=>$data,
 
         ]);
     }
