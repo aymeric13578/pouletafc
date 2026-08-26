@@ -40,7 +40,7 @@ class OrderController extends Controller
         $commission_agent = 0;
 
         if (isset($parameter)) {
-            $commission_agent = $totalArticles * $parameter->clando_agent_commission / 100;
+            $commission_agent = round($totalArticles * $parameter->clando_agent_commission / 100);
         }
 
         $fraisDeLivraison = (float) $request->input('delivery_fees', 0);
@@ -196,7 +196,7 @@ class OrderController extends Controller
         $commission_agent = 0;
         if(isset($parameter))
         {
-            $commission_agent = $request->price*$parameter->clando_agent_commission/100;
+            $commission_agent = round($request->price*$parameter->clando_agent_commission/100);
         }
         
      
@@ -935,20 +935,48 @@ Contact service client : 697 526 980";
                  ]);
              }
 
-             $update =$order->update([
+             /*
+              | Même dispositif que ClandoController::terminatedCourse :
+              | 'LIVRAISON'/'MOMO'/'OM' (déjà le vocabulaire de cette table,
+              | voir CoursierController::moyenDePaiement) déclenche le crédit
+              | de agents.deposit_recu, une seule fois, sous verrou + transaction
+              | pour éviter qu'un double appel simultané ne le double.
+              | Absent (ancienne version de l'app agent, ou paramètre non
+              | fourni pour cette livraison) : comportement strictement
+              | inchangé, aucun crédit.
+              */
+             $paymentMethod = $request->input('payment_method');
+             $paiementReconnu = in_array($paymentMethod, ['LIVRAISON', 'MOMO', 'OM'], true);
 
-                  'status'=>  'Success'
+             $update = DB::transaction(function () use ($order, $request, $paymentMethod, $paiementReconnu) {
+                 $orderVerrouille = order_detail::where('id', $order->id)->lockForUpdate()->first();
+                 $dejaTerminee = $orderVerrouille->status === 'Success';
 
-                  ]);
-                  
-                  
-                       
+                 $misesAJour = ['status' => 'Success'];
+                 if ($paiementReconnu) {
+                     $misesAJour['payment_method'] = $paymentMethod;
+                     if ($paymentMethod === 'LIVRAISON') {
+                         $misesAJour['status_paiement'] = 'Success';
+                     }
+                 }
+
+                 $misAJour = $orderVerrouille->update($misesAJour);
+
+                 if (! $dejaTerminee && $paiementReconnu) {
+                     Agent::where('id_user', $request->id_user)->increment('deposit_recu', $orderVerrouille->price);
+                 }
+
+                 return $misAJour;
+             });
+
+
+
                    $freeStatusAgent = Agent::where('id_user',$request->id_user)->update([
-            
+
             'freeStatus' => 1
-            
+
             ]);
-        
+
           if($update)
          {
              return response()->json(['response' => 200]);

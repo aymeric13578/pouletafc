@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Product;
+use App\Models\Promotion;
 use App\Models\User;
 use App\Support\CommandeSansDoublon;
 use Illuminate\Http\JsonResponse;
@@ -71,8 +72,24 @@ class PanierValideController extends Controller
             ]);
         }
 
+        /*
+         | Promotions actives sur les produits du panier (voir
+         | ProductsController::getAllProducts, qui applique déjà cette même
+         | remise à l'affichage) — récupérées avant la transaction, pas
+         | pour chaque article, pour éviter une requête par ligne de panier.
+         | Sans elles, le total encaissé ignorait la remise que le client
+         | venait de voir à l'écran : la commande enregistrée facturait le
+         | plein tarif pendant qu'une promotion était pourtant active.
+         */
+        $promotions = Promotion::where('status', 'Success')
+            ->whereIn('id_product', $articles->pluck('produit.id'))
+            ->where('starts_at', '<=', now())
+            ->where('ends_at', '>=', now())
+            ->get()
+            ->keyBy('id_product');
+
         try {
-            $commande = DB::transaction(function () use ($request, $client, $articles, $cle) {
+            $commande = DB::transaction(function () use ($request, $client, $articles, $cle, $promotions) {
                 $panier = Cart::create([
                     'user_id' => $client->id,
                     'status' => 'Success',
@@ -85,10 +102,14 @@ class PanierValideController extends Controller
                     /*
                      | Le prix est celui de la base, jamais celui transmis par le
                      | téléphone : un panier tenu sur l'appareil du client ne doit
-                     | pas pouvoir dicter le montant de sa commande.
+                     | pas pouvoir dicter le montant de sa commande. La promotion
+                     | active, elle, est appliquée ici — recalculée depuis la
+                     | base, jamais depuis un total envoyé par l'application.
                      */
                     $produit = $article['produit'];
-                    $montant = (float) $produit->price;
+                    $prixBase = (float) $produit->price;
+                    $promotion = $promotions->get($produit->id);
+                    $montant = $promotion ? $promotion->prixApres($prixBase) : $prixBase;
 
                     CartItem::create([
                         'user_id' => $client->id,

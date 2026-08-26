@@ -42,26 +42,33 @@ class Fonction
     
     public function solde($id)
     {
-        
-             
+
+
         $totalearnClando = DB::table('clando')->where('id_agent',$id)->where('status','Success')->select(DB::raw('COALESCE(sum(price),0) as total'))->get();
         $totalearnCommand = DB::table('order_details')->where('id_agent',$id)->where('status','Success')->select(DB::raw('COALESCE(sum(price),0) as total'))->get();
         $totalcredit = DB::table('credit_agents')->where('id_agent',$id)->select(DB::raw('COALESCE(sum(amount),0) as total'))->get();
         $totaldeposit = DB::table('deposits')->where('id_agent',$id)->where('status','Success')->select(DB::raw('COALESCE(sum(amount),0) as total'))->get();
-        
-        $solde = $totaldeposit[0]->total +  $totalcredit[0]->total - $totalearnClando[0]->total - $totalearnCommand[0]->total ;
-        
-         return  $data = 
+        // Retraits déjà validés au tableau de bord (voir
+        // FinanceController::requestWithdrawal / resources/views/pages/
+        // dashboard/retraits.blade.php) : sans cette ligne, valider un
+        // retrait ne faisait bouger aucun chiffre nulle part — l'agent
+        // pouvait redemander aussitôt le même solde et être payé deux fois.
+        $totalWithdrawn = DB::table('withdrawal_requests')->where('id_agent',$id)->where('status','validated')->select(DB::raw('COALESCE(sum(amount),0) as total'))->get();
+
+        $solde = $totaldeposit[0]->total +  $totalcredit[0]->total - $totalearnClando[0]->total - $totalearnCommand[0]->total - $totalWithdrawn[0]->total;
+
+         return  $data =
         [
             "solde" => $solde,
             'totalearnclando'=>$totalearnClando[0]->total,
             'totalearncommand'=>$totalearnCommand[0]->total,
             'totalcredit'=>$totalcredit[0]->total,
             'totaldeposit'=> $totaldeposit[0]->total,
-          
+            'totalwithdrawn'=> $totalWithdrawn[0]->total,
+
         ];
-        
-        
+
+
     }
 
     public function userNbrShare($ref)

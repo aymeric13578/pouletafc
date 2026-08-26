@@ -71,10 +71,16 @@ class Agent extends Model
         return $clandoCommission + $orderCommission;
     }
 
+    /**
+     * Déléguée à Fonction::solde() — c'était auparavant une formule
+     * indépendante (total_credited - toutes les courses/commandes, sans
+     * filtre de statut, sans les dépôts) qui divergeait de Fonction::solde()
+     * pour le même agent : deux écrans du tableau de bord affichaient deux
+     * soldes différents pour la même personne. Une seule formule désormais,
+     * appliquée partout où "le solde d'un agent" est demandé.
+     */
     public function getBalanceAttribute()
     {
-        $totalSpentClando = $this->clandos()->sum('price');
-        $totalSpentOrder = $this->orderDetails()->sum('price');
-        return $this->total_credited - ($totalSpentClando + $totalSpentOrder);
+        return (new \App\Fonction\Fonction())->solde($this->id_user)['solde'];
     }
 }

@@ -17,9 +17,21 @@ class ClandoController extends Controller
 {
     public function Insertclando(Request $request)
     {
-        
-        
-        
+        /*
+         | Le prix vient entièrement du téléphone du client, sans aucune
+         | validation jusqu'ici — un montant nul, négatif ou non numérique
+         | était accepté tel quel et servait ensuite de base à la commission
+         | de l'agent et au calcul du solde. Un plancher à 1 FCFA n'empêche
+         | aucun tarif légitime (aucune course ne coûte 0), seulement les cas
+         | manifestement invalides.
+         */
+        if (! is_numeric($request->price) || (float) $request->price < 1) {
+            return response()->json([
+                'response' => 400,
+                'message' => 'Prix de course invalide.',
+            ]);
+        }
+
         $verified = Clando::where('id_user',$request->id_user)->where('status',"want")->first();
         
          $user = User::where('id',$request->id_user)->first();
@@ -46,7 +58,7 @@ class ClandoController extends Controller
         $commission_agent = 0;
         if(isset($parameter))
         {
-            $commission_agent = $request->price*$parameter->clando_agent_commission/100;
+            $commission_agent = round($request->price*$parameter->clando_agent_commission/100);
         }
         
      
@@ -655,47 +667,56 @@ class ClandoController extends Controller
              \App\Support\SurchargeArrets::recalculerPrix($clando);
          }
 
-         // Idempotence du crédit ci-dessous : capturé avant la mise à jour,
-         // pour distinguer une vraie première terminaison d'un double appel
-         // (double tap, retry réseau) sur une course déjà à 'Success'.
-         $dejaTerminee = $clando->status === 'Success';
-
          // 'cash' ou 'orange_money' — voir le nouveau geste "Terminer" côté
          // app agent (Cash reçu / Orange Money). Absent (anciennes versions
          // de l'app agent) : comportement inchangé, aucun crédit.
          $paymentMethod = $request->input('payment_method');
          $paiementReconnu = in_array($paymentMethod, ['cash', 'orange_money'], true);
 
-         $misesAJour = ['status' => 'Success'];
-         if ($paiementReconnu) {
-             $misesAJour['payment_method'] = $paymentMethod;
-             if ($paymentMethod === 'cash') {
-                 // Espèces : l'agent a l'argent en main, réglé dès la
-                 // terminaison. Pour Orange Money, l'app agent n'autorise ce
-                 // bouton qu'après confirmation côté serveur — status_paiement
-                 // est donc déjà 'Success' à ce stade, écrit par
-                 // PaymentController::verifiedOrangePaymentStatus.
-                 $misesAJour['status_paiement'] = 'Success';
+         /*
+          | Verrou + transaction : sans eux, deux appels quasi simultanés sur
+          | la même course (double tap, ou un retry réseau qui déclenche à la
+          | fois le GET et le POST de cette même route) pouvaient tous deux
+          | lire "pas encore Success" avant qu'aucune écriture n'ait atterri,
+          | et tous deux créditer deposit_recu pour la même course. Le verrou
+          | fait attendre le second appel derrière le premier au lieu de les
+          | laisser courir en parallèle.
+          */
+         $order = DB::transaction(function () use ($clando, $request, $paymentMethod, $paiementReconnu) {
+             $clandoVerrouille = Clando::where('id', $clando->id)->lockForUpdate()->first();
+             $dejaTerminee = $clandoVerrouille->status === 'Success';
+
+             $misesAJour = ['status' => 'Success'];
+             if ($paiementReconnu) {
+                 $misesAJour['payment_method'] = $paymentMethod;
+                 if ($paymentMethod === 'cash') {
+                     // Espèces : l'agent a l'argent en main, réglé dès la
+                     // terminaison. Pour Orange Money, l'app agent n'autorise
+                     // ce bouton qu'après confirmation côté serveur —
+                     // status_paiement est donc déjà 'Success' à ce stade,
+                     // écrit par PaymentController::verifiedOrangePaymentStatus.
+                     $misesAJour['status_paiement'] = 'Success';
+                 }
              }
-         }
 
-         $order = $clando->update($misesAJour);
+             $misAJour = $clandoVerrouille->update($misesAJour);
 
+             // Dépôt reçu par l'agent : crédité une seule fois, au moment où
+             // la course passe réellement à 'Success' pour la première fois
+             // — pas dans Fonction::solde()/Agent::getBalanceAttribute(),
+             // qui restent un chiffre séparé.
+             if (! $dejaTerminee && $paiementReconnu) {
+                 Agent::where('id_user', $request->id_user)->increment('deposit_recu', $clandoVerrouille->price);
+             }
+
+             return $misAJour;
+         });
 
         $freeStatusAgent = Agent::where('id_user',$request->id_user)->update([
 
             'freeStatus' => 1
 
             ]);
-
-         // Dépôt reçu par l'agent : crédité une seule fois, au moment où la
-         // course passe réellement à 'Success' pour la première fois — pas
-         // à chaque appel de cet endpoint (idempotent via $dejaTerminee), et
-         // pas dans Fonction::solde()/Agent::getBalanceAttribute(), qui
-         // restent un chiffre séparé.
-         if (! $dejaTerminee && $paiementReconnu) {
-             Agent::where('id_user', $request->id_user)->increment('deposit_recu', $clando->price);
-         }
 
           if($order)
          {

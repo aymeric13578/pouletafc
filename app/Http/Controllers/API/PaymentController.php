@@ -126,6 +126,44 @@ class PaymentController extends Controller
             ]);
         }
 
+        /*
+         | Le montant réellement débité doit venir de la commande/course
+         | elle-même, jamais du téléphone du client : cette route n'a aucune
+         | authentification (v1.0), id_order est un entier devinable, et
+         | l'ancien code stockait $request->amount tel quel puis marquait la
+         | commande entière "payée" sur cette seule confirmation — un appel
+         | direct avec amount=1 suffisait à faire passer n'importe quelle
+         | commande en status_paiement=Success. On retrouve ici le prix
+         | réel, et on refuse la demande s'il est introuvable ou incohérent
+         | avec ce que le client prétend payer (au cas où l'app afficherait
+         | un montant obsolète, pour que l'échec soit visible côté client
+         | plutôt qu'un paiement silencieusement accepté pour le mauvais
+         | montant).
+         */
+        $orderType = $request->input('order_type', 'order_details');
+        $commande = $orderType === 'clando'
+            ? Clando::find($request->id_order)
+            : order_detail::find($request->id_order);
+
+        if (! $commande) {
+            return response()->json([
+                "response" => "error",
+                "message" => "Commande introuvable",
+            ]);
+        }
+
+        $montantReel = (float) $commande->price;
+        $montantDemande = (float) $request->amount;
+
+        // Tolérance d'un franc pour l'arrondi éventuel côté app — pas une
+        // marge pour sous-payer délibérément.
+        if ($montantReel <= 0 || abs($montantReel - $montantDemande) > 1) {
+            return response()->json([
+                "response" => "error",
+                "message" => "Le montant ne correspond pas au prix de la commande",
+            ]);
+        }
+
         curl_setopt_array($curl, array(
             CURLOPT_URL => 'https://api-s1.orange.cm/token',
             CURLOPT_RETURNTRANSFER => true,
@@ -166,14 +204,16 @@ class PaymentController extends Controller
                 "id_operator" => $operator[0]->id,
                 "paytoken" => $this->ensureUtf8($phase2),
                 "id_user" => $request->id_user,
-                "amount" => $this->ensureUtf8($request->amount),
+                // Le prix réel de la commande (vérifié ci-dessus), jamais
+                // celui envoyé par le téléphone.
+                "amount" => $montantReel,
                 "num_transaction" => $this->ensureUtf8($request->number),
                  "id_order_details" => $this->ensureUtf8($request->id_order),
                  // 'order_details' par défaut : les appelants existants
                  // (commande boutique, course coursier) n'envoient pas ce
                  // paramètre et doivent continuer à cibler order_details
                  // exactement comme avant.
-                 "order_type" => $request->input('order_type', 'order_details'),
+                 "order_type" => $orderType,
             ]);
 
             $phase3Response = $phase2function->OrangePhase3($data->id,"paymentUser");

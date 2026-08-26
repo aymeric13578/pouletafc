@@ -129,6 +129,13 @@ class FinanceController extends Controller
             ->where('status', 'pending')
             ->first();
 
+        // Argent effectivement encaissé par l'agent (espèces ou Orange
+        // Money confirmé) au moment de "Terminer" une course — voir
+        // ClandoController::terminatedCourse. N'était renvoyé nulle part
+        // jusqu'ici : aucun écran ne pouvait afficher ce chiffre, donc rien
+        // ne pouvait jamais signaler qu'il était resté à zéro par erreur.
+        $depotRecu = (float) (\App\Models\Agent::where('id_user', $request->id_user)->value('deposit_recu') ?? 0);
+
         return response()->json(['response' => 200,
         'totalearn'=> $totalearnClando +  $totalearnCommand,
         'totalcredit'=> $totalcredit,
@@ -139,6 +146,7 @@ class FinanceController extends Controller
          "historiquecredit"=> $historiqueCredit,
          "historiquedeposit"=> $historiquedeposit,
          "retraitEnAttente" => $retraitEnAttente,
+         "depositRecu" => $depotRecu,
 
         ]);
     }

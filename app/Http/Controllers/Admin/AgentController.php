@@ -192,10 +192,15 @@ class AgentController extends Controller
 
             $agent = Agent::where('id_user', $request->id_user)->firstOrFail();
 
-            // Mettre à jour le solde et le total crédité
-            $agent->balance += $request->amount;
-            $agent->total_credited += $request->amount;
-            $agent->save();
+            // Le solde et le total crédité sont des accesseurs calculés
+            // (Agent::getBalanceAttribute() / getTotalCreditedAttribute()),
+            // pas des colonnes qu'on incrémente : les deux lignes qui
+            // faisaient "$agent->balance += ..." lisaient la valeur déjà
+            // calculée puis l'écrivaient dans la colonne brute sans passer
+            // par aucun mutateur, corrompant un peu plus cette colonne à
+            // chaque crédit sans que rien ne la relise jamais correctement.
+            // Insérer la ligne credit_agents ci-dessous suffit : c'est déjà
+            // ce que Fonction::solde() additionne pour recalculer le solde.
 
             // Enregistrer l'historique du crédit
             CreditAgent::create([

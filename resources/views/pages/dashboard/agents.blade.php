@@ -8,6 +8,7 @@ use App\Models\Clando;
 use App\Models\order_detail;
 use App\Models\CreditAgent;
 use App\Models\Deposit;
+use App\Fonction\Fonction;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -90,9 +91,16 @@ new class extends Component {
         return Agent::where('status', 'pending')->count();
     }
 
+    /**
+     * Somme du vrai solde de chaque agent (Fonction::solde(), désormais la
+     * seule formule — voir Agent::getBalanceAttribute()) plutôt que
+     * Agent::sum('balance') : cette colonne brute n'a jamais été tenue à
+     * jour par rien, l'agréger directement en SQL sommait donc une valeur
+     * gelée sans rapport avec le solde réel des agents.
+     */
     public function getTotalBalanceProperty()
     {
-        return Agent::sum('balance');
+        return Agent::whereNull('deleted_at')->get()->sum(fn ($agent) => $agent->balance);
     }
 
     public function getAgentUsersProperty()
@@ -110,14 +118,15 @@ new class extends Component {
             ->get();
     }
 
+    /**
+     * Déléguée à Fonction::solde() — était une réimplémentation manuelle de
+     * l'ancienne formule, recopiée plutôt qu'appelée, et donc jamais mise à
+     * jour quand la vraie formule a changé (les retraits validés, par
+     * exemple, n'y étaient pas déduits).
+     */
     public function getAgentBalance($id)
     {
-        $totalEarnClando = Clando::where('id_agent', $id)->where('status', 'Success')->sum('price') ?? 0;
-        $totalEarnCommand = order_detail::where('id_agent', $id)->where('status', 'Success')->sum('price') ?? 0;
-        $totalCredit = CreditAgent::where('id_agent', $id)->sum('amount') ?? 0;
-        $totalDeposit = Deposit::where('id_agent', $id)->where('status', 'Success')->sum('amount') ?? 0;
-
-        return $totalDeposit + $totalCredit - $totalEarnClando - $totalEarnCommand;
+        return (new Fonction())->solde($id)['solde'];
     }
 
     public function updatedIdUser($value)

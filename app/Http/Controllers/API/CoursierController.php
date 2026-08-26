@@ -38,7 +38,10 @@ class CoursierController extends Controller
             'lonDestination' => ['required', 'numeric'],
             'address' => ['required', 'string', 'max:255'],
             'depart' => ['nullable', 'string', 'max:255'],
-            'price' => ['required', 'numeric', 'min:0'],
+            // min:1, pas min:0 — une course coursier à 0 FCFA n'a jamais de
+            // sens, et laissait passer un prix nul soumis par erreur ou
+            // intentionnellement modifié côté client.
+            'price' => ['required', 'numeric', 'min:1'],
             'delivery_fees' => ['nullable', 'numeric', 'min:0'],
             'phone_customer' => ['nullable', 'string', 'max:20'],
             'delivery_type' => ['nullable', 'string', 'max:255'],
