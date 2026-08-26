@@ -358,6 +358,8 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
     
     Route::get('getInfoUser', 'UserController@getInfoUser');
     Route::post('getInfoUser', 'UserController@getInfoUser');
+
+    Route::get('getAppVersion', 'AppVersionController');
     
     
     

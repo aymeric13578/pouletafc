@@ -30,6 +30,16 @@ return [
 
         'version' => env('MOBILE_APP_ANDROID_VERSION'),
 
+        /*
+        | Numéro de build (versionCode Android, ex. le "38" de "1.0.0+38"
+        | dans pubspec.yaml) — à incrémenter à chaque nouvel APK mis en
+        | ligne. C'est la valeur que l'app compare à la sienne pour savoir
+        | si une mise à jour est disponible (voir AppVersionController) :
+        | 0 par défaut désactive le popup plutôt que de le déclencher pour
+        | tout le monde si ce réglage est oublié après un déploiement.
+        */
+        'version_code' => (int) env('MOBILE_APP_ANDROID_VERSION_CODE', 0),
+
         'min_os' => env('MOBILE_APP_ANDROID_MIN_OS', 'Android 7.0'),
 
         /*
