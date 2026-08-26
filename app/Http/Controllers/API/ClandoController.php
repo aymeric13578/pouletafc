@@ -631,6 +631,36 @@ class ClandoController extends Controller
          }
           return response()->json(['response' => 400 ]);
     }
+    /**
+     * L'agent signale qu'il est arrivé au client — avant même de terminer
+     * la course. Ne touche jamais status (encore 'take'/'process' à ce
+     * stade, laissé tel quel pour ne rien casser des filtres existants
+     * ailleurs dans le code) : agent_arrived_at est une colonne à part,
+     * lue par l'application cliente pour ouvrir d'elle-même l'écran de
+     * paiement Orange Money — sans quoi le client ne le découvrait qu'une
+     * fois la course déjà marquée terminée par l'agent, trop tard pour
+     * payer avant que celui-ci ne clôture.
+     *
+     * Idempotent : un second appel (double-tap, retry réseau) ne réécrit
+     * pas l'horodatage déjà posé.
+     */
+    public function arriveeAgent(Request $request)
+    {
+        $clando = Clando::where('ref', $request->ref)
+            ->where('id_agent', $request->id_user)
+            ->first();
+
+        if (! $clando) {
+            return response()->json(['response' => 400, 'message' => 'Course introuvable']);
+        }
+
+        if (! $clando->agent_arrived_at) {
+            $clando->update(['agent_arrived_at' => now()]);
+        }
+
+        return response()->json(['response' => 200]);
+    }
+
        public function terminatedCourse(Request $request)
     {
          $clando = Clando::where('ref',$request->ref)->first();

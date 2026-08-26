@@ -312,6 +312,9 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
             Route::get('terminatedCourse', 'ClandoController@terminatedCourse');
             Route::post('terminatedCourse', 'ClandoController@terminatedCourse');
 
+            Route::get('arriveeClando', 'ClandoController@arriveeAgent');
+            Route::post('arriveeClando', 'ClandoController@arriveeAgent');
+
             Route::get('addClandoStop', 'ClandoController@addClandoStop');
             Route::post('addClandoStop', 'ClandoController@addClandoStop');
             Route::get('getClandoStops', 'ClandoController@getClandoStops');
