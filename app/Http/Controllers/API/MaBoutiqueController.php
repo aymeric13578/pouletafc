@@ -338,6 +338,104 @@ class MaBoutiqueController extends Controller
     }
 
     /**
+     * Chiffre d'affaires de la boutique de l'appelant.
+     *
+     * Une commande peut mêler plusieurs boutiques (voir commandesDe) : le
+     * montant retenu ici n'est jamais order_detail.price (le total de TOUTE
+     * la commande, articles d'autres boutiques compris) mais la somme des
+     * lignes de panier qui appartiennent réellement à cette boutique —
+     * cart_items.amount (prix unitaire déjà remisé si une promotion était
+     * active, voir PanierValideController) × quantity.
+     *
+     * status='declin'/'failed' est exclu (jamais devenu une vente) ; parmi
+     * ce qui reste, seul status='Success' compte dans le chiffre d'affaires
+     * — le reste (pending/waiting/want/take/process) est une commande en
+     * cours, pas encore une vente, et apparaît séparément en
+     * montant_en_attente.
+     */
+    public function getMyShopFinance(Request $request): JsonResponse
+    {
+        $boutique = $this->boutiqueDe($request->input('id_user'));
+
+        if (! $boutique) {
+            return response()->json(['response' => 404, 'data' => null]);
+        }
+
+        $commandes = $this->commandesDe($boutique->id)
+            ->whereNotIn('status', ['declin', 'failed'])
+            ->with('carts.cart_items.product:id,id_shop')
+            ->get(['id', 'ref', 'status', 'id_cart', 'created_at']);
+
+        $maintenant = now()->setTimezone('Africa/Douala');
+        $debutJour = $maintenant->copy()->startOfDay();
+        $septJours = $maintenant->copy()->subDays(7);
+        $debutMois = $maintenant->copy()->startOfMonth();
+
+        $revenuTotal = 0.0;
+        $revenuAujourdhui = 0.0;
+        $revenuSemaine = 0.0;
+        $revenuMois = 0.0;
+        $montantEnAttente = 0.0;
+        $commandesCompletees = 0;
+        $transactions = [];
+
+        foreach ($commandes as $commande) {
+            $lignesBoutique = ($commande->carts?->cart_items ?? collect())
+                ->filter(fn ($item) => $item->product?->id_shop === $boutique->id);
+
+            $montant = (float) $lignesBoutique->sum(fn ($item) => $item->amount * $item->quantity);
+
+            if ($montant <= 0) {
+                continue;
+            }
+
+            if ($commande->status !== 'Success') {
+                $montantEnAttente += $montant;
+
+                continue;
+            }
+
+            $commandesCompletees++;
+            $revenuTotal += $montant;
+
+            $creeLe = $commande->created_at?->setTimezone('Africa/Douala');
+            if ($creeLe?->greaterThanOrEqualTo($debutJour)) {
+                $revenuAujourdhui += $montant;
+            }
+            if ($creeLe?->greaterThanOrEqualTo($septJours)) {
+                $revenuSemaine += $montant;
+            }
+            if ($creeLe?->greaterThanOrEqualTo($debutMois)) {
+                $revenuMois += $montant;
+            }
+
+            $transactions[] = [
+                'ref' => $commande->ref,
+                'montant' => round($montant, 2),
+                'created_at' => $commande->created_at?->toIso8601String(),
+            ];
+        }
+
+        usort($transactions, fn ($a, $b) => strcmp($b['created_at'] ?? '', $a['created_at'] ?? ''));
+
+        return response()->json([
+            'response' => 200,
+            'data' => [
+                'revenu_total' => round($revenuTotal, 2),
+                'revenu_aujourdhui' => round($revenuAujourdhui, 2),
+                'revenu_semaine' => round($revenuSemaine, 2),
+                'revenu_mois' => round($revenuMois, 2),
+                'montant_en_attente' => round($montantEnAttente, 2),
+                'commandes_completees' => $commandesCompletees,
+                'panier_moyen' => $commandesCompletees > 0
+                    ? round($revenuTotal / $commandesCompletees, 2)
+                    : 0,
+                'transactions' => array_slice($transactions, 0, 20),
+            ],
+        ]);
+    }
+
+    /**
      * Catégories proposées au marchand quand il crée un produit.
      *
      * id_category est contrôlé à l'enregistrement : sans cette liste,

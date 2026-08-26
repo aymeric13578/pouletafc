@@ -88,6 +88,7 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
     Route::post('updateMyShop', 'MaBoutiqueController@updateMyShop');
     Route::get('getMyShopProducts', 'MaBoutiqueController@getMyShopProducts');
     Route::get('getMyShopOrders', 'MaBoutiqueController@getMyShopOrders');
+    Route::get('getMyShopFinance', 'MaBoutiqueController@getMyShopFinance');
     Route::get('getShopCategories', 'MaBoutiqueController@getCategories');
     // Onglet « Boutiques » de l'application : ces deux routes n'existaient pas,
     // l'écran répondait donc « aucune boutique » à tous les marchands.
