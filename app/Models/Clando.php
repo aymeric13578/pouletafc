@@ -34,6 +34,7 @@ class Clando extends Model
         'commission_seller',
         'commission_agent',
         'status_paiement',
+        'payment_method',
         'base_price',
         'stops_surcharge'
     ];

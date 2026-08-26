@@ -655,11 +655,31 @@ class ClandoController extends Controller
              \App\Support\SurchargeArrets::recalculerPrix($clando);
          }
 
-         $order = $clando->update([
+         // Idempotence du crédit ci-dessous : capturé avant la mise à jour,
+         // pour distinguer une vraie première terminaison d'un double appel
+         // (double tap, retry réseau) sur une course déjà à 'Success'.
+         $dejaTerminee = $clando->status === 'Success';
 
-                  'status'=>  'Success'
+         // 'cash' ou 'orange_money' — voir le nouveau geste "Terminer" côté
+         // app agent (Cash reçu / Orange Money). Absent (anciennes versions
+         // de l'app agent) : comportement inchangé, aucun crédit.
+         $paymentMethod = $request->input('payment_method');
+         $paiementReconnu = in_array($paymentMethod, ['cash', 'orange_money'], true);
 
-                  ]);
+         $misesAJour = ['status' => 'Success'];
+         if ($paiementReconnu) {
+             $misesAJour['payment_method'] = $paymentMethod;
+             if ($paymentMethod === 'cash') {
+                 // Espèces : l'agent a l'argent en main, réglé dès la
+                 // terminaison. Pour Orange Money, l'app agent n'autorise ce
+                 // bouton qu'après confirmation côté serveur — status_paiement
+                 // est donc déjà 'Success' à ce stade, écrit par
+                 // PaymentController::verifiedOrangePaymentStatus.
+                 $misesAJour['status_paiement'] = 'Success';
+             }
+         }
+
+         $order = $clando->update($misesAJour);
 
 
         $freeStatusAgent = Agent::where('id_user',$request->id_user)->update([
@@ -667,6 +687,15 @@ class ClandoController extends Controller
             'freeStatus' => 1
 
             ]);
+
+         // Dépôt reçu par l'agent : crédité une seule fois, au moment où la
+         // course passe réellement à 'Success' pour la première fois — pas
+         // à chaque appel de cet endpoint (idempotent via $dejaTerminee), et
+         // pas dans Fonction::solde()/Agent::getBalanceAttribute(), qui
+         // restent un chiffre séparé.
+         if (! $dejaTerminee && $paiementReconnu) {
+             Agent::where('id_user', $request->id_user)->increment('deposit_recu', $clando->price);
+         }
 
           if($order)
          {

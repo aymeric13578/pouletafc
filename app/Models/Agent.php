@@ -20,6 +20,7 @@ class Agent extends Model
         'registration_number',
         'status',
         'balance',
+        'deposit_recu',
         'total_credited',
         'id_user',
         'ref',
