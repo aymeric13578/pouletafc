@@ -390,12 +390,23 @@ Contact service client : 697 526 980";
               */
              $colis = $order->isNotEmpty() ? $order[0] : null;
 
+             /*
+              | Même défaut que « image » du colis ci-dessus : users.photo ne
+              | contient qu'un nom de fichier. L'écran de suivi du client
+              | affiche le nom/téléphone de l'agent une fois la commande
+              | acceptée, mais jamais sa photo faute d'URL exploitable.
+              */
+             $photoAgent = $code && $code->isNotEmpty() ? $code[0]->photo : null;
+
              if($order) return response()->json([
                  'response' => 200,
                  'data'=> $order,
                  'code_agent'=>$codeLiveur,
                  'info_agent'=>$code,
                  'image_url' => $colis && $colis->image ? url('upload/' . $colis->image) : null,
+                 'agent_photo_url' => $photoAgent
+                     ? (str_starts_with($photoAgent, 'http') ? $photoAgent : url('upload/' . $photoAgent))
+                     : null,
              ]);
              else return response()->json(['response' => 404]);
         
