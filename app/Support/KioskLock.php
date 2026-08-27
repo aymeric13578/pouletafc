@@ -55,7 +55,7 @@ class KioskLock
 
     public static function poserCookie(string $page): void
     {
-        $minutesJusquaMinuit = (int) now()->diffInMinutes(now()->endOfDay()->addSecond());
+        $minutesJusquaMinuit = max(1, (int) now()->diffInMinutes(now()->endOfDay()->addSecond()));
 
         Cookie::queue(self::nomCookie($page), '1', $minutesJusquaMinuit);
     }
