@@ -79,6 +79,10 @@ class OrderBoardController extends Controller
      */
     public function feed(Request $request): JsonResponse
     {
+        if (! KioskLock::estDeverrouille($request, 'commandes')) {
+            return response()->json(['message' => 'Écran verrouillé'], 403);
+        }
+
         return response()->json($this->payload($request))
             // L'écran reste allumé des jours : un proxy ou le navigateur qui
             // mettrait ce flux en cache figerait le mur sur d'anciennes commandes.

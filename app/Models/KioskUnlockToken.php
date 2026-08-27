@@ -15,6 +15,7 @@ class KioskUnlockToken extends Model
     protected $fillable = [
         'page',
         'token',
+        'session_id',
         'expires_at',
         'unlocked_at',
         'unlocked_by_user_id',

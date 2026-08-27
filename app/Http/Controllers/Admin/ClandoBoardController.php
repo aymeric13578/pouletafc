@@ -96,6 +96,10 @@ class ClandoBoardController extends Controller
      */
     public function feed(Request $request): JsonResponse
     {
+        if (! KioskLock::estDeverrouille($request, 'clando')) {
+            return response()->json(['message' => 'Écran verrouillé'], 403);
+        }
+
         return response()->json($this->payload($request))
             // La carte peut rester ouverte des heures : un proxy qui mettrait ce
             // flux en cache figerait les agents sur une position périmée, ce qui

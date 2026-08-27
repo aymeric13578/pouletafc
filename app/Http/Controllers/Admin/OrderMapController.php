@@ -79,6 +79,10 @@ class OrderMapController extends Controller
 
     public function feed(Request $request): JsonResponse
     {
+        if (! KioskLock::estDeverrouille($request, 'commandes_carte')) {
+            return response()->json(['message' => 'Écran verrouillé'], 403);
+        }
+
         return response()->json($this->payload($request))
             // La carte reste ouverte des heures : un flux mis en cache figerait
             // les agents sur une position périmée, ce qui trompe plus que rien.

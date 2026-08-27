@@ -41,6 +41,14 @@ class KioskLockController extends Controller
         $jeton->update([
             'unlocked_at' => now(),
             'unlocked_by_user_id' => $valide['id_user'],
+            // Le sondage côté écran (statut()) refuse de poser le cookie une
+            // fois expires_at dépassé (voir Admin\KioskLockController::statut) —
+            // sans cet allongement, la fenêtre de 10 minutes utilisée pour
+            // afficher le QR expirerait presque aussitôt après le scan et
+            // l'écran resterait bloqué malgré un déverrouillage réussi. 18h
+            // couvre le reste d'une journée de travail sans faire de ce jeton
+            // un identifiant permanent.
+            'expires_at' => now()->addHours(18),
         ]);
 
         return response()->json([

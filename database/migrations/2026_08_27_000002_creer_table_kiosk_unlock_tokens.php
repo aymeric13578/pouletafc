@@ -21,12 +21,14 @@ return new class extends Migration
             $table->id();
             $table->string('page', 30);
             $table->string('token', 64)->unique();
+            $table->string('session_id', 100)->nullable();
             $table->timestamp('expires_at');
             $table->timestamp('unlocked_at')->nullable();
             $table->unsignedBigInteger('unlocked_by_user_id')->nullable();
             $table->timestamps();
 
             $table->index(['page', 'unlocked_at']);
+            $table->index(['page', 'session_id']);
         });
     }
 

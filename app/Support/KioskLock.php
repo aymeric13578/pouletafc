@@ -37,6 +37,7 @@ class KioskLock
     public static function jetonActif(string $page): KioskUnlockToken
     {
         $jeton = KioskUnlockToken::where('page', $page)
+            ->where('session_id', session()->getId())
             ->whereNull('unlocked_at')
             ->where('expires_at', '>', now())
             ->latest()
@@ -49,13 +50,18 @@ class KioskLock
         return KioskUnlockToken::create([
             'page' => $page,
             'token' => Str::random(48),
+            'session_id' => session()->getId(),
             'expires_at' => now()->addMinutes(self::DUREE_JETON_MINUTES),
         ]);
     }
 
     public static function poserCookie(string $page): void
     {
-        $minutesJusquaMinuit = max(1, (int) now()->diffInMinutes(now()->endOfDay()->addSecond()));
+        // now() est en UTC (config('app.timezone')) — "minuit" doit être celui
+        // de Douala, pas celui d'UTC, sinon le cookie expire au milieu de la
+        // journée locale (ou la couvre en trop) selon l'heure de l'année.
+        $maintenant = now('Africa/Douala');
+        $minutesJusquaMinuit = max(1, (int) $maintenant->diffInMinutes($maintenant->copy()->endOfDay()->addSecond()));
 
         Cookie::queue(self::nomCookie($page), '1', $minutesJusquaMinuit);
     }
