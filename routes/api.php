@@ -527,4 +527,12 @@ Route::post('getAllOrderWithoutCondition', 'OrderController@getAllOrderWithoutCo
 
 Route::get('getAllWithoutSellerOrder', 'OrderController@getAllWithoutSellerOrder');
 Route::post('getAllWithoutSellerOrder', 'OrderController@getAllWithoutSellerOrder');
+
+// Déverrouillage d'un écran "mur" depuis l'appli employé (scan de QR).
+Route::get('deverrouillerEcranKiosk', 'KioskLockController@deverrouiller')
+    ->middleware('throttle:20,1')
+    ->name('deverrouillerEcranKiosk.get');
+Route::post('deverrouillerEcranKiosk', 'KioskLockController@deverrouiller')
+    ->middleware('throttle:20,1')
+    ->name('deverrouillerEcranKiosk.post');
 });

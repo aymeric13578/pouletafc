@@ -114,6 +114,12 @@ Route::post('/commandes/carte/{order}/agent', [\App\Http\Controllers\Admin\Order
 // Classement des agents candidats pour cette commande, calculé à l'ouverture du menu d'attribution.
 Route::get('/commandes/carte/{order}/agents-classes', [\App\Http\Controllers\Admin\OrderMapController::class, 'classerAgents'])->name('orders.map.agents-classes');
 
+/*
+| Sondé par les écrans "mur" (commandes/clando/carte) pendant qu'ils
+| affichent un QR de déverrouillage — voir App\Support\KioskLock.
+*/
+Route::get('/deverrouillage/{token}/statut', [\App\Http\Controllers\Admin\KioskLockController::class, 'statut'])->name('kiosk.status');
+
 Route::get('/download-app', [MobileAppController::class, 'show'])->name('shop.app.show');
 Route::get('/download-app/clando.apk', [MobileAppController::class, 'apk'])->name('shop.app.android.apk');
 

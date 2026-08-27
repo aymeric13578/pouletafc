@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use App\Models\Location;
 use App\Support\LieuDeLivraison;
 use App\Support\AnnulationDeCommande;
+use App\Support\KioskLock;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -59,6 +60,13 @@ class OrderBoardController extends Controller
 
     public function index(Request $request): Response
     {
+        if (! KioskLock::estDeverrouille($request, 'commandes')) {
+            return Inertia::render('Kiosk/Lock', [
+                'page' => 'commandes',
+                'token' => KioskLock::jetonActif('commandes')->token,
+            ]);
+        }
+
         return Inertia::render('Orders/Board', [
             'initial' => $this->payload($request),
         ]);
@@ -71,6 +79,10 @@ class OrderBoardController extends Controller
      */
     public function feed(Request $request): JsonResponse
     {
+        if (! KioskLock::estDeverrouille($request, 'commandes')) {
+            return response()->json(['message' => 'Écran verrouillé'], 403);
+        }
+
         return response()->json($this->payload($request))
             // L'écran reste allumé des jours : un proxy ou le navigateur qui
             // mettrait ce flux en cache figerait le mur sur d'anciennes commandes.
