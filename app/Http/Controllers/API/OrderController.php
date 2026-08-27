@@ -372,7 +372,21 @@ Contact service client : 697 526 980";
         
              $code="";
              $codeLiveur = "en attente";
-             $order = order_detail::where('ref', $request->ref_order)->with('carts.cartItems.product')->with('user')->get();
+             /*
+              | Colonnes explicitement listées sur 'user' : cette route v1.0
+              | n'a aucune authentification (CLAUDE.md règle 8), n'importe qui
+              | connaissant une ref peut l'appeler pour n'importe quelle
+              | commande. Un with('user') sans restriction renvoyait en clair
+              | l'email, la date de naissance, le sexe et la ville du client —
+              | aucun de ces champs n'est affiché par les apps qui lisent
+              | cette réponse (name/last_name/phone/whatsapp seulement, voir
+              | commandOrder.dart côté pouletafc_agent), ils n'ont donc rien à
+              | faire ici.
+              */
+             $order = order_detail::where('ref', $request->ref_order)
+                 ->with('carts.cartItems.product')
+                 ->with(['user' => fn ($q) => $q->select('id', 'name', 'last_name', 'phone', 'whatsapp')])
+                 ->get();
              
 
              if($order[0]->id_agent != null) 

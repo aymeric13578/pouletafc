@@ -164,7 +164,19 @@ class ClandoController extends Controller
       public function getclando(Request $request)
     {
         
-          $order = Clando::where('ref',$request->ref)->with('users')->get();
+          /*
+           | Colonnes explicitement listées : cette route v1.0 n'a aucune
+           | authentification (CLAUDE.md règle 8), n'importe qui connaissant
+           | une ref peut l'appeler pour n'importe quelle course. Un
+           | with('users') sans restriction renvoyait en clair l'email, la
+           | date de naissance, le sexe et la ville du client — aucun de ces
+           | champs n'est affiché par les apps qui lisent cette réponse
+           | (name/last_name/phone/whatsapp seulement, voir commandClando.dart
+           | côté pouletafc_agent), ils n'ont donc rien à faire ici.
+           */
+          $order = Clando::where('ref',$request->ref)
+              ->with(['users' => fn ($q) => $q->select('id', 'name', 'last_name', 'phone', 'whatsapp')])
+              ->get();
           $AgentCoordonate= '';
           $agent = '';
           
