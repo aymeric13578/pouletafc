@@ -7,6 +7,7 @@ use App\Models\order_detail;
 use App\Models\Product;
 use App\Models\Promotion;
 use App\Models\Shop;
+use App\Support\AnnulationDeCommande;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -471,6 +472,68 @@ class MaBoutiqueController extends Controller
         return response()->json([
             'response' => 200,
             'data' => $demandes,
+        ]);
+    }
+
+    /**
+     * Annule une demande de coursier de la boutique de l'appelant.
+     *
+     * Réutilise AnnulationDeCommande::appliquer() — le même mécanisme que le
+     * mur des commandes, la carte des clandos et l'application agent
+     * (AnnulationController), pour que « annulé » ne soit jamais qu'à moitié
+     * vrai selon qui a appuyé sur le bouton. AnnulationController::annuler()
+     * n'est volontairement pas réutilisé tel quel : il retrouve la ligne par
+     * son seul id, sans vérifier qu'elle appartient à l'appelant — ici, la
+     * demande est cherchée directement où('shop_id', $boutique->id), comme
+     * getMyShopDeliveryRequests, pour qu'un marchand ne puisse annuler que ses
+     * propres demandes (l'API v1.0 n'a pas d'authentification, voir
+     * CLAUDE.md règle 8).
+     *
+     * L'agent déjà assigné (id_agent) n'est pas averti par une notification
+     * poussée ici : il le découvre au prochain rafraîchissement de son écran
+     * de course (voir OrderScreenCommand.getOrderInfo côté application agent),
+     * qui interroge déjà getOrder en boucle et lit désormais cancelled_by.
+     */
+    public function cancelMyShopDeliveryRequest(Request $request): JsonResponse
+    {
+        $boutique = $this->boutiqueDe($request->input('id_user'));
+
+        if (! $boutique) {
+            return response()->json(['response' => 404, 'message' => "Aucune boutique n'est rattachée à ce compte."]);
+        }
+
+        $motif = (string) $request->input('reason', $request->input('motif'));
+
+        if (! AnnulationDeCommande::motifValide($motif)) {
+            return response()->json(['response' => 400, 'message' => "Indiquez pourquoi cette livraison est annulée."]);
+        }
+
+        $demande = order_detail::where('id', (int) $request->input('id'))
+            ->where('shop_id', $boutique->id)
+            ->whereNull('id_cart')
+            ->first();
+
+        if (! $demande) {
+            return response()->json(['response' => 404, 'message' => "Cette demande n'appartient pas à votre boutique."]);
+        }
+
+        if (in_array($demande->status, ['Success', 'failed', 'declin'], true)) {
+            return response()->json([
+                'response' => 409,
+                'message' => $demande->status === 'Success'
+                    ? 'Cette livraison a déjà été effectuée, elle ne peut plus être annulée.'
+                    : 'Cette livraison est déjà terminée.',
+            ]);
+        }
+
+        if (! AnnulationDeCommande::appliquer($demande, $motif, 'shop')) {
+            return response()->json(['response' => 400, 'message' => "L'annulation n'a pas pu être enregistrée."]);
+        }
+
+        return response()->json([
+            'response' => 200,
+            'message' => 'Livraison annulée.',
+            'motif' => AnnulationDeCommande::nettoyerLeMotif($motif),
         ]);
     }
 

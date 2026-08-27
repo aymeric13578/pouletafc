@@ -89,6 +89,8 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
     Route::get('getMyShopProducts', 'MaBoutiqueController@getMyShopProducts');
     Route::get('getMyShopOrders', 'MaBoutiqueController@getMyShopOrders');
     Route::get('getMyShopDeliveryRequests', 'MaBoutiqueController@getMyShopDeliveryRequests');
+    Route::get('cancelMyShopDeliveryRequest', 'MaBoutiqueController@cancelMyShopDeliveryRequest');
+    Route::post('cancelMyShopDeliveryRequest', 'MaBoutiqueController@cancelMyShopDeliveryRequest');
     Route::get('getMyShopFinance', 'MaBoutiqueController@getMyShopFinance');
     Route::get('getShopCategories', 'MaBoutiqueController@getCategories');
     // Onglet « Boutiques » de l'application : ces deux routes n'existaient pas,
