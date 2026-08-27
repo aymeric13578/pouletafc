@@ -21,3 +21,6 @@ yarn-error.log
 # Aperçus de partage : fabriqués à la demande depuis les photos du
 # catalogue, et refabriqués si elles changent. Rien à versionner.
 /public/upload/apercus/
+
+# Worktrees isolés pour l'exécution de plans (superpowers:subagent-driven-development).
+/.worktrees/
