@@ -452,8 +452,18 @@ class MaBoutiqueController extends Controller
             return response()->json(['response' => 404, 'data' => []]);
         }
 
+        /*
+         | Pas de filtre sur delivery_type='coursier' : DeliveryRequestScreen
+         | y met en réalité le type de colis choisi par le marchand
+         | ("Document", "Fragile"...), jamais le mot "coursier" — un premier
+         | essai avec ce filtre ne retournait donc jamais rien. Le vrai
+         | discriminant, déjà utilisé par
+         | CoursierController::getPendingCoursierRequests, est l'absence de
+         | panier : une commande boutique classique en a toujours un, une
+         | demande de coursier jamais.
+         */
         $demandes = order_detail::where('shop_id', $boutique->id)
-            ->where('delivery_type', 'coursier')
+            ->whereNull('id_cart')
             ->whereIn('status', ['pending', 'waiting', 'want', 'take', 'process'])
             ->orderByDesc('id')
             ->get(['id', 'ref', 'status', 'price', 'address', 'depart', 'delivery_code', 'created_at']);
