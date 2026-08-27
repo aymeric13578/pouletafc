@@ -457,7 +457,17 @@ new class extends Component {
                                     </button>
                                 </td>
                                 <td class="py-3 px-4">{{ $order->ref }}</td>
-                                <td class="py-3 px-4">{{ $order->payment_method }}</td>
+                                <td class="py-3 px-4">
+                                    @if ($order->payment_method === 'OM')
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">Orange Money</span>
+                                    @elseif ($order->payment_method === 'MOMO')
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">MTN Mobile Money</span>
+                                    @elseif ($order->payment_method === 'LIVRAISON')
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">Cash à la livraison</span>
+                                    @else
+                                        <span class="text-gray-400">—</span>
+                                    @endif
+                                </td>
                                 <td class="py-3 px-4">
                                     <span class="px-2 py-1 text-xs font-semibold rounded-full
                                         {{ $order->status === 'Success' ? 'bg-green-100 text-green-800' :
@@ -737,7 +747,13 @@ new class extends Component {
                                 </div>
                                 <div>
                                     <label class="block text-gray-700 text-sm mb-1">Méthode de Paiement</label>
-                                    <p class="text-sm">{{ $order_details->payment_method ?? 'N/A' }}</p>
+                                    <p class="text-sm">
+                                        @if ($order_details->payment_method === 'OM') Orange Money
+                                        @elseif ($order_details->payment_method === 'MOMO') MTN Mobile Money
+                                        @elseif ($order_details->payment_method === 'LIVRAISON') Cash à la livraison
+                                        @else N/A
+                                        @endif
+                                    </p>
                                 </div>
                                 <div>
                                     <label class="block text-gray-700 text-sm mb-1">Commission Vendeur</label>
