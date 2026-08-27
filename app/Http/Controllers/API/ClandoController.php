@@ -11,6 +11,7 @@ use App\Models\begin_agent_days;
 use App\Models\order_detail;
 use App\Models\Parameter;
 use App\Models\User;
+use App\Support\Idempotence;
 use DB;
 
 class ClandoController extends Controller
@@ -267,7 +268,8 @@ class ClandoController extends Controller
     
      public function takeClandoCommand(Request $request)
     {
-        
+        return Idempotence::executer($request->input('idempotency_key'), 'takeClandoCommand', function () use ($request) {
+
           $order = Clando::where('ref',$request->ref)->first();
           
           
@@ -376,10 +378,11 @@ class ClandoController extends Controller
           
            
          return response()->json(['response' => 404, 'message'=> 'désolé cette commande est déjà prise','retour' => 1 ]);
-        
-        
+
+
+        });
     }
-    
+
     /**
      * Ce qui doit faire sonner le téléphone d'un agent, maintenant.
      *

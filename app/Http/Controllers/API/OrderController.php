@@ -14,6 +14,7 @@ use App\Mail\NotificationMail;
 use App\Models\Clando;
 use App\Models\Agent;
 use App\Models\Parameter;
+use App\Support\Idempotence;
 use DB;
 class OrderController extends Controller
 {
@@ -429,7 +430,8 @@ Contact service client : 697 526 980";
     
      public function takeOrderCommand(Request $request)
     {
-        
+        return Idempotence::executer($request->input('idempotency_key'), 'takeOrderCommand', function () use ($request) {
+
           $order = order_detail::where('ref',$request->ref)->first();
           
         
@@ -517,10 +519,11 @@ Contact service client : 697 526 980";
           
            
          return response()->json(['response' => 404, 'message'=> 'désolé cette commande est déjà prise','retour' => 1 ]);
-        
-        
+
+
+        });
     }
-    
+
     
     
     
