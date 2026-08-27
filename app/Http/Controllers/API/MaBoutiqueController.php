@@ -436,6 +436,35 @@ class MaBoutiqueController extends Controller
     }
 
     /**
+     * Demandes de coursier faites par la boutique de l'appelant, encore en
+     * cours — voir CoursierController::storeDeliveryOrder (shop_id) et
+     * DeliveryRequestScreen côté application, qui soumet ces demandes.
+     *
+     * Distinct de getMyShopOrders : une demande de coursier n'a pas de
+     * panier (id_cart nul), elle n'apparaît donc jamais dans ce chemin-là,
+     * qui ne remonte que via carts.cart_items.product.id_shop.
+     */
+    public function getMyShopDeliveryRequests(Request $request): JsonResponse
+    {
+        $boutique = $this->boutiqueDe($request->input('id_user'));
+
+        if (! $boutique) {
+            return response()->json(['response' => 404, 'data' => []]);
+        }
+
+        $demandes = order_detail::where('shop_id', $boutique->id)
+            ->where('delivery_type', 'coursier')
+            ->whereIn('status', ['pending', 'waiting', 'want', 'take', 'process'])
+            ->orderByDesc('id')
+            ->get(['id', 'ref', 'status', 'price', 'address', 'depart', 'delivery_code', 'created_at']);
+
+        return response()->json([
+            'response' => 200,
+            'data' => $demandes,
+        ]);
+    }
+
+    /**
      * Catégories proposées au marchand quand il crée un produit.
      *
      * id_category est contrôlé à l'enregistrement : sans cette liste,
