@@ -177,8 +177,19 @@ class ClandoController extends Controller
           {
               $agent = DB::table('users')->where('id',$order[0]->id_agent)->get();
           }
-            
-          if($order) return response()->json(['response' => 200, 'data'=>  $order , 'agentCoordonate'=>  $AgentCoordonate ,'agent'=> $agent   ]);
+
+          /*
+           | Même défaut que agent_photo_url côté getOrder : users.photo ne
+           | contient qu'un nom de fichier. L'écran de course affichait déjà
+           | nom/téléphone/immatriculation de l'agent, jamais sa photo faute
+           | d'URL exploitable.
+           */
+          $photoAgentBrut = ($agent !== '' && count($agent) > 0) ? $agent[0]->photo : null;
+          $agentPhotoUrl = $photoAgentBrut
+              ? (str_starts_with($photoAgentBrut, 'http') ? $photoAgentBrut : url('upload/' . $photoAgentBrut))
+              : null;
+
+          if($order) return response()->json(['response' => 200, 'data'=>  $order , 'agentCoordonate'=>  $AgentCoordonate ,'agent'=> $agent, 'agent_photo_url' => $agentPhotoUrl   ]);
         else return response()->json(['response' => 404]);
         
         
