@@ -9,6 +9,7 @@ use App\Models\Location;
 use App\Support\LieuDeLivraison;
 use App\Support\AnnulationDeCommande;
 use App\Support\AttributionAgent;
+use App\Support\KioskLock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -76,6 +77,13 @@ class ClandoBoardController extends Controller
 
     public function index(Request $request): Response
     {
+        if (! KioskLock::estDeverrouille($request, 'clando')) {
+            return Inertia::render('Kiosk/Lock', [
+                'page' => 'clando',
+                'token' => KioskLock::jetonActif('clando')->token,
+            ]);
+        }
+
         return Inertia::render('Clando/Board', [
             'initial' => $this->payload($request),
         ]);

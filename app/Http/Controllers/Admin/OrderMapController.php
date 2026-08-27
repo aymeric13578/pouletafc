@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\order_detail;
 use App\Models\User;
 use App\Support\AttributionAgent;
+use App\Support\KioskLock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -64,6 +65,13 @@ class OrderMapController extends Controller
 
     public function index(Request $request): Response
     {
+        if (! KioskLock::estDeverrouille($request, 'commandes_carte')) {
+            return Inertia::render('Kiosk/Lock', [
+                'page' => 'commandes_carte',
+                'token' => KioskLock::jetonActif('commandes_carte')->token,
+            ]);
+        }
+
         return Inertia::render('Orders/Map', [
             'initial' => $this->payload($request),
         ]);
