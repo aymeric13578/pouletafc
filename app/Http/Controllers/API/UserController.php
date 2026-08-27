@@ -158,6 +158,18 @@ class UserController extends Controller
             if ($u->agent && $u->agent->photo) {
                 $u->agent->photo = url($u->agent->photo);
             }
+
+            /*
+             | users.photo — même défaut que agents.photo ci-dessus, mais pour
+             | le compte lui-même : un gestionnaire (role=employee_afc) n'a
+             | pas de fiche dans `agents` (réservée aux livreurs), donc pas de
+             | agent.photo du tout. C'est users.photo, jusqu'ici jamais
+             | normalisé par cette route, qui est la seule photo disponible
+             | pour ces comptes-là.
+             */
+            if ($u->photo && ! str_starts_with($u->photo, 'http')) {
+                $u->photo = url('upload/' . $u->photo);
+            }
         }
 
         if ($data->isNotEmpty()) {
@@ -535,7 +547,7 @@ class UserController extends Controller
         if (Auth::attempt([$field => $identifier, 'password' => $password])) {
             $seachUser = User::where($field, $identifier)->first();
 
-            if ($seachUser->role !== "agent") {
+            if (! in_array($seachUser->role, ["agent", "admin"], true)) {
                 return response()->json([
                     "response" => 404,
                     "message" => "Désolé vous n'êtes pas un agent",
@@ -620,7 +632,7 @@ class UserController extends Controller
         if (Auth::attempt([$field => $identifier, 'password' => $password])) {
             $seachUser = User::where($field, $identifier)->first();
 
-            if ($seachUser->role !== "employee_afc") {
+            if (! in_array($seachUser->role, ["employee_afc", "admin"], true)) {
                 return response()->json([
                     "response" => 404,
                     "message" => "Désolé vous n'êtes pas un gestionnaire AFC",
