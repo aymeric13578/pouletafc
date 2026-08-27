@@ -115,7 +115,9 @@ Fichier à créer : `app/Models/KioskUnlockToken.php`
 
 - [ ] **Step 4: Vérifier via tinker**
 
-Run: `php artisan tinker --execute="dump(App\Models\KioskUnlockToken::create(['page' => 'commandes', 'token' => Str::random(48), 'expires_at' => now()->addMinutes(10)])->toArray());"`
+Run: `php artisan tinker --execute="dump(App\Models\KioskUnlockToken::create(['page' => 'commandes', 'token' => \Illuminate\Support\Str::random(48), 'expires_at' => now()->addMinutes(10)])->toArray());"`
+
+Note : `Str` doit être qualifié en entier (`\Illuminate\Support\Str`) dans ce contexte `--execute`, qui s'exécute en namespace global sans alias — contrairement à `now()` (helper global) ou `App\Models\...` (déjà qualifié).
 Expected: un tableau affiché avec `page: "commandes"`, un `token` de 48 caractères, `unlocked_at: null`.
 
 - [ ] **Step 5: Commit**
