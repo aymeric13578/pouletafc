@@ -11,6 +11,7 @@ use App\Support\AnnulationDeCommande;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Laravel\Sanctum\PersonalAccessToken;
 
 /**
  * Espace boutique dans l'application, pendant du module « Ma boutique » du
@@ -21,20 +22,32 @@ use Illuminate\Support\Facades\Log;
  * ordinateur. Ces endpoints lui rendent depuis l'application ce qu'il y trouve.
  *
  * Le rattachement passe par shops.id_user, exactement comme sur le tableau de
- * bord. Toutes les requêtes repartent de la boutique de l'appelant plutôt que
- * d'un identifiant transmis : sinon n'importe qui lirait et modifierait la
- * boutique d'un autre en changeant un paramètre.
+ * bord. Toutes les requêtes repartent de la boutique du titulaire du jeton
+ * envoyé, jamais d'un id_user transmis en paramètre : un id_user est un
+ * entier public et devinable, et l'API v1.0 n'a par ailleurs aucune
+ * authentification (CLAUDE.md règle 8) — le faire résoudre directement
+ * permettrait à n'importe qui de lire et modifier la boutique d'un autre en
+ * changeant ce seul paramètre. Le jeton (Sanctum, émis par
+ * UserController::login au moment de la connexion, donc après vérification
+ * du mot de passe) est la seule preuve d'identité que ce contrôleur accepte.
  */
 class MaBoutiqueController extends Controller
 {
-    /** Boutique rattachée à cet utilisateur, ou null. */
-    private function boutiqueDe($idUser): ?Shop
+    /**
+     * Boutique du titulaire du jeton envoyé par l'appelant (champ `token`),
+     * ou null si le jeton est absent/invalide/ne correspond à aucune
+     * boutique. Ignore délibérément tout id_user fourni en paramètre — voir
+     * le docblock de la classe.
+     */
+    private function boutiqueVerifiee(Request $request): ?Shop
     {
-        if (! $idUser) {
+        $jeton = PersonalAccessToken::findToken((string) $request->input('token'));
+
+        if (! $jeton || ! $jeton->tokenable) {
             return null;
         }
 
-        return Shop::where('id_user', $idUser)->first();
+        return Shop::where('id_user', $jeton->tokenable_id)->first();
     }
 
     /**
@@ -43,7 +56,7 @@ class MaBoutiqueController extends Controller
      */
     public function getMyShop(Request $request): JsonResponse
     {
-        $boutique = $this->boutiqueDe($request->input('id_user'));
+        $boutique = $this->boutiqueVerifiee($request);
 
         if (! $boutique) {
             // Réponse normale : la plupart des comptes ne tiennent pas de
@@ -104,7 +117,7 @@ class MaBoutiqueController extends Controller
     {
         $this->exigerReponseJson($request);
 
-        $boutique = $this->boutiqueDe($request->input('id_user'));
+        $boutique = $this->boutiqueVerifiee($request);
 
         if (! $boutique) {
             return response()->json([
@@ -177,7 +190,7 @@ class MaBoutiqueController extends Controller
     /** Produits de la boutique de l'appelant. */
     public function getMyShopProducts(Request $request): JsonResponse
     {
-        $boutique = $this->boutiqueDe($request->input('id_user'));
+        $boutique = $this->boutiqueVerifiee($request);
 
         if (! $boutique) {
             return response()->json(['response' => 404, 'data' => []]);
@@ -215,7 +228,7 @@ class MaBoutiqueController extends Controller
      */
     public function getMyShopOrders(Request $request): JsonResponse
     {
-        $boutique = $this->boutiqueDe($request->input('id_user'));
+        $boutique = $this->boutiqueVerifiee($request);
 
         if (! $boutique) {
             return response()->json(['response' => 404, 'data' => []]);
@@ -259,7 +272,7 @@ class MaBoutiqueController extends Controller
      */
     public function verifiedShopUser(Request $request): JsonResponse
     {
-        $boutique = $this->boutiqueDe($request->input('id_user'));
+        $boutique = $this->boutiqueVerifiee($request);
 
         if (! $boutique) {
             return response()->json([
@@ -356,7 +369,7 @@ class MaBoutiqueController extends Controller
      */
     public function getMyShopFinance(Request $request): JsonResponse
     {
-        $boutique = $this->boutiqueDe($request->input('id_user'));
+        $boutique = $this->boutiqueVerifiee($request);
 
         if (! $boutique) {
             return response()->json(['response' => 404, 'data' => null]);
@@ -447,7 +460,7 @@ class MaBoutiqueController extends Controller
      */
     public function getMyShopDeliveryRequests(Request $request): JsonResponse
     {
-        $boutique = $this->boutiqueDe($request->input('id_user'));
+        $boutique = $this->boutiqueVerifiee($request);
 
         if (! $boutique) {
             return response()->json(['response' => 404, 'data' => []]);
@@ -496,7 +509,7 @@ class MaBoutiqueController extends Controller
      */
     public function cancelMyShopDeliveryRequest(Request $request): JsonResponse
     {
-        $boutique = $this->boutiqueDe($request->input('id_user'));
+        $boutique = $this->boutiqueVerifiee($request);
 
         if (! $boutique) {
             return response()->json(['response' => 404, 'message' => "Aucune boutique n'est rattachée à ce compte."]);
@@ -564,7 +577,7 @@ class MaBoutiqueController extends Controller
     {
         $this->exigerReponseJson($request);
 
-        $boutique = $this->boutiqueDe($request->input('id_user'));
+        $boutique = $this->boutiqueVerifiee($request);
 
         if (! $boutique) {
             return response()->json([
@@ -649,7 +662,7 @@ class MaBoutiqueController extends Controller
      */
     public function getMyShopPromotions(Request $request): JsonResponse
     {
-        $boutique = $this->boutiqueDe($request->input('id_user'));
+        $boutique = $this->boutiqueVerifiee($request);
 
         if (! $boutique) {
             return response()->json(['response' => 404, 'data' => []]);
@@ -692,7 +705,7 @@ class MaBoutiqueController extends Controller
     {
         $this->exigerReponseJson($request);
 
-        $boutique = $this->boutiqueDe($request->input('id_user'));
+        $boutique = $this->boutiqueVerifiee($request);
 
         if (! $boutique) {
             return response()->json([
@@ -765,7 +778,7 @@ class MaBoutiqueController extends Controller
     /** Retire une promotion de la boutique de l'appelant. */
     public function deleteMyShopPromotion(Request $request): JsonResponse
     {
-        $boutique = $this->boutiqueDe($request->input('id_user'));
+        $boutique = $this->boutiqueVerifiee($request);
 
         if (! $boutique) {
             return response()->json([

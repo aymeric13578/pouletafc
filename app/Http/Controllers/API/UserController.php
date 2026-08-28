@@ -518,10 +518,22 @@ class UserController extends Controller
         if (Auth::attempt([$field => $identifier, 'password' => $password, 'status' => "Success"])) {
             $seachUser = User::where($field, $identifier)->first();
 
+            /*
+             | Jeton Sanctum (le modèle User utilise déjà HasApiTokens) — sert
+             | à prouver, sur les endpoints « Ma boutique », que l'appelant est
+             | bien ce compte plutôt qu'un id_user arbitraire fourni en
+             | paramètre (voir App\Http\Controllers\API\MaBoutiqueController).
+             | N'affecte aucun autre endpoint v1.0, qui continuent de
+             | fonctionner sans authentification comme avant (CLAUDE.md règle
+             | 8).
+             */
+            $token = $seachUser->createToken('client-mobile')->plainTextToken;
+
             return response()->json([
                 "response" => 200,
                 "message" => "Connexion établie avec succès",
-                "data" => $seachUser
+                "data" => $seachUser,
+                "token" => $token,
             ]);
         }
 
