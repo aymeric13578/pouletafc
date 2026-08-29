@@ -521,31 +521,14 @@ class ClandoController extends Controller
 
     }
 
-    /*
-     | L'agent a-t-il une vague ouverte (visible_at <= maintenant) pour cette
-     | course ? En panne (ex. souci ponctuel sur course_offer_waves), on
-     | considère la course visible plutôt que de faire échouer tout
-     | getActiveCommand — un agent en service ne doit jamais se retrouver
-     | sans aucune commande à cause d'un incident sur ce seul contrôle
-     | annexe, constaté en production le 2026-08-29.
-     */
+    /** L'agent a-t-il une vague ouverte (visible_at <= maintenant) pour cette course ? */
     private function visiblePourAgent(int $idUser, string $colonne, int $idCible): bool
     {
-        try {
-            return DB::table('course_offer_waves')
-                ->where('id_user', $idUser)
-                ->where($colonne, $idCible)
-                ->where('visible_at', '<=', now())
-                ->exists();
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('visiblePourAgent en échec', [
-                'id_user' => $idUser,
-                'colonne' => $colonne,
-                'id_cible' => $idCible,
-                'erreur' => $e->getMessage(),
-            ]);
-            return true;
-        }
+        return DB::table('course_offer_waves')
+            ->where('id_user', $idUser)
+            ->where($colonne, $idCible)
+            ->where('visible_at', '<=', now())
+            ->exists();
     }
 
 
