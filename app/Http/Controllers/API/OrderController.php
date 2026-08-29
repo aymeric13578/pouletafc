@@ -1112,8 +1112,13 @@ Contact service client : 697 526 980";
     
       public function getCommandAgent(Request $request)
         {
-            $order = order_detail::where('id_agent',$request->id_user)->where('status',"!=","Success")->get();
-            
+            // N'excluait que 'Success' : une commande annulée ('failed') ou
+            // refusée ('declin') restait "active" pour toujours du point de
+            // vue de ce endpoint — c'est lui qu'interroge le bandeau "Course
+            // en cours" de l'app agent (active_command_banner.dart), qui
+            // continuait donc à s'afficher indéfiniment après une annulation.
+            $order = order_detail::where('id_agent',$request->id_user)->whereNotIn('status', ['Success', 'failed', 'declin'])->get();
+
         if($order) return response()->json(['response' => 200, 'data'=>  $order ]);
         else return response()->json(['response' => 404]);
         }

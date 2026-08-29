@@ -130,7 +130,11 @@ class ClandoController extends Controller
     
         public function getClandoAgent(Request $request)
         {
-            $order = Clando::where('id_agent',$request->id_user)->where('status',"!=","Success")->get();
+            // Même correctif que getCommandAgent (OrderController) : n'excluait
+            // que 'Success', donc une course annulée ('failed') restait
+            // "active" pour toujours pour le bandeau "Course en cours" de
+            // l'app agent (active_command_banner.dart).
+            $order = Clando::where('id_agent',$request->id_user)->whereNotIn('status', ['Success', 'failed', 'declin'])->get();
 
         if($order) return response()->json(['response' => 200, 'data'=>  $order ]);
         else return response()->json(['response' => 404]);
