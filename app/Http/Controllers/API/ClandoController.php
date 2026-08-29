@@ -687,6 +687,32 @@ class ClandoController extends Controller
         return response()->json(['response' => 200]);
     }
 
+    /*
+     | Même besoin que OrderController::setPaymentMethodOrder : signal
+     | séparé de l'arrivée, envoyé quand l'agent choisit Orange Money dans
+     | TerminerPaymentSheet (partagée entre Order et Clando), pour que le
+     | client sache exactement quand ouvrir son écran de paiement — pas dès
+     | l'arrivée, qui ne présume rien du mode de règlement final.
+     */
+    public function setPaymentMethodClando(Request $request)
+    {
+        if (! in_array($request->payment_method, ['LIVRAISON', 'OM'], true)) {
+            return response()->json(['response' => 400, 'message' => 'Mode de paiement invalide']);
+        }
+
+        $clando = Clando::where('ref', $request->ref)
+            ->where('id_agent', $request->id_user)
+            ->first();
+
+        if (! $clando) {
+            return response()->json(['response' => 400, 'message' => 'Course introuvable']);
+        }
+
+        $clando->update(['payment_method' => $request->payment_method]);
+
+        return response()->json(['response' => 200]);
+    }
+
        public function terminatedCourse(Request $request)
     {
          $clando = Clando::where('ref',$request->ref)->first();

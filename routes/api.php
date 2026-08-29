@@ -317,6 +317,8 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
 
             Route::get('arriveeClando', 'ClandoController@arriveeAgent');
             Route::post('arriveeClando', 'ClandoController@arriveeAgent');
+            Route::get('setPaymentMethodClando', 'ClandoController@setPaymentMethodClando');
+            Route::post('setPaymentMethodClando', 'ClandoController@setPaymentMethodClando');
 
             Route::get('addClandoStop', 'ClandoController@addClandoStop');
             Route::post('addClandoStop', 'ClandoController@addClandoStop');
@@ -462,6 +464,8 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
             Route::post('terminatedCourseOrder', 'OrderController@terminatedCourseOrder');
             Route::get('arriveeOrder', 'OrderController@arriveeAgentOrder');
             Route::post('arriveeOrder', 'OrderController@arriveeAgentOrder');
+            Route::get('setPaymentMethodOrder', 'OrderController@setPaymentMethodOrder');
+            Route::post('setPaymentMethodOrder', 'OrderController@setPaymentMethodOrder');
   
          Route::post('mapAftertakeOrder', 'OrderController@mapAftertakeOrder');
           Route::get('mapAftertakeOrder', 'OrderController@mapAftertakeOrder');

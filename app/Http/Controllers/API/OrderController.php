@@ -943,6 +943,33 @@ Contact service client : 697 526 980";
         return response()->json(['response' => 200]);
     }
 
+    /*
+     | Signal séparé de l'arrivée : appelé quand l'agent confirme le mode de
+     | règlement dans TerminerPaymentSheet, avant même le code de livraison.
+     | Sans lui, le client ne savait que le paiement final (LIVRAISON/OM)
+     | qu'au moment de terminatedCourseOrder — trop tard pour lui afficher le
+     | popup Orange Money au bon moment, et il le voyait dès l'arrivée même
+     | quand l'agent choisissait finalement les espèces.
+     */
+    public function setPaymentMethodOrder(Request $request)
+    {
+        if (! in_array($request->payment_method, ['LIVRAISON', 'OM'], true)) {
+            return response()->json(['response' => 400, 'message' => 'Mode de paiement invalide']);
+        }
+
+        $order = order_detail::where('ref', $request->ref)
+            ->where('id_agent', $request->id_user)
+            ->first();
+
+        if (! $order) {
+            return response()->json(['response' => 400, 'message' => 'Commande introuvable']);
+        }
+
+        $order->update(['payment_method' => $request->payment_method]);
+
+        return response()->json(['response' => 200]);
+    }
+
        public function terminatedCourseOrder(Request $request)
     {
         
