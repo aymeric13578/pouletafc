@@ -116,8 +116,18 @@ new class extends Component {
         ];
 
         if ($this->image) {
-            $path = $this->image->store('upload', 'public');
-            $data['image'] = Storage::url($path);
+            // Disque "uploads" (public_path('upload') direct, voir
+            // config/filesystems.php) plutôt que le disque "public" par
+            // défaut : ce dernier exige le lien symbolique storage:link
+            // pour être servi publiquement, absent sur ce serveur — les
+            // images enregistrées via Storage::url() ne s'affichaient
+            // jamais côté app. Même convention que products.blade.php,
+            // qui fonctionne. ->extension() (déduite du contenu réel du
+            // fichier, pas du nom fourni par le client) comme sur
+            // agents.blade.php, pour la même raison de sécurité.
+            $nom = hexdec(uniqid()) . '.' . $this->image->extension();
+            $this->image->storeAs('', $nom, 'uploads');
+            $data['image'] = asset('upload/' . $nom);
         } elseif ($this->editMode && $this->existing_image) {
             $data['image'] = $this->existing_image;
         }
@@ -137,11 +147,32 @@ new class extends Component {
     public function deleteArticle($id)
     {
         $article = Article::findOrFail($id);
-        if ($article->image && !str_starts_with($article->image, 'https://')) {
-            Storage::disk('public')->delete(str_replace(Storage::url(''), '', $article->image));
-        }
+        $this->deleteStoredImage($article->image);
         $article->delete();
         $this->dispatch('notify', ['message' => 'Article supprimé avec succès !', 'type' => 'success']);
+    }
+
+    /**
+     * Supprime le fichier correspondant à une URL enregistrée en base — même
+     * logique que products.blade.php, adaptée au disque "uploads".
+     */
+    protected function deleteStoredImage(?string $url): void
+    {
+        if (! $url) {
+            return;
+        }
+
+        $path = ltrim(parse_url($url, PHP_URL_PATH) ?: $url, '/');
+
+        if (! str_starts_with($path, 'upload/')) {
+            return;
+        }
+
+        $full = public_path($path);
+
+        if (is_file($full)) {
+            @unlink($full);
+        }
     }
 };
 ?>

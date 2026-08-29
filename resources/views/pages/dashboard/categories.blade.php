@@ -98,8 +98,14 @@ new class extends Component {
         ];
 
         if ($this->image) {
-            $path = $this->image->store('upload', 'public');
-            $data['image'] = Storage::url($path);
+            // Disque "uploads" (public_path('upload') direct) plutôt que le
+            // disque "public" par défaut, qui exige storage:link — absent
+            // sur ce serveur, ce qui empêchait ces images de s'afficher.
+            // Même convention que products.blade.php ; ->extension() pour
+            // la même raison de sécurité que agents.blade.php.
+            $nom = hexdec(uniqid()) . '.' . $this->image->extension();
+            $this->image->storeAs('', $nom, 'uploads');
+            $data['image'] = asset('upload/' . $nom);
         } elseif ($this->editMode && !$this->image && $this->existing_image) {
             $data['image'] = $this->existing_image;
         }
@@ -120,11 +126,32 @@ new class extends Component {
     public function deleteCategory($id)
     {
         $category = Category::findOrFail($id);
-        if ($category->image) {
-            Storage::disk('public')->delete(str_replace(Storage::url(''), '', $category->image));
-        }
+        $this->deleteStoredImage($category->image);
         $category->delete();
         $this->dispatch('notify', ['message' => 'Catégorie supprimée avec succès !', 'type' => 'success']);
+    }
+
+    /**
+     * Supprime le fichier correspondant à une URL enregistrée en base — même
+     * logique que products.blade.php, adaptée au disque "uploads".
+     */
+    protected function deleteStoredImage(?string $url): void
+    {
+        if (! $url) {
+            return;
+        }
+
+        $path = ltrim(parse_url($url, PHP_URL_PATH) ?: $url, '/');
+
+        if (! str_starts_with($path, 'upload/')) {
+            return;
+        }
+
+        $full = public_path($path);
+
+        if (is_file($full)) {
+            @unlink($full);
+        }
     }
 
     public function openImagePopup($imageUrl)
