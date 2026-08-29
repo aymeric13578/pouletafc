@@ -24,8 +24,14 @@ class RouteServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Relevé de 60 à 100/min (2026-08-29) : un seul appareil actif sur
+        // plouletafcapp cumule plusieurs sondages simultanés (suivi
+        // commande/agent 3s, suivi livraison 15s, historique 15s...) et
+        // dépassait facilement 60/min à lui seul, provoquant des 429 sur des
+        // écrans sans rapport (produits, boutiques). Clé par IP faute
+        // d'authentification sur l'API v1.0 (CLAUDE.md règle 8).
         RateLimiter::for('api', function (Request $request) {
-            return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+            return Limit::perMinute(100)->by($request->user()?->id ?: $request->ip());
         });
 
         $this->routes(function () {

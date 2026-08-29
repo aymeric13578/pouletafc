@@ -849,18 +849,30 @@ Contact service client : 697 526 980";
     
     public function insertPosition(Request $request)
     {
-        
-         $order = User::where('id', $request->id_user)->update(
-            [
-                
-              'latitude' => $request->latitude,
-              'longitude'=> $request->longitude,
-                
-                ] );
+        // Endpoint v1.0 sans authentification (comme le reste de cette API) :
+        // n'importe qui connaissant un id_user peut appeler cette route. La
+        // validation ci-dessous ne vérifie pas la propriété du compte (hors
+        // de portée sans revoir l'auth de toute l'API), elle empêche
+        // seulement l'écriture de coordonnées absurdes/malformées qui
+        // casseraient le calcul d'itinéraire côté agent.
+        if (! is_numeric($request->id_user)) {
+            return response()->json(['response' => 400, 'message' => 'id_user invalide']);
+        }
 
-        
-        
-           if($order) return response()->json(['response' => 200]);
+        $latitude = $request->latitude;
+        $longitude = $request->longitude;
+        if (! is_numeric($latitude) || ! is_numeric($longitude)
+            || $latitude < -90 || $latitude > 90
+            || $longitude < -180 || $longitude > 180) {
+            return response()->json(['response' => 400, 'message' => 'Coordonnées invalides']);
+        }
+
+        $order = User::where('id', $request->id_user)->update([
+            'latitude' => $latitude,
+            'longitude' => $longitude,
+        ]);
+
+        if ($order) return response()->json(['response' => 200]);
         else return response()->json(['response' => 404]);
         
     }
