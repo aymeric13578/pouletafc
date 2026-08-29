@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Clando;
 use App\Models\order_detail;
 use App\Support\AnnulationDeCommande;
+use App\Support\ColonnesDisponibles;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -159,23 +161,16 @@ class AnnulationController extends Controller
 
         $depuis = now()->subMinutes(10);
 
-        $course = Clando::where('id_agent', $idAgent)
-            ->where('status', AnnulationDeCommande::STATUT)
-            ->whereNotNull('cancelled_by')
-            ->where('cancelled_at', '>=', $depuis)
-            ->latest('cancelled_at')
-            ->first();
+        $course = self::dernierAnnuleePour(Clando::query(), $idAgent, $depuis);
+        $commande = self::dernierAnnuleePour(order_detail::query(), $idAgent, $depuis);
 
-        $commande = order_detail::where('id_agent', $idAgent)
-            ->where('status', AnnulationDeCommande::STATUT)
-            ->whereNotNull('cancelled_by')
-            ->where('cancelled_at', '>=', $depuis)
-            ->latest('cancelled_at')
-            ->first();
+        $champDate = fn ($ligne) => ColonnesDisponibles::existe($ligne->getTable(), 'cancelled_at')
+            ? $ligne->cancelled_at
+            : $ligne->updated_at;
 
         $ligne = collect([$course, $commande])
             ->filter()
-            ->sortByDesc('cancelled_at')
+            ->sortByDesc($champDate)
             ->first();
 
         if (! $ligne) {
@@ -188,11 +183,38 @@ class AnnulationController extends Controller
                 'type' => $ligne instanceof Clando ? 'clando' : 'order',
                 'id' => $ligne->id,
                 'ref' => $ligne->ref,
-                'cancel_reason' => $ligne->cancel_reason,
-                'cancelled_by' => $ligne->cancelled_by,
-                'cancelled_at' => $ligne->cancelled_at,
+                'cancel_reason' => $ligne->cancel_reason ?? null,
+                'cancelled_by' => $ligne->cancelled_by ?? null,
+                'cancelled_at' => $champDate($ligne),
             ],
         ]);
+    }
+
+    /**
+     * Dernière ligne annulée pour cet agent — sans jamais filtrer sur une
+     * colonne absente de la table.
+     *
+     * La migration qui ajoute cancel_reason/cancelled_at/cancelled_by
+     * (2026_08_17_000002) est défensive côté schéma (elle ne crée que ce qui
+     * manque), mais rien ne garantit qu'elle ait été exécutée sur toutes les
+     * tables de production ("créées à la main" — voir son propre
+     * commentaire) : filtrer directement sur ces colonnes ferait échouer la
+     * requête elle-même (erreur SQL, pas juste zéro résultat) là où elles
+     * n'existent pas encore. Repli sur updated_at, sans motif/auteur, plutôt
+     * que de ne rien détecter du tout.
+     */
+    private static function dernierAnnuleePour(Builder $requete, $idAgent, \DateTimeInterface $depuis)
+    {
+        $table = $requete->getModel()->getTable();
+        $requete->where('id_agent', $idAgent)->where('status', AnnulationDeCommande::STATUT);
+
+        if (ColonnesDisponibles::existe($table, 'cancelled_at')) {
+            $requete->where('cancelled_at', '>=', $depuis)->latest('cancelled_at');
+        } else {
+            $requete->where('updated_at', '>=', $depuis)->latest('updated_at');
+        }
+
+        return $requete->first();
     }
 
     /**
