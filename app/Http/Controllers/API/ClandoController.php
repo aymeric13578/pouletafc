@@ -202,13 +202,8 @@ class ClandoController extends Controller
           $photoAgentBrut = $order[0]->id_agent != null
               ? Agent::where('id_user', $order[0]->id_agent)->value('photo')
               : null;
-          // agents.photo est déjà stocké avec son préfixe 'upload/' (voir
-          // agents.blade.php, écriture à l'upload) — préfixer une deuxième
-          // fois produisait une URL invalide en upload/upload/.
           $agentPhotoUrl = $photoAgentBrut
-              ? (str_starts_with($photoAgentBrut, 'http') || str_starts_with($photoAgentBrut, 'upload/')
-                  ? url($photoAgentBrut)
-                  : url('upload/' . $photoAgentBrut))
+              ? (str_starts_with($photoAgentBrut, 'http') ? $photoAgentBrut : url('upload/' . $photoAgentBrut))
               : null;
 
           if($order) return response()->json(['response' => 200, 'data'=>  $order , 'agentCoordonate'=>  $AgentCoordonate ,'agent'=> $agent, 'agent_photo_url' => $agentPhotoUrl   ]);

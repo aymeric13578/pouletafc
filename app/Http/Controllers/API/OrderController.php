@@ -423,14 +423,8 @@ Contact service client : 697 526 980";
                  'code_agent'=>$codeLiveur,
                  'info_agent'=>$code,
                  'image_url' => $colis && $colis->image ? url('upload/' . $colis->image) : null,
-                 // agents.photo est déjà stocké avec son préfixe 'upload/'
-                 // (voir agents.blade.php, écriture à l'upload) — préfixer
-                 // une deuxième fois produisait une URL invalide en
-                 // upload/upload/.
                  'agent_photo_url' => $photoAgent
-                     ? (str_starts_with($photoAgent, 'http') || str_starts_with($photoAgent, 'upload/')
-                         ? url($photoAgent)
-                         : url('upload/' . $photoAgent))
+                     ? (str_starts_with($photoAgent, 'http') ? $photoAgent : url('upload/' . $photoAgent))
                      : null,
              ]);
              else return response()->json(['response' => 404]);
