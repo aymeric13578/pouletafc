@@ -294,6 +294,8 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
     Route::get('motifsAnnulation', 'AnnulationController@motifs');
     Route::get('eligibiliteAnnulation', 'AnnulationController@eligibilite');
     Route::post('eligibiliteAnnulation', 'AnnulationController@eligibilite');
+    Route::get('annulationRecente', 'AnnulationController@annulationRecente');
+    Route::post('annulationRecente', 'AnnulationController@annulationRecente');
 
         Route::post('getActiveCommand', 'ClandoController@getActiveCommand');
         Route::get('getActiveCommand', 'ClandoController@getActiveCommand');

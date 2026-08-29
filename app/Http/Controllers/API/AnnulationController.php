@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Clando;
+use App\Models\order_detail;
 use App\Support\AnnulationDeCommande;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -129,6 +131,67 @@ class AnnulationController extends Controller
             'response' => 200,
             'message' => 'Annulation enregistrée.',
             'motif' => AnnulationDeCommande::nettoyerLeMotif($motif),
+        ]);
+    }
+
+    /**
+     * Annulation la plus récente touchant une course/commande de cet agent.
+     *
+     * VeilleDisponibilite/le minuteur de commandOrder.dart ne détectent une
+     * annulation que pendant que l'écran concerné est ouvert — un agent qui
+     * a déjà quitté l'écran de suivi (retour à l'accueil, à l'historique...)
+     * ne sait plus qu'une course qu'il pensait toujours en cours a été
+     * annulée entre-temps, par exemple par la boutique
+     * (MaBoutiqueController::cancelMyShopDeliveryRequest). Le service de
+     * fond (order_background_service.dart, sondage 5s, indépendant de
+     * l'écran affiché) interroge cette route pour le signaler malgré tout.
+     *
+     * Fenêtre de 10 minutes : au-delà, l'agent l'aura de toute façon vue en
+     * rouvrant l'écran ou l'app — pas besoin de la resignaler indéfiniment.
+     */
+    public function annulationRecente(Request $request): JsonResponse
+    {
+        $idAgent = $request->input('id_agent');
+
+        if (! $idAgent) {
+            return response()->json(['response' => 400, 'data' => null]);
+        }
+
+        $depuis = now()->subMinutes(10);
+
+        $course = Clando::where('id_agent', $idAgent)
+            ->where('status', AnnulationDeCommande::STATUT)
+            ->whereNotNull('cancelled_by')
+            ->where('cancelled_at', '>=', $depuis)
+            ->latest('cancelled_at')
+            ->first();
+
+        $commande = order_detail::where('id_agent', $idAgent)
+            ->where('status', AnnulationDeCommande::STATUT)
+            ->whereNotNull('cancelled_by')
+            ->where('cancelled_at', '>=', $depuis)
+            ->latest('cancelled_at')
+            ->first();
+
+        $ligne = collect([$course, $commande])
+            ->filter()
+            ->sortByDesc('cancelled_at')
+            ->first();
+
+        if (! $ligne) {
+            return response()->json(['response' => 200, 'data' => null]);
+        }
+
+        return response()->json([
+            'response' => 200,
+            'data' => [
+                'type' => $ligne instanceof Clando ? 'clando' : 'order',
+                'id' => $ligne->id,
+                'ref' => $ligne->ref,
+                'cancel_reason' => $ligne->cancel_reason,
+                'cancelled_by' => $ligne->cancelled_by,
+                'cancelled_at' => $ligne->cancelled_at,
+            ],
         ]);
     }
 
