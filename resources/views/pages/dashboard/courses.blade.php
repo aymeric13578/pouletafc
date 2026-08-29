@@ -90,15 +90,22 @@ new class extends Component {
 
     public function getStatsProperty(): array
     {
-        $notes = Note::whereIn('id_order', $this->requeteDeBase()->select('id'))->pluck('note')->countBy()->toArray();
-        $bilan = NotationAgent::bilan($notes);
+        // NotationAgent::bilan() ne renvoie plus 'sur_cinq' (métrique naïve
+        // retirée, voir NoteController::getAgentNote) : cette page plantait
+        // en 500 sur une clé de tableau inexistante. Moyenne des étoiles
+        // (même barème que NotationAgent::ETOILES) calculée directement ici,
+        // plutôt que de dépendre d'un bilan pensé pour un seul agent.
+        $etoiles = Note::whereIn('id_order', $this->requeteDeBase()->select('id'))
+            ->pluck('note')
+            ->map(fn ($note) => NotationAgent::ETOILES[$note] ?? null)
+            ->filter();
 
         return [
             'total' => $this->requeteDeBase()->count(),
             'en_cours' => $this->requeteDeBase()->whereIn('status', ['pending', 'waiting', 'want', 'take', 'process'])->count(),
             'livrees' => $this->requeteDeBase()->where('status', 'Success')->count(),
-            'note' => $bilan['sur_cinq'],
-            'notees' => $bilan['nombre'],
+            'note' => $etoiles->isEmpty() ? null : round($etoiles->avg(), 1),
+            'notees' => $etoiles->count(),
         ];
     }
 
