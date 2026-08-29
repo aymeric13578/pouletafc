@@ -406,12 +406,16 @@ Contact service client : 697 526 980";
              $colis = $order->isNotEmpty() ? $order[0] : null;
 
              /*
-              | Même défaut que « image » du colis ci-dessus : users.photo ne
-              | contient qu'un nom de fichier. L'écran de suivi du client
-              | affiche le nom/téléphone de l'agent une fois la commande
-              | acceptée, mais jamais sa photo faute d'URL exploitable.
+              | La photo de profil d'un agent est saisie côté dashboard
+              | (agents.blade.php) et stockée sur agents.photo, PAS
+              | users.photo (colonne jamais renseignée pour un agent) — lire
+              | cette dernière renvoyait toujours null à l'app cliente même
+              | quand une photo existait bel et bien en base. Même défaut
+              | corrigé côté ClandoController::getclando.
               */
-             $photoAgent = $code && $code->isNotEmpty() ? $code[0]->photo : null;
+             $photoAgent = $order[0]->id_agent != null
+                 ? Agent::where('id_user', $order[0]->id_agent)->value('photo')
+                 : null;
 
              if($order) return response()->json([
                  'response' => 200,

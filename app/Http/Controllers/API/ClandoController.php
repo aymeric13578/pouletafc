@@ -192,12 +192,16 @@ class ClandoController extends Controller
           }
 
           /*
-           | Même défaut que agent_photo_url côté getOrder : users.photo ne
-           | contient qu'un nom de fichier. L'écran de course affichait déjà
-           | nom/téléphone/immatriculation de l'agent, jamais sa photo faute
-           | d'URL exploitable.
+           | La photo de profil d'un agent est saisie côté dashboard
+           | (agents.blade.php) et stockée sur agents.photo, PAS
+           | users.photo (colonne jamais renseignée pour un agent) — lire
+           | cette dernière renvoyait toujours null à l'app cliente même
+           | quand une photo existait bel et bien en base. Même défaut
+           | corrigé côté OrderController::getOrder.
            */
-          $photoAgentBrut = ($agent !== '' && count($agent) > 0) ? $agent[0]->photo : null;
+          $photoAgentBrut = $order[0]->id_agent != null
+              ? Agent::where('id_user', $order[0]->id_agent)->value('photo')
+              : null;
           $agentPhotoUrl = $photoAgentBrut
               ? (str_starts_with($photoAgentBrut, 'http') ? $photoAgentBrut : url('upload/' . $photoAgentBrut))
               : null;
