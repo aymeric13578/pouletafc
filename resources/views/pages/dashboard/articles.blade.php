@@ -1,12 +1,15 @@
 <?php
 use function Laravel\Folio\{name};
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 use App\Models\Article;
 use Illuminate\Support\Facades\Storage;
 
 name('dashboard.articles');
 
 new class extends Component {
+    use WithFileUploads;
+
     public $search = '';
     public $showModal = false;
     public $showImagePopup = false;

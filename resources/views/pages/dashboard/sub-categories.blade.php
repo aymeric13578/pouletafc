@@ -1,6 +1,7 @@
 <?php
 use function Laravel\Folio\{name};
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 use App\Models\SubCategory;
 use App\Models\Category;
 use App\Models\Product;
@@ -10,6 +11,8 @@ use Illuminate\Support\Str;
 name('dashboard.sub-categories');
 
 new class extends Component {
+    use WithFileUploads;
+
     public $search = '';
     public $showModal = false;
     public $editMode = false;
