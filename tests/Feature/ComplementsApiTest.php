@@ -27,6 +27,9 @@ class ComplementsApiTest extends TestCase
         $produit = Product::create([
             'name' => $nom, 'price' => $prix, 'stock_init' => 10,
             'status' => 'Success', 'is_complement' => $complement,
+            // 'products.description' est NOT NULL sans défaut ; creerComplement()
+            // le sait déjà et retombe sur le nom (voir complements.blade.php).
+            'description' => $nom,
         ]);
 
         $this->produits[] = $produit->id;
@@ -122,6 +125,29 @@ class ComplementsApiTest extends TestCase
         $data = $this->getJson('/api/v1.0/getCartComplements?id_user=' . $this->client->id)
             ->assertOk()
             ->json('data');
+
+        $this->assertTrue($data['demander']);
+        $this->assertTrue($data['tous_en_proposent']);
+        $this->assertCount(2, $data['complements'], 'Les frites communes ne doivent apparaître qu\'une fois.');
+    }
+
+    /**
+     * Panier local (plouletafcapp) : plus de Cart/CartItem serveur avant
+     * validerPanier, donc les ids du panier sont transmis directement.
+     */
+    public function test_le_panier_local_propose_une_liste_unique(): void
+    {
+        $poulet = $this->produit('Poulet', 3000);
+        $poisson = $this->produit('Poisson', 3500);
+        $frites = $this->produit('Frites', 1000, complement: true);
+        $salade = $this->produit('Salade', 800, complement: true);
+
+        $poulet->complements()->attach([$frites->id, $salade->id]);
+        $poisson->complements()->attach([$frites->id]);
+
+        $data = $this->getJson(
+            '/api/v1.0/getCartComplements?product_ids=' . $poulet->id . ',' . $poisson->id
+        )->assertOk()->json('data');
 
         $this->assertTrue($data['demander']);
         $this->assertTrue($data['tous_en_proposent']);

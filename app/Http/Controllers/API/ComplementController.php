@@ -52,9 +52,27 @@ class ComplementController extends Controller
      * Appelé avant la validation : la liste est l'union sans doublon des
      * compléments de tous les produits du panier. Deux plats accompagnés des
      * mêmes frites ne doivent pas les faire apparaître deux fois.
+     *
+     * `product_ids` (liste d'ids séparés par des virgules) est le chemin
+     * attendu depuis le panier local de plouletafcapp (LocalCartService) :
+     * depuis son passage en panier 100% local, plus aucun Cart/CartItem
+     * serveur n'existe avant validerPanier, donc plus rien à lire côté
+     * `panierDe()`. Le repli sur l'ancien Cart serveur reste en place pour
+     * un éventuel appelant qui en dépendrait encore.
      */
     public function getCartComplements(Request $request): JsonResponse
     {
+        if ($request->filled('product_ids')) {
+            $ids = collect(explode(',', (string) $request->input('product_ids')))
+                ->map(fn ($id) => (int) trim($id))
+                ->filter();
+
+            return response()->json([
+                'response' => 200,
+                'data' => $this->regle->charge($ids),
+            ]);
+        }
+
         $panier = $this->panierDe($request);
 
         if (! $panier) {
