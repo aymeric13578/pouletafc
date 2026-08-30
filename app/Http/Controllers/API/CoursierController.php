@@ -44,6 +44,9 @@ class CoursierController extends Controller
             'price' => ['required', 'numeric', 'min:1'],
             'delivery_fees' => ['nullable', 'numeric', 'min:0'],
             'phone_customer' => ['nullable', 'string', 'max:20'],
+            // Nom du destinataire, désormais dans son propre champ plutôt
+            // qu'enfoui dans le texte libre `note`.
+            'name_customer' => ['nullable', 'string', 'max:255'],
             'delivery_type' => ['nullable', 'string', 'max:255'],
             'payment_method' => ['nullable', 'string', 'max:255'],
             'note' => ['nullable', 'string'],
@@ -84,6 +87,7 @@ class CoursierController extends Controller
                 'address' => $valide['address'],
 
                 'phone_customer' => $this->numeroEntier($valide['phone_customer'] ?? null),
+                'name_customer' => $valide['name_customer'] ?? null,
                 'delivery_type' => $valide['delivery_type'] ?? 'coursier',
                 /*
                  | payment_method est un enum('LIVRAISON','MOMO','OM') et non un

@@ -106,4 +106,62 @@ class Shop extends Model
             && $heure <= ($horaire['closes_at'] ?? '23:59');
     }
 
+    /**
+     * Description humaine du prochain horaire d'ouverture, utilisée dans le
+     * message d'erreur affiché au client quand la boutique est fermée à la
+     * validation du panier (voir PanierValideController). Ne doit être
+     * appelée que si estOuverteMaintenant() est déjà false — une boutique
+     * sans horaire renseigné est toujours ouverte (voir ci-dessus) et n'a
+     * donc pas de "prochaine ouverture" à annoncer.
+     */
+    public function prochaineOuverture(): ?string
+    {
+        if (empty($this->opening_hours)) {
+            return null;
+        }
+
+        $maintenant = now()->setTimezone('Africa/Douala');
+        $jours = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+
+        // Encore aujourd'hui, si l'heure d'ouverture n'est pas encore passée.
+        $horaireAujourdhui = $this->opening_hours[(string) $maintenant->dayOfWeekIso] ?? null;
+        if ($horaireAujourdhui && ! ($horaireAujourdhui['closed'] ?? false)) {
+            $ouverture = self::heureValide($horaireAujourdhui['opens_at'] ?? null);
+            if ($ouverture && $maintenant->format('H:i') < $ouverture) {
+                return "aujourd'hui à {$ouverture}";
+            }
+        }
+
+        // Sinon le prochain jour ouvert, jusqu'à 7 jours plus tard.
+        for ($i = 1; $i <= 7; $i++) {
+            $jour = $maintenant->copy()->addDays($i);
+            $horaire = $this->opening_hours[(string) $jour->dayOfWeekIso] ?? null;
+            $ouverture = self::heureValide($horaire['opens_at'] ?? null);
+            if ($horaire && ! ($horaire['closed'] ?? false) && $ouverture) {
+                $label = $i === 1 ? 'demain' : $jours[$jour->dayOfWeekIso - 1];
+                return "{$label} à {$ouverture}";
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * L'heure telle qu'elle peut être réaffichée, ou null.
+     *
+     * opening_hours n'est validé qu'en tant que JSON (voir
+     * MaBoutiqueController::updateMyShop) : sa structure interne est du texte
+     * marchand non contrôlé. Ce message-ci partant vers un autre utilisateur
+     * — le client qui valide son panier —, on n'en ressort que ce qui a bien
+     * la forme d'une heure, plutôt que de recopier la chaîne telle quelle.
+     */
+    private static function heureValide($valeur): ?string
+    {
+        if (! is_string($valeur) || ! preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $valeur)) {
+            return null;
+        }
+
+        return $valeur;
+    }
+
 }

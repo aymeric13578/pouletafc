@@ -53,6 +53,10 @@ class order_detail extends Model
         'depart',
         'image',
         'note',
+        // Nom du destinataire d'une course coursier. Auparavant enfoui dans
+        // « note » : ni le mur des commandes ni l'application agent ne
+        // pouvaient dire à qui remettre le colis.
+        'name_customer',
         'reception_mode',
         'phone_customer',
         'email_customer',

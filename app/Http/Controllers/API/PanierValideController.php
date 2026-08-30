@@ -66,12 +66,23 @@ class PanierValideController extends Controller
             ->filter(fn (Shop $boutique) => ! $boutique->estOuverteMaintenant());
 
         if ($boutiquesFermees->isNotEmpty()) {
+            // La prochaine heure d'ouverture n'est annoncée que pour une
+            // boutique unique : avec plusieurs boutiques fermées, chacune a
+            // potentiellement une réouverture différente et le message
+            // deviendrait illisible à énumérer.
+            if ($boutiquesFermees->count() === 1) {
+                $boutique = $boutiquesFermees->first();
+                $prochaineOuverture = $boutique->prochaineOuverture();
+                $message = "La boutique « {$boutique->shop_name} » est actuellement fermée."
+                    . ($prochaineOuverture ? " Réouverture prévue {$prochaineOuverture}." : '');
+            } else {
+                $message = 'Ces boutiques de votre panier sont actuellement fermées : '
+                    . $boutiquesFermees->pluck('shop_name')->implode(', ') . '.';
+            }
+
             return response()->json([
                 'response' => 409,
-                'message' => $boutiquesFermees->count() === 1
-                    ? "La boutique « {$boutiquesFermees->first()->shop_name} » est actuellement fermée."
-                    : 'Ces boutiques de votre panier sont actuellement fermées : '
-                        . $boutiquesFermees->pluck('shop_name')->implode(', ') . '.',
+                'message' => $message,
             ]);
         }
 

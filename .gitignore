@@ -24,3 +24,4 @@ yarn-error.log
 
 # Worktrees isolés pour l'exécution de plans (superpowers:subagent-driven-development).
 /.worktrees/
+serve_debug.log

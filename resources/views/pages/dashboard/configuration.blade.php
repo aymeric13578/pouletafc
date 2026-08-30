@@ -28,6 +28,10 @@ new class extends Component {
     public $command_kilometer = '';
     public $min_price_clando = '';
     public $min_price_command = '';
+    // Tarif des courses de coursier, jusqu'ici écrit en dur dans
+    // l'application cliente (500 F + 200 F/km).
+    public $coursier_kilometer = '';
+    public $min_price_coursier = '';
     public $clando_agent_commission = '';
     public $clando_agent_command = '';
     public $delivery_agent_commission = '';
@@ -72,6 +76,8 @@ new class extends Component {
             $this->command_kilometer = $reference->command_kilometer ?? '';
             $this->min_price_clando = $reference->min_price_clando ?? '';
             $this->min_price_command = $reference->min_price_command ?? '';
+            $this->coursier_kilometer = $reference->coursier_kilometer ?? '';
+            $this->min_price_coursier = $reference->min_price_coursier ?? '';
             $this->clando_agent_commission = $reference->clando_agent_commission ?? '';
             $this->clando_agent_command = $reference->clando_agent_command ?? '';
             $this->delivery_agent_commission = $reference->delivery_agent_commission ?? '';
@@ -98,6 +104,8 @@ new class extends Component {
         $this->command_kilometer = $configuration->command_kilometer;
         $this->min_price_clando = $configuration->min_price_clando;
         $this->min_price_command = $configuration->min_price_command;
+        $this->coursier_kilometer = $configuration->coursier_kilometer;
+        $this->min_price_coursier = $configuration->min_price_coursier;
         $this->clando_agent_commission = $configuration->clando_agent_commission;
         $this->clando_agent_command = $configuration->clando_agent_command;
         $this->delivery_agent_commission = $configuration->delivery_agent_commission;
@@ -313,8 +321,10 @@ new class extends Component {
                         'Statut',
                         'Prix/km clando',
                         'Prix/km commande',
+                        'Prix/km coursier',
                         'Min. clando',
                         'Min. commande',
+                        'Min. coursier',
                         'Comm. clando',
                         'Comm. commande',
                         'Comm. livreur',
@@ -344,11 +354,19 @@ new class extends Component {
                             <td class="whitespace-nowrap px-4 py-3 tabular-nums text-gray-900">
                                 {{ number_format($configuration->command_kilometer, 0, ',', ' ') }} F
                             </td>
+                            {{-- Tiret plutôt que zéro quand le tarif coursier n'est pas
+                                 renseigné : la grille est alors celle de l'application. --}}
+                            <td class="whitespace-nowrap px-4 py-3 tabular-nums text-gray-900">
+                                {{ $configuration->coursier_kilometer ? number_format($configuration->coursier_kilometer, 0, ',', ' ') . ' F' : '—' }}
+                            </td>
                             <td class="whitespace-nowrap px-4 py-3 tabular-nums text-gray-900">
                                 {{ number_format($configuration->min_price_clando, 0, ',', ' ') }} F
                             </td>
                             <td class="whitespace-nowrap px-4 py-3 tabular-nums text-gray-900">
                                 {{ number_format($configuration->min_price_command, 0, ',', ' ') }} F
+                            </td>
+                            <td class="whitespace-nowrap px-4 py-3 tabular-nums text-gray-900">
+                                {{ $configuration->min_price_coursier ? number_format($configuration->min_price_coursier, 0, ',', ' ') . ' F' : '—' }}
                             </td>
 
                             <td class="whitespace-nowrap px-4 py-3 tabular-nums font-semibold text-gray-900">
@@ -399,7 +417,7 @@ new class extends Component {
                         </tr>
                     @empty
                         <x-ui.empty
-                            :colspan="10"
+                            :colspan="13"
                             title="Aucune configuration"
                             message="Créez une grille tarifaire puis activez-la pour qu'elle s'applique." />
                     @endforelse
@@ -442,6 +460,25 @@ new class extends Component {
                                 <x-ui.input id="min_price_command" type="number" min="0"
                                             wire:model="min_price_command"
                                             :error="$errors->has('min_price_command')" />
+                            </x-ui.field>
+
+                            {{-- Tarif des courses de coursier (envoi de colis entre
+                                 particuliers). Facultatif : laissé vide, l'application
+                                 cliente applique son tarif historique 500 F + 200 F/km. --}}
+                            <x-ui.field label="Prix par kilomètre — coursier" for="coursier_kilometer"
+                                        hint="en F CFA — vide : tarif historique de l'app"
+                                        :error="$errors->first('coursier_kilometer')">
+                                <x-ui.input id="coursier_kilometer" type="number" min="0"
+                                            wire:model="coursier_kilometer"
+                                            :error="$errors->has('coursier_kilometer')" />
+                            </x-ui.field>
+
+                            <x-ui.field label="Prix minimal — coursier" for="min_price_coursier"
+                                        hint="prise en charge, course la moins chère facturable"
+                                        :error="$errors->first('min_price_coursier')">
+                                <x-ui.input id="min_price_coursier" type="number" min="0"
+                                            wire:model="min_price_coursier"
+                                            :error="$errors->has('min_price_coursier')" />
                             </x-ui.field>
                         </div>
                     </div>

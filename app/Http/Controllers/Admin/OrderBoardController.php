@@ -783,6 +783,9 @@ class OrderBoardController extends Controller
              */
             'delivery_code' => $order->delivery_code,
             'phone_customer' => $order->phone_customer,
+            // Nom du destinataire d'une course coursier — distinct de
+            // « customer », qui est le client ayant passé la demande.
+            'name_customer' => $order->name_customer,
             'delivery_type' => $order->delivery_type,
             'reception_mode' => $order->reception_mode,
             'customer' => $order->user?->name,

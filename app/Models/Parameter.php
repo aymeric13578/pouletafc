@@ -24,8 +24,15 @@ class Parameter extends Model
     protected $fillable = [
         'clando_kilometer',
         'command_kilometer',
+        /*
+         | Tarif des courses de coursier (envoi de colis entre particuliers).
+         | Écrit en dur dans l'application cliente jusqu'ici — 500 F + 200 F/km
+         | — donc impossible à ajuster sans republier l'application.
+         */
+        'coursier_kilometer',
         'min_price_clando',
         'min_price_command',
+        'min_price_coursier',
         'clando_agent_commission',
         'clando_agent_command',
         'vip_percentage',
@@ -130,6 +137,15 @@ class Parameter extends Model
             'command_kilometer' => 'required|integer|min:0',
             'min_price_clando' => 'required|integer|min:0',
             'min_price_command' => 'required|integer|min:0',
+            /*
+             | Tarif coursier. Facultatif comme price_per_kg, et pour la même
+             | raison : les grilles enregistrées avant ces colonnes n'en
+             | portent pas, et l'exiger empêcherait de rouvrir puis
+             | d'enregistrer une grille existante. Sans valeur, l'application
+             | cliente applique son tarif historique (500 F + 200 F/km).
+             */
+            'coursier_kilometer' => 'nullable|integer|min:0',
+            'min_price_coursier' => 'nullable|integer|min:0',
             // Ces quatre valeurs sont appliquées telles quelles comme
             // pourcentages (prix × valeur / 100) : au-delà de 100 la commission
             // dépasserait le montant de la course.

@@ -293,6 +293,12 @@ function DetailCommande({ commande, onClose, onChangerStatut, onModifierPanier, 
                                                     <span className="text-gray-900">{commande.delivery_type}</span>
                                                 </p>
                                             )}
+                                            {commande.name_customer && (
+                                                <p>
+                                                    <span className="font-semibold text-gray-700">Destinataire : </span>
+                                                    <span className="text-gray-900">{commande.name_customer}</span>
+                                                </p>
+                                            )}
                                             {commande.phone_customer && (
                                                 <p>
                                                     <span className="font-semibold text-gray-700">Contact remise : </span>
@@ -1299,7 +1305,44 @@ export default function Board({ initial }) {
                                                     )}
                                                 </td>
                                                 <td className="max-w-xs px-4 py-4 text-base text-gray-600">
-                                                    {commande.address ?? '—'}
+                                                    {/* Une course de coursier n'a pas d'adresse unique : elle
+                                                        va d'un point d'enlèvement à un point de remise. La
+                                                        colonne n'affichait que le second, et le comptoir ne
+                                                        savait pas où envoyer l'agent chercher le colis. */}
+                                                    {commande.type === 'coursier' && commande.depart ? (
+                                                        <div className="space-y-0.5 text-base leading-snug">
+                                                            <p className="flex items-start gap-1.5">
+                                                                <span className="mt-0.5 shrink-0 text-xs font-bold uppercase text-violet-600">Retrait</span>
+                                                                <span className="text-gray-900">{commande.depart}</span>
+                                                            </p>
+                                                            <p className="flex items-start gap-1.5">
+                                                                <span className="mt-0.5 shrink-0 text-xs font-bold uppercase text-violet-600">Remise</span>
+                                                                <span className="text-gray-900">{commande.address ?? '—'}</span>
+                                                            </p>
+                                                            {/* Le destinataire n'est pas le client : c'est lui
+                                                                qui reçoit le colis, et son nom était jusqu'ici
+                                                                enfoui dans la note libre. */}
+                                                            {(commande.name_customer || commande.phone_customer) && (
+                                                                <p className="text-sm text-gray-600">
+                                                                    {commande.name_customer && (
+                                                                        <span className="font-semibold text-gray-900">{commande.name_customer}</span>
+                                                                    )}
+                                                                    {commande.name_customer && commande.phone_customer && ' · '}
+                                                                    {commande.phone_customer && (
+                                                                        <span className="font-mono">{commande.phone_customer}</span>
+                                                                    )}
+                                                                </p>
+                                                            )}
+                                                            {commande.delivery_code && (
+                                                                <p className="text-sm">
+                                                                    <span className="font-semibold text-gray-500">Code </span>
+                                                                    <span className="font-mono font-bold text-violet-800">{commande.delivery_code}</span>
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        commande.address ?? '—'
+                                                    )}
                                                     {/* Corriger le lieu sans annuler la commande : une
                                                         adresse mal comprise au téléphone obligeait
                                                         jusqu'ici à tout ressaisir. */}
@@ -1315,7 +1358,9 @@ export default function Board({ initial }) {
                                                     <button
                                                         type="button"
                                                         onClick={() => { couperSonneriePourInteraction(); setDetailId(commande.id); }}
-                                                        title="Voir le panier et les coordonnées"
+                                                        title={commande.type === 'coursier'
+                                                            ? 'Voir le colis, la photo et les coordonnées'
+                                                            : 'Voir le panier et les coordonnées'}
                                                         className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-gray-500 transition-colors hover:bg-brand-50 hover:text-brand-700"
                                                     >
                                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6">
@@ -1324,6 +1369,12 @@ export default function Board({ initial }) {
                                                         </svg>
                                                         {commande.items_count > 0 && (
                                                             <span className="text-sm font-bold tabular-nums">{commande.items_count}</span>
+                                                        )}
+                                                        {/* Une course de coursier n'a aucun article à compter :
+                                                            la case restait vide, sans rien dire du fait qu'une
+                                                            photo du colis attend d'être regardée. */}
+                                                        {commande.type === 'coursier' && commande.image_url && (
+                                                            <span className="text-xs font-bold uppercase text-violet-700">Photo</span>
                                                         )}
                                                     </button>
                                                 </td>
