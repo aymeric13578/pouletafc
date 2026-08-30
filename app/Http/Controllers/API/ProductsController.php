@@ -13,7 +13,10 @@ class ProductsController extends Controller
 {
     public function getAllProducts()
     {
-        $product = Product::where('status','Success')->get();
+        // 'complements:id' pour éviter une requête par produit (N+1) : sans
+        // cet eager load, chaque accès à $item->complements dans map()
+        // ci-dessous relancerait sa propre requête.
+        $product = Product::where('status','Success')->with('complements:id')->get();
 
         // Promotions actives (validées par l'équipe et dans leur fenêtre de
         // dates) : voir MaBoutiqueController::saveMyShopPromotion. Sans cet
@@ -45,6 +48,15 @@ class ProductsController extends Controller
 
             $prixAffiche = $majoration->prixAffiche((float) $item->price, $item->id_shop, $item->id);
             $array['price'] = $prixAffiche;
+
+            /*
+             | Ids des compléments rattachés à ce produit — permet à
+             | plouletafcapp de vérifier hors-ligne, au moment de valider le
+             | panier, qu'un plat accompagné a bien la quantité de complément
+             | attendue (voir App\Support\ComplementsProposes côté serveur
+             | pour la règle équivalente en ligne, utilisée par le comptoir).
+             */
+            $array['complement_ids'] = $item->complements->pluck('id')->values();
 
             $promotion = $promotions->get($item->id);
             if ($promotion) {
@@ -281,7 +293,9 @@ class ProductsController extends Controller
     }
     public function getProductsByCategory(Request $request)
     {
-        $product = Product::where('status','Success')->where('id_category',$request->id)->get();
+        $product = Product::where('status','Success')->where('id_category',$request->id)
+            ->with('complements:id')
+            ->get();
 
         // Même majoration que getAllProducts : un produit ne peut pas
         // s'afficher à deux prix selon qu'on l'atteint par le catalogue ou par
@@ -291,6 +305,8 @@ class ProductsController extends Controller
         $data = $product->map(function ($item) use ($majoration) {
             $array = $item->toArray();
             $array['price'] = $majoration->prixAffiche((float) $item->price, $item->id_shop, $item->id);
+            // Même raison qu'à getAllProducts : voir ce commentaire ci-dessus.
+            $array['complement_ids'] = $item->complements->pluck('id')->values();
 
             return $array;
         });
