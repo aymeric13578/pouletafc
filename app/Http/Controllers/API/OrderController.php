@@ -37,14 +37,20 @@ class OrderController extends Controller
         [$lat, $lon, $origineDuPoint] = app(\App\Support\PointDeLivraison::class)
             ->resoudre($request, $client);
 
-        $parameter = Parameter::where('status', 'Success')->first();
-        $commission_agent = 0;
-
-        if (isset($parameter)) {
-            $commission_agent = round($totalArticles * $parameter->clando_agent_commission / 100);
-        }
-
         $fraisDeLivraison = (float) $request->input('delivery_fees', 0);
+
+        /*
+         | Commission retenue sur la livraison.
+         |
+         | Elle porte sur les seuls frais de livraison dès qu'une grille
+         | « livraison » existe : l'entreprise se rémunère sur le portage, pas
+         | sur la valeur de marchandises vendues par un marchand tiers. Le
+         | calcul précédent prenait le total des articles, et avec le taux
+         | clando par-dessus le marché. Sans grille, ce calcul est conservé tel
+         | quel — voir App\Support\GrilleTarifaire::commissionLivraison().
+         */
+        $commission_agent = app(\App\Support\GrilleTarifaire::class)
+            ->commissionLivraison($fraisDeLivraison, $totalArticles);
 
         $commande = order_detail::create([
             'id_user' => $client->id,
@@ -193,12 +199,17 @@ class OrderController extends Controller
      
      
      
-      $parameter = Parameter::where('status','Success')->first();
-        $commission_agent = 0;
-        if(isset($parameter))
-        {
-            $commission_agent = round($request->price*$parameter->clando_agent_commission/100);
-        }
+      /*
+       | Même règle que dans creerDepuisPanier : la commission d'une livraison
+       | porte sur les seuls frais de portage dès qu'une grille « livraison »
+       | existe, et retombe sinon sur l'ancien calcul. Les deux chemins de
+       | création d'une commande doivent facturer pareil — les laisser
+       | diverger réintroduirait l'incohérence que cette grille corrige.
+       */
+      $commission_agent = app(\App\Support\GrilleTarifaire::class)->commissionLivraison(
+          (float) $request->input('delivery_fees', 0),
+          (float) $request->price
+      );
         
      
      
@@ -577,10 +588,16 @@ Contact service client : 697 526 980";
          | fait disparaître la commande de l'écran des agents au moment précis où
          | elle devient prête.
          */
+        // Colonnes explicitement listées sur 'user' : cette route v1.0 n'a
+        // aucune authentification (CLAUDE.md règle 8), et un with('user')
+        // sans restriction renvoyait en clair confirmation_code (le code de
+        // réinitialisation de mot de passe, voir UserController::changePasswordByOtp)
+        // ainsi que l'email, la date de naissance, le sexe et la ville du
+        // client — même correctif que getOrder() plus haut dans ce fichier.
         $order = order_detail::whereIn('status', ['pending', 'waiting'])
             ->whereBetween('created_at', [$debut, $fin])
             ->with('carts')
-            ->with('user')
+            ->with(['user' => fn ($q) => $q->select('id', 'name', 'last_name', 'phone', 'whatsapp')])
             ->orderBy('id', 'desc')
             ->get();
 
@@ -636,10 +653,13 @@ Contact service client : 697 526 980";
      */
     public function getAllOrderWithoutCondition(Request $request)
     {
+        // Colonnes explicitement listées sur 'user' (CLAUDE.md règle 8/9 —
+        // endpoint consommé sans authentification par empolyeeafc en continu) :
+        // voir le correctif identique sur getAllOrder() ci-dessus.
         $order = order_detail::where('status', '!=', 'failed')
             ->when($request->id_user, fn ($q) => $q->where('id_agent', $request->id_user))
             ->with('carts')
-            ->with('user')
+            ->with(['user' => fn ($q) => $q->select('id', 'name', 'last_name', 'phone', 'whatsapp')])
             ->orderBy('id', 'desc')
             ->get();
 
@@ -679,11 +699,13 @@ Contact service client : 697 526 980";
     {
             $debut = now()->setTimezone('Africa/Douala')->startOfDay();
 
+            // Colonnes explicitement listées sur 'user' : même correctif que
+            // getAllOrder() ci-dessus (route v1.0 sans authentification).
             $order = order_detail::where('id_agent','=',null)
                 ->whereIn('status', ['waiting', 'want', 'take', 'process'])
                 ->whereBetween('created_at', [$debut->copy()->utc(), $debut->copy()->endOfDay()->utc()])
                 ->with('carts')
-                ->with('user')
+                ->with(['user' => fn ($q) => $q->select('id', 'name', 'last_name', 'phone', 'whatsapp')])
                 ->orderByDesc('id')
                 ->get();
 
@@ -741,7 +763,10 @@ Contact service client : 697 526 980";
              // La course la plus récente doit apparaître en tête côté app agent
              // (écran Historique) : sans tri explicite, MySQL ne garantit aucun
              // ordre particulier.
-             $order = order_detail::where('id_agent', $request->id_agent)->with('carts')->with('user')->orderByDesc('id')->get();
+             //
+             // Colonnes explicitement listées sur 'user' : même correctif que
+             // getAllOrder() ci-dessus (route v1.0 sans authentification).
+             $order = order_detail::where('id_agent', $request->id_agent)->with('carts')->with(['user' => fn ($q) => $q->select('id', 'name', 'last_name', 'phone', 'whatsapp')])->orderByDesc('id')->get();
 
 
              if($order) return response()->json(['response' => 200, 'data'=> $order]);

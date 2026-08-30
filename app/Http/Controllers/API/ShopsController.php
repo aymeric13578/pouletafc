@@ -53,12 +53,12 @@ class ShopsController extends Controller
 
         $registry_file = $request->file('shop_commercial_register_file');
         //dd($request);
-        $registry_file_name = hexdec(uniqid()) . '.' . $registry_file->getClientOriginalExtension();
+        $registry_file_name = hexdec(uniqid()) . '.' . $registry_file->extension();
         $request->{'shop_commercial_register_file'}->move(public_path('upload'), $registry_file_name);
         $registry_file_url = 'upload/' . $registry_file_name;
 
         $shop_logo = $request->file('shop_logo');
-        $shop_logo_name = hexdec(uniqid()) . '.' . $shop_logo->getClientOriginalExtension();
+        $shop_logo_name = hexdec(uniqid()) . '.' . $shop_logo->extension();
         $request->{'shop_logo'}->move(public_path('upload'), $shop_logo_name);
         $shop_logo_url = 'upload/' . $shop_logo_name;
 

@@ -145,12 +145,18 @@ class CoursierController extends Controller
     {
         $debut = now()->setTimezone('Africa/Douala')->startOfDay();
 
+        // Colonnes explicitement listées sur 'user' : cette route v1.0 n'a
+        // aucune authentification (CLAUDE.md règle 8), et un with('user')
+        // sans restriction renvoyait en clair confirmation_code (le code de
+        // réinitialisation de mot de passe, voir UserController::changePasswordByOtp)
+        // ainsi que l'email et d'autres champs personnels du client — même
+        // correctif que OrderController::getAllOrder().
         $demandes = order_detail::where('id_agent', null)
             ->where('delivery_type', 'coursier')
             ->whereNull('id_cart')
             ->whereIn('status', ['waiting', 'want', 'take', 'process', 'pending'])
             ->whereBetween('created_at', [$debut->copy()->utc(), $debut->copy()->endOfDay()->utc()])
-            ->with('user')
+            ->with(['user' => fn ($q) => $q->select('id', 'name', 'last_name', 'phone', 'whatsapp')])
             ->orderByDesc('id')
             ->get();
 
@@ -170,8 +176,19 @@ class CoursierController extends Controller
             return null;
         }
 
+        /*
+         | extension() (devinée depuis le contenu réel du fichier) et non
+         | getClientOriginalExtension() (le nom de fichier envoyé par le
+         | client, arbitraire). Cette route v1.0 n'a aucune authentification
+         | (CLAUDE.md règle 8) : un fichier au contenu image valide mais nommé
+         | "x.php" côté client passait la validation 'image' puis était rangé
+         | tel quel dans public/upload, exécutable par le serveur si son
+         | contenu embarquait aussi du PHP (polyglotte image/PHP connu). Même
+         | correctif appliqué à tous les points d'upload de l'application
+         | (Admin/Merchand/API) — voir TASKS.md.
+         */
         $fichier = $request->file('image');
-        $nom = uniqid('colis_', true) . '.' . $fichier->getClientOriginalExtension();
+        $nom = uniqid('colis_', true) . '.' . $fichier->extension();
 
         try {
             $fichier->move(public_path('upload'), $nom);

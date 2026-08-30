@@ -57,17 +57,17 @@ class AgentController extends Controller
         }
 
         $agent_photo = $request->file('photo');
-        $agent_photo_name = hexdec(uniqid()) . '.' . $agent_photo->getClientOriginalExtension();
+        $agent_photo_name = hexdec(uniqid()) . '.' . $agent_photo->extension();
         $request->file('photo')->move(public_path('upload'), $agent_photo_name);
         $agent_photo_url = 'upload/' . $agent_photo_name;
 
         $identity_card_file = $request->file('identity_card_file');
-        $identity_card_file_name = hexdec(uniqid()) . '.' . $identity_card_file->getClientOriginalExtension();
+        $identity_card_file_name = hexdec(uniqid()) . '.' . $identity_card_file->extension();
         $request->file('identity_card_file')->move(public_path('upload'), $identity_card_file_name);
         $identity_card_file_url = 'upload/' . $identity_card_file_name;
 
         $location_plan_file = $request->file('location_plan_file');
-        $location_plan_file_name = hexdec(uniqid()) . '.' . $location_plan_file->getClientOriginalExtension();
+        $location_plan_file_name = hexdec(uniqid()) . '.' . $location_plan_file->extension();
         $request->file('location_plan_file')->move(public_path('upload'), $location_plan_file_name);
         $location_plan_file_url = 'upload/' . $location_plan_file_name;
 
@@ -121,21 +121,21 @@ class AgentController extends Controller
             // Gestion des fichiers
             if ($request->hasFile('photo')) {
                 $agent_photo = $request->file('photo');
-                $agent_photo_name = hexdec(uniqid()) . '.' . $agent_photo->getClientOriginalExtension();
+                $agent_photo_name = hexdec(uniqid()) . '.' . $agent_photo->extension();
                 $request->file('photo')->move(public_path('upload'), $agent_photo_name);
                 $updateData['photo'] = 'upload/' . $agent_photo_name;
             }
 
             if ($request->hasFile('identity_card_file')) {
                 $identity_card_file = $request->file('identity_card_file');
-                $identity_card_file_name = hexdec(uniqid()) . '.' . $identity_card_file->getClientOriginalExtension();
+                $identity_card_file_name = hexdec(uniqid()) . '.' . $identity_card_file->extension();
                 $request->file('identity_card_file')->move(public_path('upload'), $identity_card_file_name);
                 $updateData['identity_card_file'] = 'upload/' . $identity_card_file_name;
             }
 
             if ($request->hasFile('location_plan_file')) {
                 $location_plan_file = $request->file('location_plan_file');
-                $location_plan_file_name = hexdec(uniqid()) . '.' . $location_plan_file->getClientOriginalExtension();
+                $location_plan_file_name = hexdec(uniqid()) . '.' . $location_plan_file->extension();
                 $request->file('location_plan_file')->move(public_path('upload'), $location_plan_file_name);
                 $updateData['location_plan_file'] = 'upload/' . $location_plan_file_name;
             }

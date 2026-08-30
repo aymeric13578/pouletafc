@@ -37,7 +37,7 @@ class SubCategoryController extends Controller
         // ]);
 
         $image = $request->file('image');
-        $image_name = hexdec(uniqid()) . '.' . $image->getClientOriginalExtension();
+        $image_name = hexdec(uniqid()) . '.' . $image->extension();
         $request->{'image'}->move(public_path('upload'), $image_name);
         $image_url = 'upload/' . $image_name;
 

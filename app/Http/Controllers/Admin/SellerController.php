@@ -41,7 +41,7 @@ class SellerController extends Controller
         }
 
         $seller_photo = $request->file('seller_photo');
-        $seller_photo_name = hexdec(uniqid()) . '.' . $seller_photo->getClientOriginalExtension();
+        $seller_photo_name = hexdec(uniqid()) . '.' . $seller_photo->extension();
         $request->{'seller_photo'}->move(public_path('upload'), $seller_photo_name);
         $seller_photo_url = 'upload/' . $seller_photo_name;
 
@@ -75,7 +75,7 @@ class SellerController extends Controller
             $seller = Seller::findOrFail($id);
 
             /* $seller_photo = $request->file('seller_photo');
-            $seller_photo_name = hexdec(uniqid()) . '.' . $seller_photo->getClientOriginalExtension();
+            $seller_photo_name = hexdec(uniqid()) . '.' . $seller_photo->extension();
             $request->{'seller_photo'}->move(public_path('upload'), $seller_photo_name);
             $seller_photo_url = 'upload/' . $seller_photo_name; */
 

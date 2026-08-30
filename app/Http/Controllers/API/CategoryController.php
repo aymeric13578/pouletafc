@@ -30,7 +30,7 @@ class CategoryController extends Controller
         ]);
 
         $image_baniere = $request->file('category_image');
-        $img_name = hexdec(uniqid()) . '.' . $image_baniere->getClientOriginalExtension();
+        $img_name = hexdec(uniqid()) . '.' . $image_baniere->extension();
 
         $request->{'category_image'}->move(public_path('upload'), $img_name);
         $img_url = 'upload/' . $img_name;

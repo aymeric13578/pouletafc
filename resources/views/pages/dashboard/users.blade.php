@@ -4,6 +4,7 @@ use Livewire\Volt\Component;
 use App\Models\User;
 use App\Models\Agent;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Auth;
 
 name('dashboard.users');
 
@@ -126,6 +127,15 @@ new class extends Component {
             'whatsapp' => 'nullable|numeric|digits_between:1,15',
         ]);
 
+        // Même garde-fou que changeRole() : ce formulaire ne doit pas
+        // permettre à un employee_afc de créer ou de promouvoir un compte
+        // administrateur.
+        abort_unless(
+            $this->role !== 'admin' || Auth::user()?->role === 'admin',
+            403,
+            "Seul un administrateur peut accorder le rôle administrateur."
+        );
+
         $data = [
             'name' => $this->name,
             'email' => $this->email,
@@ -185,6 +195,20 @@ new class extends Component {
         $this->validate([
             'selectedRole' => 'required|in:user,agent,admin,merchand,employee_afc',
         ]);
+
+        /*
+         | Cette page (dashboard.users) est accordable menu par menu à un
+         | employee_afc via App\Support\MenuTableauDeBord — pour de la gestion
+         | de compte courante, pas pour distribuer le rôle admin. Sans ce
+         | garde-fou, quiconque reçoit ce seul menu pouvait se nommer, ou
+         | nommer n'importe qui, administrateur : le rôle admin outrepasse
+         | entièrement le système de droits (MenuTableauDeBord::autorise()).
+         */
+        abort_unless(
+            $this->selectedRole !== 'admin' || Auth::user()?->role === 'admin',
+            403,
+            "Seul un administrateur peut accorder le rôle administrateur."
+        );
 
         $user = User::findOrFail($this->userId);
         $user->update(['role' => $this->selectedRole]);

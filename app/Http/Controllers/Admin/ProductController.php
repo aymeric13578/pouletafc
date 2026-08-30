@@ -49,7 +49,7 @@ class ProductController extends Controller
         ]);
 
         $image1 = $request->file('product_image1');
-        $img_name1 = hexdec(uniqid()) . '.' . $image1->getClientOriginalExtension();
+        $img_name1 = hexdec(uniqid()) . '.' . $image1->extension();
         $request->{'product_image1'}->move(public_path('upload'), $img_name1);
         $img_url1 = 'upload/' . $img_name1;
         $category_name = Category::where('id', $request->{'category_id'})->value('name');
@@ -109,7 +109,7 @@ class ProductController extends Controller
 
         $id = $request->{'id'};
         $image = $request->file('product_img');
-        $img_name = hexdec(uniqid()) . '.' . $image->getClientOriginalExtension();
+        $img_name = hexdec(uniqid()) . '.' . $image->extension();
         $request->{'product_img'}->move(public_path('upload'), $img_name);
         $img_url = 'upload/' . $img_name;
 

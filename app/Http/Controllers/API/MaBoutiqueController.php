@@ -197,7 +197,9 @@ class MaBoutiqueController extends Controller
                 continue;
             }
 
-            $nom = uniqid($champ . '_', true) . '.' . $request->file($champ)->getClientOriginalExtension();
+            // extension() (contenu réel), pas getClientOriginalExtension() (nom
+            // client, arbitraire) — voir CoursierController::enregistrerPhoto().
+            $nom = uniqid($champ . '_', true) . '.' . $request->file($champ)->extension();
 
             try {
                 $request->file($champ)->move(public_path('upload'), $nom);
@@ -641,7 +643,7 @@ class MaBoutiqueController extends Controller
         $donnees['quantity'] = $donnees['stock_init'];
 
         if ($request->hasFile('image')) {
-            $nom = hexdec(uniqid()) . '.' . $request->file('image')->getClientOriginalExtension();
+            $nom = hexdec(uniqid()) . '.' . $request->file('image')->extension();
 
             try {
                 $request->file('image')->move(public_path('upload'), $nom);

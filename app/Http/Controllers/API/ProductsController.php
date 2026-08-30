@@ -81,33 +81,33 @@ class ProductsController extends Controller
      
 
         $image1 = $request->file('product_image1');
-        $img_name1 = hexdec(uniqid()) . '.' . $image1->getClientOriginalExtension();
+        $img_name1 = hexdec(uniqid()) . '.' . $image1->extension();
 
         $request->{'product_image1'}->move(public_path('upload'), $img_name1);
         $img_url1 = 'upload/' . $img_name1;
 
         $image2 = $request->file('product_image2');
-        $img_name2 = hexdec(uniqid()) . '.' . $image2->getClientOriginalExtension();
+        $img_name2 = hexdec(uniqid()) . '.' . $image2->extension();
         $request->{'product_image2'}->move(public_path('upload'), $img_name2);
         $img_url2 = 'upload/' . $img_name2;
 
         $image3 = $request->file('product_image3');
-        $img_name3 = hexdec(uniqid()) . '.' . $image3->getClientOriginalExtension();
+        $img_name3 = hexdec(uniqid()) . '.' . $image3->extension();
         $request->{'product_image3'}->move(public_path('upload'), $img_name3);
         $img_url3 = 'upload/' . $img_name3;
 
         $video1 = $request->file('product_video1');
-        $video_name1 = hexdec(uniqid()) . '.' . $video1->getClientOriginalExtension();
+        $video_name1 = hexdec(uniqid()) . '.' . $video1->extension();
         $request->{'product_video1'}->move(public_path('upload'), $video_name1);
         $video_url1 = 'upload/' . $video_name1;
 
         $video2 = $request->file('product_video2');
-        $video_name2 = hexdec(uniqid()) . '.' . $video2->getClientOriginalExtension();
+        $video_name2 = hexdec(uniqid()) . '.' . $video2->extension();
         $request->{'product_video2'}->move(public_path('upload'), $video_name2);
         $video_url2 = 'upload/' . $video_name2;
 
         $shop_logo = $request->file('shop_logo');
-        $logo_name = hexdec(uniqid()) . '.' . $shop_logo->getClientOriginalExtension();
+        $logo_name = hexdec(uniqid()) . '.' . $shop_logo->extension();
         $request->{'shop_logo'}->move(public_path('upload'), $logo_name);
         $shop_logo_url = 'upload/' . $logo_name;
 

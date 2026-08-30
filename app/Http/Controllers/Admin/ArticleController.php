@@ -32,7 +32,7 @@ class ArticleController extends Controller
 
 
         $banner = $request->file('image');
-        $banner_name = hexdec(uniqid()) . '.' . $banner->getClientOriginalExtension();
+        $banner_name = hexdec(uniqid()) . '.' . $banner->extension();
         $request->{'image'}->move(public_path('upload'), $banner_name);
         $banner_url = 'upload/' . $banner_name;
 

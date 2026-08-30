@@ -55,12 +55,17 @@ class ClandoController extends Controller
         }
         
         
-        $parameter = Parameter::where('status','Success')->first();
-        $commission_agent = 0;
-        if(isset($parameter))
-        {
-            $commission_agent = round($request->price*$parameter->clando_agent_commission/100);
-        }
+        /*
+         | Commission retenue sur la course. La grille « clando » l'emporte
+         | quand elle existe — c'est elle qui porte un taux par plage horaire
+         | et distingue une course VIP d'une classique ; sinon on retombe sur
+         | clando_agent_commission, à l'identique du calcul précédent (voir
+         | App\Support\GrilleTarifaire).
+         */
+        $commission_agent = app(\App\Support\GrilleTarifaire::class)->commissionClando(
+            (float) $request->price,
+            $request->input('type') === 'vip'
+        );
         
      
            do {
