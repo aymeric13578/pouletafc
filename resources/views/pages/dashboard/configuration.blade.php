@@ -3,6 +3,8 @@
 use function Laravel\Folio\{name};
 use Livewire\Volt\Component;
 use App\Models\Parameter;
+use App\Models\Tarif;
+use App\Models\TarifPlage;
 
 name('dashboard.configuration');
 
@@ -48,6 +50,254 @@ new class extends Component {
     public $note_points_average = '';
     public $note_points_good = '';
     public $note_points_excellent = '';
+
+    /*
+    |---------------------------------------------------------------------------
+    | Grilles tarifaires par service
+    |---------------------------------------------------------------------------
+    |
+    | Un formulaire par service — clando, livraison, course coursier — plutôt
+    | qu'une seule ligne mélangeant les trois. Chaque grille porte 2 à 5 plages
+    | horaires qui s'appliquent automatiquement selon l'heure : un tarif de nuit
+    | n'a pas de raison d'être celui de midi, et rien ne permettait de les
+    | distinguer.
+    */
+    public $showTarifModal = false;
+    public $tarifId = null;
+    public $tarifService = Tarif::CLANDO;
+    public $tarifLibelle = '';
+    /** @var array<int, array<string, mixed>> Plages en cours de saisie. */
+    public $plages = [];
+
+    public function getGrillesProperty()
+    {
+        return collect(Tarif::SERVICES)->map(fn ($libelle, $service) => [
+            'service' => $service,
+            'libelle' => $libelle,
+            'actif' => Tarif::actif($service),
+            'historique' => Tarif::where('service', $service)
+                ->where('status', Tarif::INACTIF)
+                ->with('plages')
+                ->orderByDesc('id')
+                ->get(),
+        ]);
+    }
+
+    /** Une plage vierge, pré-remplie sur la journée entière. */
+    private function plageVierge(int $ordre = 0): array
+    {
+        return [
+            'id' => null,
+            'debut' => $ordre === 0 ? '06:00' : '',
+            'fin' => $ordre === 0 ? '18:00' : '',
+            'prix_min' => '',
+            'prix_max' => '',
+            'prix_km' => '',
+            'commission' => '',
+            'commission_vip' => '',
+            'majoration_vip' => '',
+        ];
+    }
+
+    public function openTarifModal(string $service, $id = null)
+    {
+        $this->resetValidation();
+        $this->tarifService = $service;
+        $this->tarifId = $id;
+
+        if ($id === null) {
+            // Pré-remplir depuis la grille en vigueur : une nouvelle grille
+            // ajuste presque toujours une plage, pas toutes.
+            $reference = Tarif::actif($service);
+
+            $this->tarifLibelle = '';
+            $this->plages = $reference && $reference->plages->isNotEmpty()
+                ? $reference->plages->values()->map(fn (TarifPlage $p) => [
+                    'id' => null,
+                    'debut' => $p->debutCourt(),
+                    'fin' => $p->finCourte(),
+                    'prix_min' => $p->prix_min,
+                    'prix_max' => $p->prix_max,
+                    'prix_km' => $p->prix_km,
+                    'commission' => $p->commission,
+                    'commission_vip' => $p->commission_vip,
+                    'majoration_vip' => $p->majoration_vip,
+                ])->toArray()
+                : [$this->plageVierge()];
+
+            $this->showTarifModal = true;
+
+            return;
+        }
+
+        $tarif = Tarif::with('plages')->findOrFail($id);
+
+        $this->tarifService = $tarif->service;
+        $this->tarifLibelle = $tarif->libelle ?? '';
+        $this->plages = $tarif->plages->values()->map(fn (TarifPlage $p) => [
+            'id' => $p->id,
+            'debut' => $p->debutCourt(),
+            'fin' => $p->finCourte(),
+            'prix_min' => $p->prix_min,
+            'prix_max' => $p->prix_max,
+            'prix_km' => $p->prix_km,
+            'commission' => $p->commission,
+            'commission_vip' => $p->commission_vip,
+            'majoration_vip' => $p->majoration_vip,
+        ])->toArray();
+
+        if (empty($this->plages)) {
+            $this->plages = [$this->plageVierge()];
+        }
+
+        $this->showTarifModal = true;
+    }
+
+    public function closeTarifModal()
+    {
+        $this->showTarifModal = false;
+        $this->tarifId = null;
+        $this->plages = [];
+        $this->resetValidation();
+    }
+
+    /** Cinq plages au maximum : au-delà, la grille devient illisible à relire. */
+    public function ajouterPlage()
+    {
+        if (count($this->plages) >= 5) {
+            $this->dispatch('notify', [
+                'message' => 'Cinq plages horaires au maximum par grille.',
+                'type' => 'error',
+            ]);
+
+            return;
+        }
+
+        $this->plages[] = $this->plageVierge(count($this->plages));
+    }
+
+    public function retirerPlage(int $index)
+    {
+        // Une grille sans plage ne saurait facturer quoi que ce soit.
+        if (count($this->plages) <= 1) {
+            $this->dispatch('notify', [
+                'message' => 'Une grille doit garder au moins une plage horaire.',
+                'type' => 'error',
+            ]);
+
+            return;
+        }
+
+        unset($this->plages[$index]);
+        $this->plages = array_values($this->plages);
+    }
+
+    public function saveTarif()
+    {
+        $regles = ['tarifLibelle' => 'nullable|string|max:120'];
+
+        foreach (array_keys($this->plages) as $i) {
+            foreach (TarifPlage::regles("plages.{$i}.") as $champ => $regle) {
+                $regles[$champ] = $regle;
+            }
+        }
+
+        $this->validate($regles, [
+            'required' => 'Cette valeur est obligatoire',
+            'date_format' => 'Format attendu : HH:MM',
+            'integer' => 'Entrez un nombre entier',
+            'numeric' => 'Entrez un nombre',
+            'min' => 'La valeur ne peut pas être négative',
+            'max' => 'Un pourcentage ne peut pas dépasser 100',
+        ]);
+
+        // Un plafond sous le plancher facturerait toutes les courses au même
+        // prix sans que rien ne le signale à la saisie.
+        foreach ($this->plages as $i => $plage) {
+            if ($plage['prix_max'] !== '' && $plage['prix_max'] !== null
+                && (int) $plage['prix_max'] > 0
+                && (int) $plage['prix_max'] < (int) $plage['prix_min']) {
+                $this->addError("plages.{$i}.prix_max", 'Le plafond doit être au moins égal au plancher.');
+
+                return;
+            }
+        }
+
+        \DB::transaction(function () {
+            $tarif = $this->tarifId
+                ? Tarif::findOrFail($this->tarifId)
+                : Tarif::create([
+                    'service' => $this->tarifService,
+                    'libelle' => $this->tarifLibelle ?: null,
+                    // Créée inactive : on ne bascule jamais la tarification
+                    // d'une application en production par effet de bord.
+                    'status' => Tarif::INACTIF,
+                ]);
+
+            if ($this->tarifId) {
+                $tarif->update(['libelle' => $this->tarifLibelle ?: null]);
+                // Les plages sont réécrites en bloc : suivre les ajouts,
+                // retraits et réordonnancements ligne à ligne coûterait plus
+                // qu'il ne rapporte pour cinq lignes au plus.
+                $tarif->plages()->delete();
+            }
+
+            $avecVip = in_array($tarif->service, Tarif::SERVICES_AVEC_VIP, true);
+
+            foreach (array_values($this->plages) as $ordre => $plage) {
+                $tarif->plages()->create([
+                    'debut' => $plage['debut'],
+                    'fin' => $plage['fin'],
+                    'prix_min' => (int) $plage['prix_min'],
+                    'prix_max' => $plage['prix_max'] === '' ? null : (int) $plage['prix_max'],
+                    'prix_km' => (int) $plage['prix_km'],
+                    'commission' => (float) $plage['commission'],
+                    'commission_vip' => $avecVip && $plage['commission_vip'] !== ''
+                        ? (float) $plage['commission_vip'] : null,
+                    'majoration_vip' => $avecVip && $plage['majoration_vip'] !== ''
+                        ? (float) $plage['majoration_vip'] : null,
+                    'ordre' => $ordre,
+                ]);
+            }
+        });
+
+        $this->dispatch('notify', [
+            'message' => $this->tarifId
+                ? 'Grille mise à jour.'
+                : 'Grille créée. Activez-la pour l\'appliquer.',
+            'type' => 'success',
+        ]);
+
+        $this->closeTarifModal();
+    }
+
+    public function activerTarif($id)
+    {
+        Tarif::findOrFail($id)->activer();
+
+        $this->dispatch('notify', [
+            'message' => 'Grille activée : c\'est désormais la seule appliquée pour ce service.',
+            'type' => 'success',
+        ]);
+    }
+
+    public function supprimerTarif($id)
+    {
+        $tarif = Tarif::findOrFail($id);
+
+        if (! $tarif->estSupprimable()) {
+            $this->dispatch('notify', [
+                'message' => 'Impossible de supprimer la grille active. Activez-en une autre d\'abord.',
+                'type' => 'error',
+            ]);
+
+            return;
+        }
+
+        $tarif->delete();
+
+        $this->dispatch('notify', ['message' => 'Grille supprimée.', 'type' => 'success']);
+    }
 
     public function getConfigurationsProperty()
     {
@@ -284,6 +534,157 @@ new class extends Component {
                     </p>
                 </div>
             @endif
+
+            {{-- Grilles tarifaires, un bloc par service.
+
+                 Les trois services partageaient une seule ligne de réglages où
+                 « prix/km clando » côtoyait « min. commande » : on ne pouvait
+                 ni les régler séparément, ni faire varier un tarif selon
+                 l'heure. Chaque service a désormais sa grille, découpée en
+                 plages horaires qui s'appliquent toutes seules. --}}
+            <div class="mt-6 space-y-4">
+                <div class="flex items-baseline justify-between">
+                    <h2 class="text-sm font-bold uppercase tracking-wider text-gray-500">Grilles tarifaires par service</h2>
+                    <p class="text-xs text-gray-400">La plage dont l'heure correspond s'applique automatiquement</p>
+                </div>
+
+                <div class="grid gap-4 xl:grid-cols-3">
+                    @foreach ($this->grilles as $grille)
+                        @php
+                            $actif = $grille['actif'];
+                            $courante = $actif?->plageCourante();
+                            $avecVip = in_array($grille['service'], \App\Models\Tarif::SERVICES_AVEC_VIP, true);
+                        @endphp
+
+                        <div class="flex flex-col rounded-2xl border border-gray-200 bg-white p-5">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <p class="text-base font-bold text-gray-900">{{ $grille['libelle'] }}</p>
+                                    @if ($actif?->libelle)
+                                        <p class="mt-0.5 text-xs text-gray-500">{{ $actif->libelle }}</p>
+                                    @endif
+                                </div>
+                                <x-ui.badge :tone="$actif ? 'success' : 'gray'">
+                                    {{ $actif ? 'Active' : 'Aucune grille' }}
+                                </x-ui.badge>
+                            </div>
+
+                            @if ($actif && $actif->plages->isNotEmpty())
+                                <div class="mt-4 space-y-2">
+                                    @foreach ($actif->plages as $plage)
+                                        @php $estCourante = $courante && $courante->id === $plage->id; @endphp
+                                        <div @class([
+                                            'rounded-xl border px-3 py-2.5',
+                                            'border-emerald-300 bg-emerald-50' => $estCourante,
+                                            'border-gray-200 bg-gray-50' => ! $estCourante,
+                                        ])>
+                                            <div class="flex items-center justify-between">
+                                                <p class="font-mono text-sm font-bold text-gray-900">
+                                                    {{ $plage->debutCourt() }} – {{ $plage->finCourte() }}
+                                                </p>
+                                                {{-- Repère de ce qui est facturé à l'instant présent :
+                                                     avec cinq plages, savoir laquelle s'applique
+                                                     demandait sinon de lire l'heure et comparer. --}}
+                                                @if ($estCourante)
+                                                    <span class="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white">
+                                                        En cours
+                                                    </span>
+                                                @endif
+                                            </div>
+
+                                            <dl class="mt-1.5 grid grid-cols-3 gap-x-3 gap-y-1 text-xs">
+                                                <div>
+                                                    <dt class="text-gray-500">Prix/km</dt>
+                                                    <dd class="font-semibold tabular-nums text-gray-900">{{ $plage->prix_km }} F</dd>
+                                                </div>
+                                                <div>
+                                                    <dt class="text-gray-500">Plancher</dt>
+                                                    <dd class="font-semibold tabular-nums text-gray-900">{{ $plage->prix_min }} F</dd>
+                                                </div>
+                                                <div>
+                                                    <dt class="text-gray-500">Plafond</dt>
+                                                    <dd class="font-semibold tabular-nums text-gray-900">
+                                                        {{ $plage->prix_max ? $plage->prix_max . ' F' : '—' }}
+                                                    </dd>
+                                                </div>
+                                                <div>
+                                                    <dt class="text-gray-500">Commission</dt>
+                                                    <dd class="font-semibold tabular-nums text-gray-900">{{ rtrim(rtrim(number_format($plage->commission, 2, ',', ''), '0'), ',') }} %</dd>
+                                                </div>
+                                                @if ($avecVip)
+                                                    <div>
+                                                        <dt class="text-gray-500">Comm. VIP</dt>
+                                                        <dd class="font-semibold tabular-nums text-gray-900">
+                                                            {{ $plage->commission_vip !== null ? rtrim(rtrim(number_format($plage->commission_vip, 2, ',', ''), '0'), ',') . ' %' : '—' }}
+                                                        </dd>
+                                                    </div>
+                                                    <div>
+                                                        <dt class="text-gray-500">Major. VIP</dt>
+                                                        <dd class="font-semibold tabular-nums text-gray-900">
+                                                            {{ $plage->majoration_vip !== null ? rtrim(rtrim(number_format($plage->majoration_vip, 2, ',', ''), '0'), ',') . ' %' : '—' }}
+                                                        </dd>
+                                                    </div>
+                                                @endif
+                                            </dl>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @else
+                                <p class="mt-4 flex-1 rounded-xl border border-dashed border-gray-300 px-3 py-6 text-center text-xs text-gray-500">
+                                    Aucune grille active pour ce service.<br>
+                                    Les tarifs de l'ancienne configuration s'appliquent.
+                                </p>
+                            @endif
+
+                            <div class="mt-4 flex flex-wrap items-center gap-2">
+                                <x-ui.button size="sm" wire:click="openTarifModal('{{ $grille['service'] }}')">
+                                    Nouvelle grille
+                                </x-ui.button>
+
+                                @if ($actif)
+                                    <x-ui.button size="sm" variant="secondary" wire:click="openTarifModal('{{ $grille['service'] }}', {{ $actif->id }})">
+                                        Modifier
+                                    </x-ui.button>
+                                @endif
+                            </div>
+
+                            @if ($grille['historique']->isNotEmpty())
+                                <details class="mt-3">
+                                    <summary class="cursor-pointer text-xs font-semibold text-gray-500 hover:text-gray-700">
+                                        {{ $grille['historique']->count() }} grille(s) inactive(s)
+                                    </summary>
+                                    <div class="mt-2 space-y-1.5">
+                                        @foreach ($grille['historique'] as $inactive)
+                                            <div class="flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-2.5 py-1.5">
+                                                <span class="truncate text-xs text-gray-600">
+                                                    {{ $inactive->libelle ?: $inactive->created_at?->format('d/m/Y') }}
+                                                    <span class="text-gray-400">· {{ $inactive->plages->count() }} plage(s)</span>
+                                                </span>
+                                                <span class="flex shrink-0 gap-1">
+                                                    <button type="button" wire:click="activerTarif({{ $inactive->id }})"
+                                                            wire:confirm="Appliquer cette grille ? Celle en cours sera désactivée."
+                                                            class="rounded px-2 py-0.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50">
+                                                        Activer
+                                                    </button>
+                                                    <button type="button" wire:click="openTarifModal('{{ $grille['service'] }}', {{ $inactive->id }})"
+                                                            class="rounded px-2 py-0.5 text-xs font-bold text-gray-600 hover:bg-gray-100">
+                                                        Modifier
+                                                    </button>
+                                                    <button type="button" wire:click="supprimerTarif({{ $inactive->id }})"
+                                                            wire:confirm="Supprimer définitivement cette grille ?"
+                                                            class="rounded px-2 py-0.5 text-xs font-bold text-red-600 hover:bg-red-50">
+                                                        Supprimer
+                                                    </button>
+                                                </span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </details>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            </div>
 
             {{-- Envoi des courriels : ce qui est configuré, et de quoi l'essayer. --}}
             <div class="mt-6 rounded-2xl border border-gray-200 bg-white px-5 py-4">
@@ -567,6 +968,131 @@ new class extends Component {
                     <x-ui.button type="submit" form="configurationForm" wire:loading.attr="disabled" wire:target="save">
                         <span wire:loading.remove wire:target="save">Enregistrer</span>
                         <span wire:loading wire:target="save">Enregistrement…</span>
+                    </x-ui.button>
+                </x-slot:footer>
+            </x-ui.modal>
+
+            {{-- Édition d'une grille : ses plages horaires, empilées.
+
+                 Les champs varient selon le service : seul le clando distingue
+                 une course VIP d'une course classique, et proposer ces réglages
+                 sur une livraison suggérerait un effet qu'ils n'ont pas. --}}
+            @php $tarifAvecVip = in_array($tarifService, \App\Models\Tarif::SERVICES_AVEC_VIP, true); @endphp
+
+            <x-ui.modal
+                :show="$showTarifModal"
+                :title="($tarifId ? 'Modifier la grille — ' : 'Nouvelle grille — ') . (\App\Models\Tarif::SERVICES[$tarifService] ?? $tarifService)"
+                :subtitle="$tarifId ? null : 'Elle sera créée inactive : à vous de l\'activer ensuite.'"
+                close="closeTarifModal"
+                width="max-w-4xl">
+                <form id="tarifForm" wire:submit.prevent="saveTarif" class="space-y-5">
+                    <x-ui.field label="Nom de la grille" for="tarifLibelle"
+                                hint="facultatif — ex. « Tarifs saison des pluies »"
+                                :error="$errors->first('tarifLibelle')">
+                        <x-ui.input id="tarifLibelle" wire:model="tarifLibelle"
+                                    :error="$errors->has('tarifLibelle')" />
+                    </x-ui.field>
+
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-gray-500">
+                                Plages horaires ({{ count($plages) }}/5)
+                            </h3>
+                            <x-ui.button size="sm" variant="secondary" type="button" wire:click="ajouterPlage">
+                                Ajouter une plage
+                            </x-ui.button>
+                        </div>
+
+                        @foreach ($plages as $i => $plage)
+                            <div class="rounded-xl border border-gray-200 bg-gray-50/60 p-4" wire:key="plage-{{ $i }}">
+                                <div class="mb-3 flex items-center justify-between">
+                                    <p class="text-xs font-bold uppercase tracking-wide text-gray-500">
+                                        Plage {{ $i + 1 }}
+                                    </p>
+                                    @if (count($plages) > 1)
+                                        <button type="button" wire:click="retirerPlage({{ $i }})"
+                                                class="text-xs font-bold text-red-600 hover:underline">
+                                            Retirer
+                                        </button>
+                                    @endif
+                                </div>
+
+                                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                                    {{-- Une plage peut franchir minuit (18:00 → 06:00) :
+                                         c'est le cas d'usage principal d'une majoration
+                                         de nuit, et il est traité par TarifPlage::couvre(). --}}
+                                    <x-ui.field label="De" :for="'plages-'.$i.'-debut'" :required="true"
+                                                :error="$errors->first('plages.'.$i.'.debut')">
+                                        <x-ui.input :id="'plages-'.$i.'-debut'" type="time"
+                                                    wire:model="plages.{{ $i }}.debut"
+                                                    :error="$errors->has('plages.'.$i.'.debut')" />
+                                    </x-ui.field>
+
+                                    <x-ui.field label="À" :for="'plages-'.$i.'-fin'" :required="true"
+                                                :error="$errors->first('plages.'.$i.'.fin')">
+                                        <x-ui.input :id="'plages-'.$i.'-fin'" type="time"
+                                                    wire:model="plages.{{ $i }}.fin"
+                                                    :error="$errors->has('plages.'.$i.'.fin')" />
+                                    </x-ui.field>
+
+                                    <x-ui.field label="Prix par km" :for="'plages-'.$i.'-km'" :required="true"
+                                                hint="en F CFA" :error="$errors->first('plages.'.$i.'.prix_km')">
+                                        <x-ui.input :id="'plages-'.$i.'-km'" type="number" min="0"
+                                                    wire:model="plages.{{ $i }}.prix_km"
+                                                    :error="$errors->has('plages.'.$i.'.prix_km')" />
+                                    </x-ui.field>
+
+                                    <x-ui.field label="Commission" :for="'plages-'.$i.'-comm'" :required="true"
+                                                :hint="$tarifAvecVip ? '% retenu, course classique' : '% retenu sur la livraison seule'"
+                                                :error="$errors->first('plages.'.$i.'.commission')">
+                                        <x-ui.input :id="'plages-'.$i.'-comm'" type="number" min="0" max="100" step="0.01"
+                                                    wire:model="plages.{{ $i }}.commission"
+                                                    :error="$errors->has('plages.'.$i.'.commission')" />
+                                    </x-ui.field>
+
+                                    <x-ui.field label="Prix minimum" :for="'plages-'.$i.'-min'" :required="true"
+                                                hint="plancher facturé" :error="$errors->first('plages.'.$i.'.prix_min')">
+                                        <x-ui.input :id="'plages-'.$i.'-min'" type="number" min="0"
+                                                    wire:model="plages.{{ $i }}.prix_min"
+                                                    :error="$errors->has('plages.'.$i.'.prix_min')" />
+                                    </x-ui.field>
+
+                                    <x-ui.field label="Prix maximum" :for="'plages-'.$i.'-max'"
+                                                hint="plafond — vide : aucun"
+                                                :error="$errors->first('plages.'.$i.'.prix_max')">
+                                        <x-ui.input :id="'plages-'.$i.'-max'" type="number" min="0"
+                                                    wire:model="plages.{{ $i }}.prix_max"
+                                                    :error="$errors->has('plages.'.$i.'.prix_max')" />
+                                    </x-ui.field>
+
+                                    @if ($tarifAvecVip)
+                                        <x-ui.field label="Commission VIP" :for="'plages-'.$i.'-commvip'"
+                                                    hint="% retenu sur une course VIP"
+                                                    :error="$errors->first('plages.'.$i.'.commission_vip')">
+                                            <x-ui.input :id="'plages-'.$i.'-commvip'" type="number" min="0" max="100" step="0.01"
+                                                        wire:model="plages.{{ $i }}.commission_vip"
+                                                        :error="$errors->has('plages.'.$i.'.commission_vip')" />
+                                        </x-ui.field>
+
+                                        <x-ui.field label="Majoration VIP" :for="'plages-'.$i.'-majvip'"
+                                                    hint="% ajouté au prix d'une course VIP"
+                                                    :error="$errors->first('plages.'.$i.'.majoration_vip')">
+                                            <x-ui.input :id="'plages-'.$i.'-majvip'" type="number" min="0" max="100" step="0.01"
+                                                        wire:model="plages.{{ $i }}.majoration_vip"
+                                                        :error="$errors->has('plages.'.$i.'.majoration_vip')" />
+                                        </x-ui.field>
+                                    @endif
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </form>
+
+                <x-slot:footer>
+                    <x-ui.button variant="secondary" wire:click="closeTarifModal">Annuler</x-ui.button>
+                    <x-ui.button type="submit" form="tarifForm" wire:loading.attr="disabled" wire:target="saveTarif">
+                        <span wire:loading.remove wire:target="saveTarif">Enregistrer</span>
+                        <span wire:loading wire:target="saveTarif">Enregistrement…</span>
                     </x-ui.button>
                 </x-slot:footer>
             </x-ui.modal>

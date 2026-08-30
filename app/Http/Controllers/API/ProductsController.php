@@ -26,15 +26,33 @@ class ProductsController extends Controller
             ->get()
             ->keyBy('id_product');
 
-        $data = $product->map(function ($item) use ($promotions) {
+        /*
+         | Commission de boutique : le prix envoyé au client est majoré du taux
+         | convenu avec le marchand, et l'écart revient à l'entreprise (voir
+         | App\Support\MajorationBoutique). Appliquée ici, et non côté
+         | application, pour que le prix affiché soit exactement celui qui sera
+         | facturé — et parce que le marchand, lui, doit continuer de voir son
+         | prix de base dans « Ma boutique ».
+         |
+         | La promotion se calcule sur le prix majoré : une remise de 10 % doit
+         | porter sur ce que le client voit, sinon l'affichage annoncerait une
+         | réduction que le total ne refléterait pas.
+         */
+        $majoration = app(\App\Support\MajorationBoutique::class);
+
+        $data = $product->map(function ($item) use ($promotions, $majoration) {
             $array = $item->toArray();
+
+            $prixAffiche = $majoration->prixAffiche((float) $item->price, $item->id_shop, $item->id);
+            $array['price'] = $prixAffiche;
+
             $promotion = $promotions->get($item->id);
             if ($promotion) {
                 $array['promotion'] = [
                     'title' => $promotion->title,
                     'discount_type' => $promotion->discount_type,
                     'discount_value' => $promotion->discount_value,
-                    'price_after' => round($promotion->prixApres((float) $item->price)),
+                    'price_after' => round($promotion->prixApres((float) $prixAffiche)),
                 ];
             }
             return $array;
@@ -264,13 +282,26 @@ class ProductsController extends Controller
     public function getProductsByCategory(Request $request)
     {
         $product = Product::where('status','Success')->where('id_category',$request->id)->get();
+
+        // Même majoration que getAllProducts : un produit ne peut pas
+        // s'afficher à deux prix selon qu'on l'atteint par le catalogue ou par
+        // sa catégorie.
+        $majoration = app(\App\Support\MajorationBoutique::class);
+
+        $data = $product->map(function ($item) use ($majoration) {
+            $array = $item->toArray();
+            $array['price'] = $majoration->prixAffiche((float) $item->price, $item->id_shop, $item->id);
+
+            return $array;
+        });
+
         return response()->json([
             "response"=>200,
-            "data"=>$product,
+            "data"=>$data,
 
         ]);
 
-        
+
     }
 
     public function getVariantPrice(Request $request)

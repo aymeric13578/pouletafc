@@ -124,8 +124,11 @@ class PanierValideController extends Controller
             ->get()
             ->keyBy('id_product');
 
+        // Commissions de boutique, chargées une fois pour tout le panier.
+        $majoration = app(\App\Support\MajorationBoutique::class);
+
         try {
-            $commande = DB::transaction(function () use ($request, $client, $articles, $cle, $promotions) {
+            $commande = DB::transaction(function () use ($request, $client, $articles, $cle, $promotions, $majoration) {
                 $panier = Cart::create([
                     'user_id' => $client->id,
                     'status' => 'Success',
@@ -142,10 +145,24 @@ class PanierValideController extends Controller
                      | active, elle, est appliquée ici — recalculée depuis la
                      | base, jamais depuis un total envoyé par l'application.
                      */
+                    /*
+                     | La commission de boutique est appliquée ici, et dans le
+                     | même ordre que sur le catalogue (majoration, puis
+                     | promotion) : sans cela, le client verrait 1 050 F à
+                     | l'affichage et serait facturé 1 000 F — la commission
+                     | n'atteindrait jamais l'entreprise, et le total de la
+                     | commande contredirait le panier que le client vient de
+                     | relire. Recalculée depuis la base comme le reste, elle
+                     | ne dépend pas davantage de ce qu'envoie le téléphone.
+                     */
                     $produit = $article['produit'];
-                    $prixBase = (float) $produit->price;
+                    $prixBase = $majoration->prixAffiche(
+                        (float) $produit->price,
+                        $produit->id_shop,
+                        $produit->id
+                    );
                     $promotion = $promotions->get($produit->id);
-                    $montant = $promotion ? $promotion->prixApres($prixBase) : $prixBase;
+                    $montant = $promotion ? $promotion->prixApres((float) $prixBase) : (float) $prixBase;
 
                     CartItem::create([
                         'user_id' => $client->id,

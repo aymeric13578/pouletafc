@@ -54,6 +54,32 @@ class MaBoutiqueController extends Controller
      * Ce que l'application demande juste après la connexion pour savoir s'il
      * faut proposer l'entrée « Ma boutique ».
      */
+    /**
+     * Rappel d'échéance d'abonnement destiné au marchand, ou null.
+     *
+     * Ne renvoie quelque chose qu'à l'approche de l'échéance (voir
+     * BoutiqueFacturation::PREAVIS_JOURS) : un bandeau permanent finirait par
+     * ne plus être lu le jour où il compte.
+     */
+    private function avisAbonnement(int $shopId): ?array
+    {
+        $facturation = \App\Models\BoutiqueFacturation::where('shop_id', $shopId)
+            ->where('actif', true)
+            ->where('mode', \App\Models\BoutiqueFacturation::MODE_ABONNEMENT)
+            ->first();
+
+        if (! $facturation || ! $facturation->doitAvertir()) {
+            return null;
+        }
+
+        return [
+            'message' => $facturation->messageEcheance(),
+            'jours_restants' => $facturation->joursAvantEcheance(),
+            'montant' => $facturation->abonnement_montant,
+            'echeance' => $facturation->abonnement_echeance?->toDateString(),
+        ];
+    }
+
     public function getMyShop(Request $request): JsonResponse
     {
         $boutique = $this->boutiqueVerifiee($request);
@@ -83,6 +109,18 @@ class MaBoutiqueController extends Controller
                 'banner' => $this->urlImage($boutique->banner),
                 'opening_hours' => $boutique->opening_hours,
                 'is_open_now' => $boutique->estOuverteMaintenant(),
+                /*
+                 | Avis d'échéance d'abonnement, quand la boutique est facturée
+                 | ainsi plutôt qu'à la commission. Null la plupart du temps :
+                 | il n'apparaît qu'à trois jours de l'échéance, et l'espace
+                 | marchand n'affiche donc rien le reste du mois.
+                 |
+                 | Le taux de commission n'est délibérément pas exposé ici : le
+                 | marchand travaille sur son prix de base, la majoration
+                 | appliquée au client ne le concerne pas et l'afficher
+                 | brouillerait ses propres prix.
+                 */
+                'abonnement' => $this->avisAbonnement($boutique->id),
                 'stats' => [
                     'produits' => (clone $produits)->count(),
                     'commandes' => $this->commandesDe($boutique->id)->count(),
