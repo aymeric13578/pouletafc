@@ -319,8 +319,17 @@ new class extends Component {
                             </div>
                         @endif
                         <div>
-                            <label class="block text-gray-700 text-sm mb-1" for="image">Image</label>
-                            <input type="file" id="image" wire:model="image" class="w-full p-1 text-sm border border-gray-300 rounded-lg">
+                            <label class="block text-gray-700 text-sm mb-1" for="image-input">Image</label>
+                            <!--
+                                Pas de wire:model ici : le fichier choisi passe d'abord par la
+                                fenêtre de recadrage (Cropper.js, voir plus bas) avant d'être
+                                envoyé à Livewire via $wire.upload(). L'image bannière s'affiche
+                                dans l'app cliente sur un ratio 2,4:1 (carrousel de l'accueil,
+                                home_screen.dart) avec un recadrage automatique (BoxFit.cover) :
+                                sans aperçu ici, l'admin ne voyait jamais ce que ça donnerait
+                                avant de publier.
+                            -->
+                            <input type="file" id="image-input" accept="image/*" class="w-full p-1 text-sm border border-gray-300 rounded-lg">
                             @error('image') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                             @if ($existing_image)
                                 <div class="mt-2">
@@ -336,11 +345,105 @@ new class extends Component {
                 </div>
             </div>
 
+            <!-- Recadrage de l'image bannière, au ratio exact du carrousel de l'app. -->
+            <div id="crop-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center hidden" style="z-index: 60;">
+                <div class="bg-white rounded-lg p-4 w-full max-w-lg">
+                    <h3 class="text-sm font-semibold text-gray-800 mb-1">Ajuster l'image</h3>
+                    <p class="text-xs text-gray-500 mb-3">Ce que vous voyez dans le cadre est exactement ce qui s'affichera dans l'app.</p>
+                    <div style="max-height: 55vh; overflow: hidden;">
+                        <img id="crop-image" style="max-width: 100%; display: block;">
+                    </div>
+                    <div class="mt-3 flex items-center gap-2">
+                        <span class="text-xs text-gray-500">Zoom</span>
+                        <input id="crop-zoom" type="range" min="0" max="3" step="0.01" value="0" class="w-full">
+                    </div>
+                    <div class="flex justify-end mt-4 gap-2">
+                        <button type="button" id="crop-cancel" class="bg-gray-500 text-white py-1 px-3 text-sm rounded-lg hover:bg-gray-600">Annuler</button>
+                        <button type="button" id="crop-confirm" class="bg-indigo-600 text-white py-1 px-3 text-sm rounded-lg hover:bg-indigo-700">Valider le cadrage</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Toastr -->
             <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
             <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
             <script>
                 toastr.options = { closeButton: true, progressBar: true, positionClass: 'toast-top-right', timeOut: 3000 };
+            </script>
+
+            <!-- Cropper.js : recadrage/zoom cote client, au meme ratio que le carrousel
+                 de l'app (voir home_screen.dart, conteneur 148px de haut / pleine largeur
+                 avec des marges de 24px au total -> ratio 358:148). -->
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+            <script>
+                (function () {
+                    const RATIO_BANNIERE = 358 / 148;
+                    const modal = document.getElementById('crop-modal');
+                    const imageEl = document.getElementById('crop-image');
+                    const zoomInput = document.getElementById('crop-zoom');
+                    const fileInput = document.getElementById('image-input');
+                    let cropper = null;
+
+                    function fermerModaleRecadrage() {
+                        modal.classList.add('hidden');
+                        if (cropper) {
+                            cropper.destroy();
+                            cropper = null;
+                        }
+                    }
+
+                    fileInput.addEventListener('change', function (e) {
+                        const fichier = e.target.files[0];
+                        if (!fichier) return;
+
+                        const lecteur = new FileReader();
+                        lecteur.onload = function (evenement) {
+                            imageEl.src = evenement.target.result;
+                            modal.classList.remove('hidden');
+
+                            if (cropper) cropper.destroy();
+                            cropper = new Cropper(imageEl, {
+                                aspectRatio: RATIO_BANNIERE,
+                                viewMode: 1,
+                                dragMode: 'move',
+                                autoCropArea: 1,
+                                background: false,
+                                zoomOnWheel: false,
+                            });
+                            zoomInput.value = 0;
+                        };
+                        lecteur.readAsDataURL(fichier);
+                    });
+
+                    zoomInput.addEventListener('input', function () {
+                        if (cropper) cropper.zoomTo(parseFloat(zoomInput.value));
+                    });
+
+                    document.getElementById('crop-cancel').addEventListener('click', function () {
+                        fileInput.value = '';
+                        fermerModaleRecadrage();
+                    });
+
+                    document.getElementById('crop-confirm').addEventListener('click', function () {
+                        if (!cropper) return;
+
+                        // Deux fois la taille d'affichage (358x148) pour rester net sur les
+                        // ecrans a forte densite de pixels, sans egaler exactement le ratio
+                        // par coincidence : 716/296 = 358/148.
+                        cropper.getCroppedCanvas({ width: 716, height: 296 }).toBlob(function (blob) {
+                            const racine = document.querySelector('[wire\\:id]');
+                            const composant = window.Livewire.find(racine.getAttribute('wire:id'));
+                            const fichierRecadre = new File([blob], 'article.jpg', { type: 'image/jpeg' });
+
+                            composant.upload('image', fichierRecadre, function () {
+                                fermerModaleRecadrage();
+                            }, function () {
+                                alert("Échec de l'envoi de l'image recadrée. Réessayez.");
+                            });
+                        }, 'image/jpeg', 0.9);
+                    });
+                })();
             </script>
         </div>
     @endvolt
