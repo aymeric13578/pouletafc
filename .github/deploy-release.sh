@@ -16,6 +16,22 @@
 set -euo pipefail
 ARCHIVE="$HOME/${ARCHIVE_NAME}"
 
+# Dossier d'extraction à part, jamais servi.
+#
+# L'ancienne méthode extrayait directement dans $DEPLOY_PATH : le webroot PHP
+# lisait donc un dossier à moitié écrit pendant toute la durée de l'extraction
+# (plusieurs minutes sur ce disque mutualisé), ce qui produisait des 500 sur
+# tout le site — sans lien avec la charge de visiteurs, uniquement le fait
+# d'ouvrir un fichier qui n'existait pas encore. La bascule vers $DEPLOY_PATH
+# ne se fait plus qu'une fois l'extraction terminée ET vérifiée (voir plus
+# bas), par un simple mv : quasi instantané, sur le même volume.
+#
+# Nettoyé en tout début de script : un run précédent interrompu en pleine
+# extraction (timeout, connexion coupée) y laisserait un dossier à moitié
+# écrit, qu'il ne faut jamais confondre avec une extraction en cours.
+STAGING_PATH="${DEPLOY_PATH}_nouvelle"
+rm -rf "$STAGING_PATH"
+
 # Jalon horodaté avant chaque étape. Sans ça, quand le déploiement dépasse
 # le timeout on ne sait pas laquelle a traîné : la sortie s'arrête net sur
 # la dernière ligne affichée, qui ne dit rien de l'étape en cours.
@@ -84,10 +100,20 @@ fi
 #        vers le webroot demande un peu de marge. Volontairement calé au
 #        plus juste : un seuil trop large bloquerait des déploiements
 #        parfaitement viables, ce qui serait pire que le mal.
+#
+#        + taille de la release courante : avec l'extraction à part (voir
+#        STAGING_PATH plus haut), l'ancienne release ($DEPLOY_PATH) reste
+#        intacte pendant toute l'extraction de la nouvelle, au lieu d'être
+#        basculée en sauvegarde avant — donc les deux coexistent un instant,
+#        ce que l'ancienne méthode ne demandait pas.
 step "0 bis - controle de l'espace disque"
 ESPACE_DISPO=$(df -Pk "$HOME" | awk 'NR==2 {print $4}')
 TAILLE_ARCHIVE=$(du -k "$ARCHIVE" | awk '{print $1}')
-REQUIS=$(( TAILLE_ARCHIVE * 3 ))
+TAILLE_RELEASE_ACTUELLE=0
+if [ -d "$DEPLOY_PATH" ]; then
+  TAILLE_RELEASE_ACTUELLE=$(du -sk "$DEPLOY_PATH" | awk '{print $1}')
+fi
+REQUIS=$(( TAILLE_ARCHIVE * 3 + TAILLE_RELEASE_ACTUELLE ))
 
 echo "Disponible : $(( ESPACE_DISPO / 1024 )) Mo | requis : $(( REQUIS / 1024 )) Mo"
 
@@ -99,8 +125,51 @@ if [ "$ESPACE_DISPO" -lt "$REQUIS" ]; then
   exit 1
 fi
 
-step "1 - sauvegarde de la release"
-# 1. Sauvegarde la release actuelle si elle existe (le backup précédent est remplacé)
+step "2/3 - extraction dans un dossier a part (site inchange pendant ce temps)"
+# 2. Crée le dossier d'extraction à part (jamais $DEPLOY_PATH directement — voir
+#    STAGING_PATH en tête de script).
+mkdir -p "$STAGING_PATH"
+
+# 3. Extrait la nouvelle release dans ce dossier à part. « ionice »/« nice »
+#    abaissent la priorité disque/CPU de cette étape : elle reste la plus
+#    lourde en écriture du déploiement, et le site continue de servir
+#    l'ancienne release pendant qu'elle tourne — mais un compte mutualisé
+#    partage aussi le disque avec d'autres clients, autant y peser le moins
+#    possible. « ionice -c3 » (best-effort au repos) et « nice -n19 »
+#    (priorité CPU minimale) sont sans effet notable sur la durée totale ici,
+#    l'extraction étant de toute façon dominée par l'attente disque.
+if command -v ionice >/dev/null 2>&1; then
+  ionice -c3 nice -n19 tar -xzf "$ARCHIVE" -C "$STAGING_PATH"
+else
+  nice -n19 tar -xzf "$ARCHIVE" -C "$STAGING_PATH"
+fi
+rm -f "$ARCHIVE"
+
+# 3 ter. Vérifie que la release extraite est complète avant d'y toucher.
+#
+#        Une extraction tronquée passait jusqu'ici inaperçue : le script
+#        continuait, écrasait le webroot, et n'échouait qu'à l'étape 9 sur
+#        « Could not open input file: artisan » — trop tard, le site était
+#        déjà cassé et la sauvegarde consommée. Ici, rien n'a encore été
+#        touché à $DEPLOY_PATH ni $BACKUP_PATH : une extraction ratée se
+#        contente d'être effacée, le site en ligne n'a jamais vu la
+#        différence.
+if [ ! -f "$STAGING_PATH/artisan" ] || [ ! -d "$STAGING_PATH/public/build" ]; then
+  echo "ERREUR: release incomplète après extraction." >&2
+  ls -la "$STAGING_PATH" | head -20 >&2
+  df -h "$HOME" >&2
+  echo "Le site en ligne n'a pas été touché : aucune restauration nécessaire." >&2
+  rm -rf "$STAGING_PATH"
+  exit 1
+fi
+
+step "1 - bascule atomique (sauvegarde de l'ancienne release, activation de la nouvelle)"
+# 1. Bascule : l'ancienne release ($DEPLOY_PATH) devient la sauvegarde, et la
+#    nouvelle (déjà extraite et vérifiée dans $STAGING_PATH) prend sa place.
+#    Deux « mv » sur le même volume : quasi instantanés, contrairement à
+#    l'extraction qui les précède — c'est là, et seulement là, que le site
+#    voit changer sa release, sans la fenêtre de plusieurs minutes qu'ouvrait
+#    l'extraction directe dans $DEPLOY_PATH.
 if [ -d "$DEPLOY_PATH" ]; then
   echo "Sauvegarde de la release existante vers $BACKUP_PATH"
   rm -rf "$BACKUP_PATH"
@@ -108,38 +177,7 @@ if [ -d "$DEPLOY_PATH" ]; then
 else
   echo "Aucune release existante, pas de sauvegarde nécessaire"
 fi
-
-# 2. Crée le dossier de release seulement s'il n'existe pas déjà
-mkdir -p "$DEPLOY_PATH"
-
-step "3 - extraction archive"
-# 3. Extrait la nouvelle release
-tar -xzf "$ARCHIVE" -C "$DEPLOY_PATH"
-rm -f "$ARCHIVE"
-
-# 3 ter. Vérifie que la release extraite est complète, et revient en arrière
-#        sinon.
-#
-#        Une extraction tronquée passait jusqu'ici inaperçue : le script
-#        continuait, écrasait le webroot, et n'échouait qu'à l'étape 9 sur
-#        « Could not open input file: artisan » — trop tard, le site était
-#        déjà cassé et la sauvegarde consommée. On restaure immédiatement.
-if [ ! -f "$DEPLOY_PATH/artisan" ] || [ ! -d "$DEPLOY_PATH/public/build" ]; then
-  echo "ERREUR: release incomplète après extraction." >&2
-  ls -la "$DEPLOY_PATH" | head -20 >&2
-  df -h "$HOME" >&2
-
-  if [ -d "$BACKUP_PATH/artisan" ] || [ -f "$BACKUP_PATH/artisan" ]; then
-    echo "Restauration de la release précédente..." >&2
-    rm -rf "$DEPLOY_PATH"
-    mv "$BACKUP_PATH" "$DEPLOY_PATH"
-    echo "Release précédente restaurée : le site reste en ligne." >&2
-  else
-    echo "AUCUNE sauvegarde exploitable : intervention manuelle nécessaire." >&2
-  fi
-
-  exit 1
-fi
+mv "$STAGING_PATH" "$DEPLOY_PATH"
 
 # 3 bis. Publie les assets buildés vers le webroot IMMÉDIATEMENT, sans --delete.
 #
