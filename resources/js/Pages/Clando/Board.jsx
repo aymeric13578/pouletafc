@@ -40,6 +40,10 @@ const ageLisible = (secondes) => {
 };
 
 const CLE_SON = 'carte-clando.son-active';
+const CLE_SON_ALERTE = 'carte-clando.alerte-securite.son-active';
+// Bien plus rapproché que le rappel des courses en attente (20 s) : un
+// signalement "panique" (clando.dart) doit rester impossible à ignorer.
+const RAPPEL_ALERTE_MS = 3000;
 
 const STATUTS = {
     pending: { couleur: '#f59e0b', classe: 'bg-amber-100 text-amber-800 ring-amber-300' },
@@ -107,6 +111,19 @@ export default function Board({ initial }) {
 
     const { audioRef, sonActif, silence, jouer, activer, couper, leverSilence } = useAlerteSonore(CLE_SON);
 
+    /*
+     * Signalement "panique" (bouton Signaler, clando.dart) : une sirène à
+     * part, distincte du carillon des courses en attente — celle-ci ne doit
+     * jamais se faire confondre avec l'ambiance normale de l'écran.
+     */
+    const {
+        audioRef: audioAlerteRef,
+        sonActif: sonAlerteActif,
+        jouer: jouerAlerte,
+        activer: activerSonAlerte,
+    } = useAlerteSonore(CLE_SON_ALERTE);
+    const [enCoursAcquittement, setEnCoursAcquittement] = useState(null);
+
     const carteRef = useCarteLeaflet(conteneurRef, { surDeplacement: () => setSelection(null) });
     const synchroniser = useSynchronisation(carteRef);
 
@@ -121,6 +138,16 @@ export default function Board({ initial }) {
     const stats = donnees.stats ?? {};
 
     const nbEnAttente = useMemo(() => courses.filter((c) => c.en_attente).length, [courses]);
+    const alertesSecurite = donnees.alertes_securite ?? [];
+
+    useEffect(() => {
+        if (alertesSecurite.length === 0) return undefined;
+
+        jouerAlerte();
+        const timer = setInterval(jouerAlerte, RAPPEL_ALERTE_MS);
+        return () => clearInterval(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [alertesSecurite.length]);
 
     useEffect(() => {
         if (nbEnAttente === 0) return undefined;
@@ -317,6 +344,28 @@ export default function Board({ initial }) {
         [appliquer],
     );
 
+    const acquitterAlerte = useCallback(async (idIncident) => {
+        setEnCoursAcquittement(idIncident);
+
+        try {
+            const reponse = await fetch(`/clando/alerte/${idIncident}/acquitter`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': jetonCsrf(),
+                },
+            });
+
+            // L'écran repasse en normal dès la prochaine réponse de /clando/flux
+            // (dans les 4 s) — pas besoin d'appliquer la réponse ici, juste de
+            // ne pas laisser le bouton bloqué si la requête a échoué.
+            if (!reponse.ok) throw new Error(String(reponse.status));
+        } catch {
+            setEnCoursAcquittement(null);
+        }
+    }, []);
+
     // Le message de retour s'efface seul : il documente un geste, il n'a pas à
     // rester en travers de l'écran.
     useEffect(() => {
@@ -508,6 +557,16 @@ export default function Board({ initial }) {
     return (
         <>
             <Head title="Carte clando" />
+
+            {alertesSecurite.length > 0 && (
+                <AlerteSecuriteOverlay
+                    alertes={alertesSecurite}
+                    enCoursAcquittement={enCoursAcquittement}
+                    onAcquitter={acquitterAlerte}
+                    sonActif={sonAlerteActif}
+                    onActiverSon={activerSonAlerte}
+                />
+            )}
 
             <div className="flex h-screen flex-col overflow-hidden bg-slate-100">
                 <header className="flex flex-wrap items-center gap-4 border-b border-slate-200 bg-white px-5 py-3 shadow-sm">
@@ -796,6 +855,10 @@ export default function Board({ initial }) {
                 <source src="/sounds/notification.wav" type="audio/wav" />
             </audio>
 
+            <audio ref={audioAlerteRef} preload="auto">
+                <source src="/sounds/alerte-securite.wav" type="audio/wav" />
+            </audio>
+
             <ChoixDuLieu
                 ouvert={lieuDemande !== null}
                 titre="Destination de la course"
@@ -815,5 +878,82 @@ export default function Board({ initial }) {
                 onValider={(motif) => annuler(annulationDemandee, motif)}
             />
         </>
+    );
+}
+
+/**
+ * Plein écran, rouge, au-dessus de tout le reste (bouton "Signaler",
+ * clando.dart) — tant qu'au moins un signalement reste sans accusé de
+ * réception. Le navigateur exige un geste pour démarrer un son : le premier
+ * clic sur "J'ai vu, j'interviens" sert aussi à activer la sirène si elle ne
+ * l'était pas déjà (même politique que useAlerteSonore pour le reste du mur).
+ */
+function AlerteSecuriteOverlay({ alertes, enCoursAcquittement, onAcquitter, sonActif, onActiverSon }) {
+    return (
+        <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center gap-6 bg-red-700 p-6 animate-pulse-lent">
+            <style>{`
+                @keyframes pulse-lent-bg {
+                    0%, 100% { background-color: rgb(185 28 28); }
+                    50% { background-color: rgb(127 29 29); }
+                }
+                .animate-pulse-lent { animation: pulse-lent-bg 1s ease-in-out infinite; }
+            `}</style>
+
+            <svg
+                className="h-16 w-16 text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
+            >
+                <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+                />
+            </svg>
+
+            <h1 className="text-center text-3xl font-black uppercase tracking-wide text-white">
+                Signalement en cours — {alertes.length} course{alertes.length > 1 ? 's' : ''}
+            </h1>
+
+            {!sonActif && (
+                <button
+                    type="button"
+                    onClick={onActiverSon}
+                    className="rounded-full bg-white/20 px-4 py-1.5 text-xs font-semibold text-white ring-1 ring-white/40 hover:bg-white/30"
+                >
+                    Activer le son de la sirène
+                </button>
+            )}
+
+            <div className="flex w-full max-w-2xl flex-col gap-3">
+                {alertes.map((alerte) => (
+                    <div
+                        key={alerte.id}
+                        className="flex items-center justify-between gap-4 rounded-xl bg-white px-5 py-4 shadow-2xl"
+                    >
+                        <div className="min-w-0">
+                            <p className="truncate text-sm font-bold text-red-800">
+                                Course #{alerte.id_clando ?? '—'}
+                            </p>
+                            <p className="truncate text-xs text-slate-600">
+                                Client : {alerte.client ?? 'inconnu'} · Agent : {alerte.agent ?? 'inconnu'}
+                            </p>
+                            <p className="text-xs text-slate-400">{alerte.depuis}</p>
+                        </div>
+
+                        <button
+                            type="button"
+                            disabled={enCoursAcquittement === alerte.id}
+                            onClick={() => onAcquitter(alerte.id)}
+                            className="shrink-0 rounded-lg bg-red-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-800 disabled:opacity-50"
+                        >
+                            {enCoursAcquittement === alerte.id ? 'Envoi…' : "J'ai vu, j'interviens"}
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </div>
     );
 }

@@ -102,6 +102,8 @@ Route::get('/clando/{course}/agents-classes', [\App\Http\Controllers\Admin\Cland
 // Annulation d'une course, motif obligatoire.
 Route::post('/clando/{course}/lieu', [\App\Http\Controllers\Admin\ClandoBoardController::class, 'changerLeLieu'])->name('clando.board.place');
 Route::post('/clando/{course}/annulation', [\App\Http\Controllers\Admin\ClandoBoardController::class, 'annuler'])->name('clando.board.cancel');
+// Bouton panique (clando.dart) : accusé de réception d'une alerte depuis le mur.
+Route::post('/clando/alerte/{incident}/acquitter', [\App\Http\Controllers\Admin\ClandoBoardController::class, 'acquitterAlerte'])->name('clando.board.alerte.acquitter');
 
 /*
 | Carte des livraisons : activité des agents et points de livraison, atteinte

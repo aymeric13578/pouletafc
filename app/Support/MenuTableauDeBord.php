@@ -49,6 +49,11 @@ class MenuTableauDeBord
                 ['dashboard.lieux', 'Lieux', 'M15 10.5a3 3 0 11-6 0 3 3 0 016 0z M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z'],
                 ['dashboard.objectifs', 'Objectifs', 'M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z'],
             ]],
+            ['Sécurité', [
+                // Ce que produisent les boutons "Enregistrer"/"Signaler" de l'écran
+                // de course (clando.dart) — voir IncidentSecuriteController.
+                ['dashboard.securite', 'Incidents', 'M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z'],
+            ]],
             /*
             | Écrans de l'ancien back-office Bootstrap. Ils n'ont jamais cessé de
             | fonctionner, mais la barre latérale ne listait que les pages Folio :

@@ -70,6 +70,23 @@ return [
             'throw' => false,
         ],
 
+        /*
+         | Enregistrements audio de course (bouton "Enregistrer"/"Signaler",
+         | voir IncidentSecuriteController). Volontairement PAS dans le
+         | disque "uploads" ci-dessus : celui-ci est servi par le serveur web
+         | sans la moindre authentification (routes v1.0, CLAUDE.md règle 8),
+         | alors qu'un enregistrement de course est justement le genre de
+         | contenu qui ne doit être écouté que par l'équipe, depuis la page
+         | Sécurité du tableau de bord (route dédiée derrière auth +
+         | EnsureUserIsStaff, jamais une URL publique).
+         */
+        'incidents-securite' => [
+            'driver' => 'local',
+            'root' => storage_path('app/incidents-securite'),
+            'visibility' => 'private',
+            'throw' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

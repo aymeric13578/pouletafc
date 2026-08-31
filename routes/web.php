@@ -83,6 +83,15 @@ Route::middleware('auth')->group(function () {
 
 require __DIR__.'/shop.php';
 
+// Lecture des enregistrements audio du bouton "panique" (page Sécurité) :
+// derrière le même garde que le reste de /dashboard/*, voir
+// FolioServiceProvider::boot() — un enregistrement ne doit jamais être
+// accessible par une URL directe non authentifiée.
+Route::get('/dashboard/securite/audio/{incident}', [
+    App\Http\Controllers\Admin\IncidentSecuriteAdminController::class, 'audio',
+])->middleware(['auth', \App\Http\Middleware\EnsureUserIsStaff::class])
+    ->name('dashboard.securite.audio');
+
 //Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
 
 

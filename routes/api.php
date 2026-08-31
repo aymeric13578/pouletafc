@@ -233,7 +233,11 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
     
     Route::get('storeHistory', 'ClandoController@storeHistory');
     Route::post('storeHistory', 'ClandoController@storeHistory');
- 
+
+    // Boutons "Enregistrer"/"Signaler" de l'écran de course (clando.dart).
+    Route::post('signalerCourse', 'IncidentSecuriteController@signalerCourse');
+    Route::post('enregistrerAudioCourse', 'IncidentSecuriteController@enregistrerAudioCourse');
+
  
  Route::get('takePosition', 'ClandoController@takePosition');
   Route::post('takePosition', 'ClandoController@takePosition');

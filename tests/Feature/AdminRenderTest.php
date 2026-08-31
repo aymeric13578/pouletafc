@@ -21,6 +21,7 @@ class AdminRenderTest extends TestCase
             'operateurs' => ['/dashboard/operators'],
             'utilisateurs' => ['/dashboard/users'],
             'statistiques' => ['/dashboard/statistiques'],
+            'securite' => ['/dashboard/securite'],
         ];
     }
 
@@ -36,7 +37,7 @@ class AdminRenderTest extends TestCase
         $user = \App\Models\User::where("role", "admin")->firstOrFail();
         $html = $this->actingAs($user)->get('/dashboard')->getContent();
 
-        foreach (['Produits', 'Catégories', 'Commandes', 'Transactions', 'Clients', 'Agents', 'Utilisateurs', 'Statistiques'] as $lien) {
+        foreach (['Produits', 'Catégories', 'Commandes', 'Transactions', 'Clients', 'Agents', 'Utilisateurs', 'Statistiques', 'Incidents'] as $lien) {
             $this->assertStringContainsString($lien, $html, "Le lien « $lien » doit être dans la navigation.");
         }
     }

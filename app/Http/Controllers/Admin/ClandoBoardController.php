@@ -294,7 +294,41 @@ class ClandoBoardController extends Controller
             'latest_id' => (int) $this->requeteDeBase()->max('id'),
             'server_time' => now()->setTimezone(self::FUSEAU)->format('H:i:s'),
             'server_date' => now()->setTimezone(self::FUSEAU)->locale('fr')->translatedFormat('l j F Y'),
+            /*
+             | Signalements ("bouton panique", clando.dart) pas encore vus par
+             | un opérateur. Poussés dans ce flux déjà sondé toutes les 4s
+             | plutôt que par une infrastructure temps réel dédiée — voir
+             | IncidentSecuriteController::signalerCourse. L'écran passe en
+             | alerte plein écran tant que ce tableau n'est pas vide.
+             */
+            'alertes_securite' => \App\Models\IncidentSecurite::where('type', \App\Models\IncidentSecurite::SIGNALEMENT)
+                ->where('statut', \App\Models\IncidentSecurite::NOUVEAU)
+                ->orderByDesc('id')
+                ->get(['id', 'id_clando', 'id_client', 'id_agent', 'created_at'])
+                ->map(fn ($a) => [
+                    'id' => $a->id,
+                    'id_clando' => $a->id_clando,
+                    'client' => optional(User::find($a->id_client))->name,
+                    'agent' => optional(User::find($a->id_agent))->name,
+                    'depuis' => $a->created_at?->diffForHumans(),
+                ])
+                ->values(),
         ];
+    }
+
+    /**
+     * Un opérateur accuse réception d'une alerte : elle sort de la liste
+     * ci-dessus, donc de l'écran, dans les 4 secondes qui suivent — pas
+     * besoin d'un accusé de réception plus rapide, l'alerte a déjà rempli
+     * son rôle (attirer l'œil) le temps qu'un opérateur clique.
+     */
+    public function acquitterAlerte(int $incident): JsonResponse
+    {
+        \App\Models\IncidentSecurite::where('id', $incident)->update([
+            'statut' => \App\Models\IncidentSecurite::VU,
+        ]);
+
+        return response()->json(['response' => 200]);
     }
 
     /**
