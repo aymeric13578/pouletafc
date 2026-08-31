@@ -61,7 +61,15 @@ class IncidentSecuriteController extends Controller
             'id_clando' => ['nullable', 'integer'],
             'id_client' => ['nullable', 'integer'],
             'id_agent' => ['nullable', 'integer'],
-            'audio' => ['required', 'file', 'mimetypes:audio/mpeg,audio/mp4,audio/aac,audio/wav,audio/x-wav,audio/3gpp,audio/ogg', 'max:' . self::AUDIO_MAX_KO],
+            // video/mp4 : l'encodeur AAC LC d'Android (package `record`, voir
+            // clando.dart) écrit un conteneur MP4 avec la marque ftyp
+            // "mp42/isom", sans la marque "M4A " — le détecteur de type par
+            // contenu (même moteur que `finfo` PHP) classe donc ce fichier en
+            // video/mp4, jamais audio/mp4, alors qu'il ne contient qu'une
+            // piste audio. Sans cette entrée, chaque enregistrement du bouton
+            // panique était rejeté en 422 avant même d'atteindre le stockage
+            // — confirmé en inspectant un fichier réel du device de test.
+            'audio' => ['required', 'file', 'mimetypes:audio/mpeg,audio/mp4,audio/aac,audio/wav,audio/x-wav,audio/3gpp,audio/ogg,video/mp4', 'max:' . self::AUDIO_MAX_KO],
         ]);
 
         $fichier = $request->file('audio');

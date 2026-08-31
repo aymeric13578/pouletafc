@@ -95,6 +95,35 @@ class IncidentSecuriteApiTest extends TestCase
         $this->assertStringNotContainsString('upload', $incident->audio_path);
     }
 
+    /**
+     * Régression : l'encodeur AAC LC d'Android (package `record`, voir
+     * clando.dart) écrit un conteneur MP4 avec la marque ftyp "mp42/isom",
+     * sans la marque "M4A " — le détecteur de type par contenu classe donc
+     * ce fichier réel en video/mp4, jamais audio/mp4, même s'il ne contient
+     * qu'une piste audio. UploadedFile::fake()->create() avec un mimetype
+     * déclaré ne l'aurait jamais détecté : createWithContent() force le
+     * vrai sniffing par contenu, comme en production.
+     */
+    public function test_enregistrerAudioCourse_accepte_un_vrai_enregistrement_android(): void
+    {
+        Storage::fake('incidents-securite');
+
+        $enteteFtypReelle = hex2bin(
+            '00000018' . '66747970' . '6d703432' . '00000000' . '69736f6d' . '6d703432' .
+            '00000001' . '6d646174'
+        );
+        $audio = UploadedFile::fake()->createWithContent('course.m4a', $enteteFtypReelle);
+
+        $reponse = $this->postJson('/api/v1.0/enregistrerAudioCourse', [
+            'id_clando' => 47,
+            'audio' => $audio,
+        ]);
+
+        $reponse->assertOk();
+        $incident = IncidentSecurite::findOrFail($reponse->json('data.id'));
+        Storage::disk('incidents-securite')->assertExists($incident->audio_path);
+    }
+
     public function test_enregistrerAudioCourse_refuse_un_fichier_qui_n_est_pas_de_l_audio(): void
     {
         $faux = UploadedFile::fake()->create('script.php', 10, 'application/x-php');
