@@ -66,6 +66,6 @@ class AuthPriseCommandeTest extends TestCase
             ->assertOk()->assertJsonPath('response', 200);
 
         $this->commande->refresh();
-        $this->assertSame($agentAppelant->id, $this->commande->id_agent, "La commande doit être assignée à l'appelant authentifié, jamais au id_agent fourni par le client.");
+        $this->assertSame($agentAppelant->id, (int) $this->commande->id_agent, "La commande doit être assignée à l'appelant authentifié, jamais au id_agent fourni par le client.");
     }
 }
