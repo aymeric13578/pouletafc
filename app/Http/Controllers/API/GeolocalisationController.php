@@ -63,11 +63,15 @@ class GeolocalisationController extends Controller
       */
      public function updateAgentPosition(Request $request)
      {
-         $idUser = $request->input('id_user');
+         $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+         if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+             return $utilisateur;
+         }
+
          $lat = $request->input('lat', $request->input('latitude'));
          $lon = $request->input('lon', $request->input('longitude'));
 
-         if (! $idUser || ! is_numeric($lat) || ! is_numeric($lon)) {
+         if (! is_numeric($lat) || ! is_numeric($lon)) {
              return response()->json([
                  'response' => 400,
                  'message' => 'Identifiant ou coordonnées manquants',
@@ -80,7 +84,13 @@ class GeolocalisationController extends Controller
              return response()->json(['response' => 400, 'message' => 'Coordonnées nulles']);
          }
 
-         $modifiees = User::where('id', $idUser)->update([
+         /*
+          | La position écrite est toujours celle de l'appelant authentifié —
+          | jamais celle d'un id_user fourni par le client (spec 2026-09-01,
+          | §4 : le paramètre reste accepté pour compatibilité, mais n'a plus
+          | aucun effet sur l'identité).
+          */
+         $modifiees = User::where('id', $utilisateur->id)->update([
              'actual_lat_position_agent' => (float) $lat,
              'actual_lon_position_agent' => (float) $lon,
              'position_updated_at' => now(),
