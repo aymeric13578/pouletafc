@@ -9,17 +9,28 @@ use Illuminate\Http\Request;
 
 /**
  * Déverrouillage d'un écran "mur" depuis l'appli employé (scan du QR affiché
- * à l'écran) — voir App\Support\KioskLock. Même convention que le reste de
- * l'API v1.0 (règle 8, CLAUDE.md) : id_user n'est pas vérifié comme étant
- * réellement un compte employee_afc/admin, seulement mémorisé pour l'audit.
+ * à l'écran) — voir App\Support\KioskLock. Deux jetons distincts et
+ * obligatoires : `token` (jeton de déverrouillage kiosk, prouve qu'un QR
+ * affiché à l'écran a été scanné) et `session_token` (jeton Sanctum,
+ * prouve que le scanneur est un compte employee_afc/admin authentifié —
+ * voir App\Support\ApiAuthentification, qui utilise délibérément un nom de
+ * champ différent de `token` pour éviter toute collision entre les deux).
  */
 class KioskLockController extends Controller
 {
     public function deverrouiller(Request $request): JsonResponse
     {
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request, 'session_token');
+        if ($utilisateur instanceof JsonResponse) {
+            return $utilisateur;
+        }
+
+        if (! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+            return response()->json(['response' => 403, 'message' => "Seuls un employé ou un administrateur peuvent déverrouiller un écran."]);
+        }
+
         $valide = $request->validate([
             'token' => ['required', 'string'],
-            'id_user' => ['required', 'integer'],
         ]);
 
         $jeton = KioskUnlockToken::where('token', $valide['token'])->first();
@@ -40,7 +51,7 @@ class KioskLockController extends Controller
 
         $jeton->update([
             'unlocked_at' => now(),
-            'unlocked_by_user_id' => $valide['id_user'],
+            'unlocked_by_user_id' => $utilisateur->id,
             // Le sondage côté écran (statut()) refuse de poser le cookie une
             // fois expires_at dépassé (voir Admin\KioskLockController::statut) —
             // sans cet allongement, la fenêtre de 10 minutes utilisée pour
