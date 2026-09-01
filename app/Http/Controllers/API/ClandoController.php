@@ -637,6 +637,11 @@ class ClandoController extends Controller
     
       public function declinCommandAfterTake(Request $request)
         {
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
         /*
          | L'agent rend la commande : c'est une annulation, et le motif est ce
          | qui la rend exploitable. « declin » sans un mot ne dit pas si le
@@ -650,6 +655,10 @@ class ClandoController extends Controller
 
         if (! $ligne) {
             return response()->json(['response' => 400, 'message' => 'Course introuvable.']);
+        }
+
+        if ((int) $ligne->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+            return response()->json(['response' => 403, 'message' => "Vous n'êtes pas assigné à cette course."]);
         }
 
         $motif = (string) $request->input('reason', $request->input('motif'));
@@ -670,7 +679,7 @@ class ClandoController extends Controller
 
         $order = $ligne->update($champs);
 
-        $freeStatusAgent = Agent::where('id_user', $request->id_user)->update([
+        $freeStatusAgent = Agent::where('id_user', $utilisateur->id)->update([
             'freeStatus' => 1,
         ]);
 

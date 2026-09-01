@@ -938,6 +938,11 @@ Contact service client : 697 526 980";
     
           public function declinCommandAfterTakeOrder(Request $request)
         {
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
         /*
          | L'agent rend la commande : c'est une annulation, et le motif est ce
          | qui la rend exploitable. « declin » sans un mot ne dit pas si le
@@ -951,6 +956,10 @@ Contact service client : 697 526 980";
 
         if (! $ligne) {
             return response()->json(['response' => 400, 'message' => 'Commande introuvable.']);
+        }
+
+        if ((int) $ligne->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+            return response()->json(['response' => 403, 'message' => "Vous n'êtes pas assigné à cette commande."]);
         }
 
         $motif = (string) $request->input('reason', $request->input('motif'));
@@ -971,7 +980,7 @@ Contact service client : 697 526 980";
 
         $order = $ligne->update($champs);
 
-        $freeStatusAgent = Agent::where('id_user', $request->id_user)->update([
+        $freeStatusAgent = Agent::where('id_user', $utilisateur->id)->update([
             'freeStatus' => 1,
         ]);
 
