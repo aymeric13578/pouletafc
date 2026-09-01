@@ -683,18 +683,28 @@ class ClandoController extends Controller
     
     public function mapAftertake(Request $request)
     {
-         $order = Clando::where('ref',$request->ref)->update([
-                
-                  'status'=>  'take'
-                  
-                  
-                  ]);
-        
-          if($order)
-         {
-             return response()->json(['response' => 200]);
-         }
-          return response()->json(['response' => 400 ]);
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
+        $clando = Clando::where('ref', $request->ref)->first();
+
+        if (! $clando) {
+            return response()->json(['response' => 400]);
+        }
+
+        if ((int) $clando->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+            return response()->json(['response' => 403, 'message' => "Vous n'êtes pas assigné à cette course."]);
+        }
+
+        $order = $clando->update(['status' => 'take']);
+
+        if ($order) {
+            return response()->json(['response' => 200]);
+        }
+
+        return response()->json(['response' => 400]);
     }
     /**
      * L'agent signale qu'il est arrivé au client — avant même de terminer

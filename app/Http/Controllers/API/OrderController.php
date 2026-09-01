@@ -747,13 +747,28 @@ Contact service client : 697 526 980";
     
      public function mapAftertakeOrder(Request $request)
     {
-         $order = order_detail::where('ref',$request->ref)->update([
-                
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
+        $commande = order_detail::where('ref', $request->ref)->first();
+
+        if (! $commande) {
+            return response()->json(['response' => 400]);
+        }
+
+        if ((int) $commande->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+            return response()->json(['response' => 403, 'message' => "Vous n'êtes pas assigné à cette commande."]);
+        }
+
+         $order = $commande->update([
+
                   'status'=>  'take'
-                  
-                  
+
+
                   ]);
-        
+
           if($order)
          {
              return response()->json(['response' => 200]);
