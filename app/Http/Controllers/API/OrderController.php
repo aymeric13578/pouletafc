@@ -716,26 +716,31 @@ Contact service client : 697 526 980";
     
          public function updatePositionAgentOrder(Request $request)
     {
-        
-          $order = order_detail::where('ref',$request->ref);
-          
-          $update = $order
-          ->update([
-              
-              'latAgent'=>$request->latAgent,
-              'lonAgent'=>$request->lonAgent,
-              ]);
-           
-          
-          if($update)
-          {
-                if($order) return response()->json(['response' => 200, 'data'=>  $order->get()  ]);
-          }
-            
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
 
-        else return response()->json(['response' => 404]);
-        
-        
+        $order = order_detail::where('ref', $request->ref)->first();
+
+        if (! $order) {
+            return response()->json(['response' => 404]);
+        }
+
+        if ($order->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+            return response()->json(['response' => 403, 'message' => "Vous n'êtes pas assigné à cette commande."]);
+        }
+
+        $update = $order->update([
+            'latAgent' => $request->latAgent,
+            'lonAgent' => $request->lonAgent,
+        ]);
+
+        if ($update) {
+            return response()->json(['response' => 200, 'data' => $order]);
+        }
+
+        return response()->json(['response' => 404]);
     }
     
     

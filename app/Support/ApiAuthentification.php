@@ -52,4 +52,15 @@ class ApiAuthentification
 
         return $utilisateur;
     }
+
+    /**
+     * `admin` et `employee_afc` gardent une vue globale légitime sur toutes
+     * les courses/commandes (règles 15/16, CLAUDE.md) — ils contournent la
+     * vérification de propriété sur les ressources déjà assignées à un
+     * agent, contrairement à tout autre rôle.
+     */
+    public function estStaff(User $utilisateur): bool
+    {
+        return in_array($utilisateur->role, ['admin', 'employee_afc'], true);
+    }
 }
