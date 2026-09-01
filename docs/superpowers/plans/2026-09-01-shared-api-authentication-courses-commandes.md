@@ -13,6 +13,7 @@
 ## Global Constraints
 
 - Le jeton est transmis en paramètre de requête (`token`), jamais en en-tête `Authorization` — utiliser `app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request)`, jamais un appel direct à Sanctum.
+- **Comparaison de propriété** : `order_details.id_agent` est un `varchar(191)` sans cast `integer` sur le modèle (confirmé en base + migration `patch_order_details_table`) — toujours écrire `(int) $ressource->id_agent !== $utilisateur->id`, jamais une comparaison stricte nue (`$ressource->id_agent !== $utilisateur->id`), qui serait toujours vraie même pour le bon agent. Corrigé après un Critical trouvé en revue de la Tâche 2 (voir le ledger de ce plan) ; appliqué partout dans ce document depuis. `(int) null === 0` et aucun `users.id` ne vaut jamais 0, donc ce seul cast gère aussi correctement le cas d'une ressource pas encore assignée (`id_agent` nul) — pas besoin d'un test séparé pour ce cas.
 - Enveloppe JSON partout : `{"response": <code>, "message": "..."}`. `401` = pas de jeton valide. `403` = jeton valide mais pas propriétaire de la ressource ciblée.
 - `admin` et `employee_afc` contournent toute vérification de propriété (règles 15/16 CLAUDE.md) — jamais les autres rôles.
 - Ce dépôt n'utilise pas `RefreshDatabase`/`DatabaseTransactions` : les tests tournent sur la vraie base configurée, nettoient eux-mêmes ce qu'ils créent en `tearDown()`.
@@ -439,7 +440,7 @@ par :
             return response()->json(['response' => 404]);
         }
 
-        if ($clando->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+        if ((int) $clando->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
             return response()->json(['response' => 403, 'message' => "Vous n'êtes pas assigné à cette course."]);
         }
 
@@ -502,7 +503,7 @@ par :
             return response()->json(['response' => 404]);
         }
 
-        if ($order->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+        if ((int) $order->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
             return response()->json(['response' => 403, 'message' => "Vous n'êtes pas assigné à cette commande."]);
         }
 
@@ -1042,7 +1043,7 @@ Remplacer par :
             return response()->json(['response' => 400]);
         }
 
-        if ($clando->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+        if ((int) $clando->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
             return response()->json(['response' => 403, 'message' => "Vous n'êtes pas assigné à cette course."]);
         }
 
@@ -1093,7 +1094,7 @@ par :
             return response()->json(['response' => 400]);
         }
 
-        if ($commande->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+        if ((int) $commande->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
             return response()->json(['response' => 403, 'message' => "Vous n'êtes pas assigné à cette commande."]);
         }
 
@@ -1329,7 +1330,7 @@ par :
             return response()->json(['response' => 400, 'message' => 'Course introuvable.']);
         }
 
-        if ($ligne->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+        if ((int) $ligne->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
             return response()->json(['response' => 403, 'message' => "Vous n'êtes pas assigné à cette course."]);
         }
 
@@ -1440,7 +1441,7 @@ par :
             return response()->json(['response' => 400, 'message' => 'Commande introuvable.']);
         }
 
-        if ($ligne->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+        if ((int) $ligne->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
             return response()->json(['response' => 403, 'message' => "Vous n'êtes pas assigné à cette commande."]);
         }
 
@@ -2087,7 +2088,7 @@ Insérer la vérification d'authentification et de propriété **juste après** 
              return response()->json(['response' => 400, 'message' => 'Course introuvable']);
          }
 
-         if ($clando->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+         if ((int) $clando->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
              return response()->json(['response' => 403, 'message' => "Vous n'êtes pas assigné à cette course."]);
          }
 ```
@@ -2240,7 +2241,7 @@ Insérer la vérification d'authentification et de propriété juste après le b
              return response()->json(['response' => 400, 'message' => 'Commande introuvable']);
          }
 
-         if ($order->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+         if ((int) $order->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
              return response()->json(['response' => 403, 'message' => "Vous n'êtes pas assigné à cette commande."]);
          }
 ```
