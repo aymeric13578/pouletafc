@@ -19,30 +19,19 @@ class UserController extends Controller
 {
     public function takeDay(Request $request)
     {
-        $ref = $request->input('ref');
-        if (!$ref) {
-            return response()->json([
-                "response" => 400,
-                "message" => "Référence utilisateur manquante",
-            ]);
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
         }
 
-        $data = User::where('ref', $ref)->first();
-        if (!$data) {
-            return response()->json([
-                "response" => 400,
-                "message" => "Utilisateur inexistant",
-            ]);
-        }
-
-        User::where('ref', $ref)->update([
+        $utilisateur->update([
             'in_activity' => 1,
             'actual_lat_position_agent' => $request->input('lat'),
             'actual_lon_position_agent' => $request->input('lon'),
         ]);
 
         BeginAgentDay::create([
-            'id_user' => $data->id,
+            'id_user' => $utilisateur->id,
             'lat' => $request->input('lat'),
             'lon' => $request->input('lon'),
             'type' => "beginDay",
@@ -51,21 +40,18 @@ class UserController extends Controller
         return response()->json([
             "response" => 200,
             "message" => "Requête effectuée avec succès",
-            "data" => $data->fresh()
+            "data" => $utilisateur->fresh()
         ]);
     }
 
     public function updateDeliveryPosition(Request $request)
     {
-        $userId = $request->input('id_user');
-        if (!$userId) {
-            return response()->json([
-                "response" => 400,
-                "message" => "Identifiant utilisateur manquant",
-            ]);
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
         }
 
-        $updated = User::where('id', $userId)->update([
+        $updated = $utilisateur->update([
             'longitude' => $request->input('lon'),
             'latitude' => $request->input('lat'),
         ]);
@@ -85,30 +71,19 @@ class UserController extends Controller
 
     public function takeDayDesactive(Request $request)
     {
-        $ref = $request->input('ref');
-        if (!$ref) {
-            return response()->json([
-                "response" => 400,
-                "message" => "Référence utilisateur manquante",
-            ]);
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
         }
 
-        $data = User::where('ref', $ref)->first();
-        if (!$data) {
-            return response()->json([
-                "response" => 400,
-                "message" => "Utilisateur inexistant",
-            ]);
-        }
-
-        User::where('ref', $ref)->update([
+        $utilisateur->update([
             'in_activity' => 0,
             'actual_lat_position_agent' => $request->input('lat'),
             'actual_lon_position_agent' => $request->input('lon'),
         ]);
 
         BeginAgentDay::create([
-            'id_user' => $data->id,
+            'id_user' => $utilisateur->id,
             'lat' => $request->input('lat'),
             'lon' => $request->input('lon'),
             'type' => "endDay",
