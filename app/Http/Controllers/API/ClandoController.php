@@ -303,17 +303,16 @@ class ClandoController extends Controller
     
      public function takeClandoCommand(Request $request)
     {
-        return Idempotence::executer($request->input('idempotency_key'), 'takeClandoCommand', function () use ($request) {
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
+        return Idempotence::executer($request->input('idempotency_key'), 'takeClandoCommand', function () use ($request, $utilisateur) {
 
           $order = Clando::where('ref',$request->ref)->first();
-          
-          
-          
 
-         
-         
-         
-          $solde =(new Fonction())->solde($request->id_agent);
+          $solde =(new Fonction())->solde($utilisateur->id);
           
          
           
@@ -325,20 +324,20 @@ class ClandoController extends Controller
          
          
           
-          $agent = Agent::where('id_user',$request->id_agent)->first();
-        
+          $agent = Agent::where('id_user',$utilisateur->id)->first();
+
         if(!isset($agent))
         {
-                  return response()->json(['response' => 404,'message' => "Vous n'êtes pas un agent", 'retour' => 0]); 
+                  return response()->json(['response' => 404,'message' => "Vous n'êtes pas un agent", 'retour' => 0]);
         }
-        
-        
-        
-        
-        $freeStatusAgent = Agent::where('id_user',$request->id_agent)->update([
-            
+
+
+
+
+        $freeStatusAgent = Agent::where('id_user',$utilisateur->id)->update([
+
             'freeStatus' => 0
-            
+
             ]);
             
             
@@ -390,13 +389,13 @@ class ClandoController extends Controller
           if($order->id_agent==null)
           {
              $insert =  $order->update([
-                  'id_agent'=> $request->id_agent,
+                  'id_agent'=> $utilisateur->id,
                   'status'=>  'process',
                   'latAgent'=> $request->latAgent,
                   'lonAgent'=> $request->lonAgent,
                   'matricule_vehicule'=> $agent->matricule_vehicule
-                  
-                  
+
+
                   ]);
                   
                   
