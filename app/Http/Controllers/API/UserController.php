@@ -666,10 +666,13 @@ class UserController extends Controller
                 ]);
             }
 
+            $token = $seachUser->createToken('employee-mobile')->plainTextToken;
+
             return response()->json([
                 "response" => 200,
                 "message" => "Connexion établie avec succès",
-                "data" => $seachUser
+                "data" => $seachUser,
+                "token" => $token,
             ]);
         }
 
