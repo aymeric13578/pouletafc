@@ -79,6 +79,28 @@ new class extends Component {
                     </div>
                 </div>
 
+                {{--
+                  L'API v1.0 n'a aucune authentification (voir CLAUDE.md règle 8) :
+                  une demande de retrait — numéro Orange Money compris — peut donc
+                  être déposée par n'importe quel appelant se faisant passer pour
+                  l'agent, sans passer par l'application. La confirmation
+                  biométrique de l'app ne protège que contre quelqu'un qui aurait
+                  le téléphone de l'agent en main, jamais contre un appel direct à
+                  l'API. L'appel téléphonique de vérification reste donc le seul
+                  vrai contrôle avant de verser quoi que ce soit.
+                --}}
+                <div class="mb-6 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4">
+                    <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                    </svg>
+                    <p class="text-sm text-amber-900">
+                        <span class="font-semibold">Vérifiez le numéro de vive voix avant tout dépôt.</span>
+                        Le montant et le numéro Orange Money affichés sont ceux <em>déclarés dans la demande</em> :
+                        ils ne prouvent pas à eux seuls que la demande vient bien de l'agent. Appelez-le au numéro
+                        de son compte (colonne « Téléphone ») pour confirmer avant de payer.
+                    </p>
+                </div>
+
                 <!-- Tableau des demandes -->
                 <div class="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
                     <table class="min-w-full divide-y divide-gray-200">
@@ -87,6 +109,9 @@ new class extends Component {
                                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600">Agent</th>
                                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600">Téléphone</th>
                                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600">Montant</th>
+                                {{-- Comment payer : sans ces deux colonnes, il fallait rappeler
+                                     l'agent pour le savoir, ce que la demande dit maintenant. --}}
+                                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600">Versement</th>
                                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600">Demandée le</th>
                                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600">Statut</th>
                                 <th class="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider text-gray-600">Action</th>
@@ -98,6 +123,16 @@ new class extends Component {
                                     <td class="px-4 py-3 text-sm font-semibold text-gray-900">{{ $demande->agent?->agent_name ?? '—' }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-600">{{ $demande->agent?->phone ?? '—' }}</td>
                                     <td class="px-4 py-3 text-sm font-bold text-indigo-700">{{ number_format($demande->amount, 0, ',', ' ') }} F</td>
+                                    <td class="px-4 py-3 text-sm">
+                                        @if ($demande->mode === 'om')
+                                            <span class="rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-700">Orange Money</span>
+                                            {{-- Le numéro à créditer n'est pas forcément celui du
+                                                 compte agent : c'est celui saisi dans la demande. --}}
+                                            <div class="mt-1 font-mono text-xs text-gray-700">{{ $demande->phone ?? '—' }}</div>
+                                        @else
+                                            <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">Espèces</span>
+                                        @endif
+                                    </td>
                                     <td class="px-4 py-3 text-sm text-gray-500">{{ $demande->created_at?->format('d/m/Y H:i') }}</td>
                                     <td class="px-4 py-3">
                                         <span class="rounded-full px-2.5 py-1 text-xs font-semibold
@@ -119,7 +154,7 @@ new class extends Component {
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">
+                                    <td colspan="7" class="px-4 py-10 text-center text-sm text-gray-500">
                                         Aucune demande de retrait pour le moment.
                                     </td>
                                 </tr>

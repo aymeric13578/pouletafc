@@ -29,15 +29,43 @@ class FinanceController extends Controller
             ->where('status', 'pending')
             ->first();
 
+        // Vérifié avant la validation du montant : tant qu'une demande est en
+        // attente, le montant envoyé n'a de toute façon aucun effet — refuser
+        // sur un montant invalide induirait l'agent en erreur alors que sa
+        // vraie situation est "vous avez déjà une demande en cours".
         if ($existante) {
             return response()->json(['response' => 200, 'data' => $existante, 'already_pending' => true]);
         }
 
         $solde = (new Fonction())->solde($idAgent);
 
+        /*
+         | Le montant est validé contre le solde recalculé ici, jamais contre
+         | une valeur envoyée par l'app : celle-ci n'affiche qu'une copie
+         | (potentiellement périmée, et modifiable par un client trafiqué).
+         |
+         | Le numéro n'est obligatoire que pour Orange Money, et vaut 9
+         | chiffres — la longueur d'un numéro camerounais sans indicatif,
+         | même règle que la saisie côté app (coursier_request_screen.dart).
+         | Il n'est pas forcément celui de l'agent : le dépôt peut viser un
+         | autre numéro, c'est pour ça qu'on le demande au lieu de le déduire.
+         */
+        $valide = $request->validate([
+            'montant' => ['required', 'numeric', 'gt:0', 'max:' . $solde['solde']],
+            'mode' => ['required', 'in:cash,om'],
+            'numero' => ['required_if:mode,om', 'nullable', 'digits:9'],
+        ], [
+            'montant.max' => 'Le montant demandé dépasse votre solde disponible.',
+            'montant.gt' => 'Le montant doit être supérieur à zéro.',
+            'numero.required_if' => 'Le numéro Orange Money est obligatoire.',
+            'numero.digits' => 'Le numéro doit contenir 9 chiffres.',
+        ]);
+
         $demande = WithdrawalRequest::create([
             'id_agent' => $idAgent,
-            'amount' => $solde['solde'],
+            'amount' => $valide['montant'],
+            'mode' => $valide['mode'],
+            'phone' => $valide['mode'] === 'om' ? $valide['numero'] : null,
             'status' => 'pending',
         ]);
 

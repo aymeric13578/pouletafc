@@ -19,6 +19,11 @@ class WithdrawalRequest extends Model
     protected $fillable = [
         'id_agent',
         'amount',
+        // 'cash' | 'om' — comment l'agent veut être payé, et le numéro à
+        // créditer pour Orange Money (voir la migration
+        // 2026_09_01_000001_mode_et_numero_de_retrait).
+        'mode',
+        'phone',
         'status',
         'validated_at',
     ];
