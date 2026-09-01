@@ -242,7 +242,7 @@ class ClandoController extends Controller
             return response()->json(['response' => 404]);
         }
 
-        if ($clando->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+        if ((int) $clando->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
             return response()->json(['response' => 403, 'message' => "Vous n'êtes pas assigné à cette course."]);
         }
 

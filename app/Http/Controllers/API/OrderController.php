@@ -727,7 +727,7 @@ Contact service client : 697 526 980";
             return response()->json(['response' => 404]);
         }
 
-        if ($order->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+        if ((int) $order->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
             return response()->json(['response' => 403, 'message' => "Vous n'êtes pas assigné à cette commande."]);
         }
 
