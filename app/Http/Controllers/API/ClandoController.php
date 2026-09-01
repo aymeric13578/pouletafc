@@ -730,8 +730,13 @@ class ClandoController extends Controller
      */
     public function arriveeAgent(Request $request)
     {
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
         $clando = Clando::where('ref', $request->ref)
-            ->where('id_agent', $request->id_user)
+            ->where('id_agent', $utilisateur->id)
             ->first();
 
         if (! $clando) {

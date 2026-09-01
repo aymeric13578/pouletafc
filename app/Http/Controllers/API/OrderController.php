@@ -1005,8 +1005,13 @@ Contact service client : 697 526 980";
      */
     public function arriveeAgentOrder(Request $request)
     {
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
         $order = order_detail::where('ref', $request->ref)
-            ->where('id_agent', $request->id_user)
+            ->where('id_agent', $utilisateur->id)
             ->first();
 
         if (! $order) {
