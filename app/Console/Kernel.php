@@ -12,7 +12,17 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        /*
+         | Primes d'objectifs : versées automatiquement à l'échéance de
+         | chaque campagne (règle validée le 2026-09-01, voir la commande).
+         | Chaque nuit suffit — une campagne se règle le lendemain de sa
+         | date de fin au plus tard, et la commande est relançable à la
+         | main sans risque (idempotente) si besoin d'aller plus vite.
+         |
+         | Ne tourne que si l'hébergeur exécute `schedule:run` (cron) : à
+         | vérifier au déploiement — sinon, panel N0C → Crons.
+         */
+        $schedule->command('primes:verser')->dailyAt('02:00');
     }
 
     /**

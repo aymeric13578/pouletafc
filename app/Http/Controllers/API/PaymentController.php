@@ -449,14 +449,25 @@ public function testfunction()
         {
 
  $deposit = Deposit::where('id',$request->id)->update([
-     
-     
+
+
      'status'=>'Success'
-     
-     
+
+
      ]);
-     
-     
+
+     // Double écriture Phase 1 (App\Support\LivreDeComptes) : le dépôt
+     // validé crédite le compte de l'agent au livre. Idempotent par
+     // (type, source) — revérifier la même transaction n'écrit rien.
+     $ligneDepot = Deposit::find($request->id);
+     if ($ligneDepot) {
+         app(\App\Support\LivreDeComptes::class)->depot(
+             (int) $ligneDepot->id_agent,
+             (float) $ligneDepot->amount,
+             (int) $ligneDepot->id,
+         );
+     }
+
                  return response()->json([
                         'response'=> 200,
                         'message'=>"Transaction validee avec success"

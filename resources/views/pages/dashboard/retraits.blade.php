@@ -19,6 +19,16 @@ new class extends Component {
     {
         $demande = WithdrawalRequest::findOrFail($id);
         $demande->update(['status' => 'validated', 'validated_at' => now()]);
+
+        // Double écriture Phase 1 (App\Support\LivreDeComptes) : le retrait
+        // validé débite le compte de l'agent au livre, en parallèle de
+        // Fonction::solde() qui le soustrait déjà de son côté.
+        app(\App\Support\LivreDeComptes::class)->retrait(
+            (int) $demande->id_agent,
+            (float) $demande->amount,
+            (int) $demande->id,
+        );
+
         $this->dispatch('notify', ['message' => 'Demande de retrait validée.', 'type' => 'success']);
     }
 

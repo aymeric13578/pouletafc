@@ -824,6 +824,22 @@ class ClandoController extends Controller
              // qui restent un chiffre séparé.
              if (! $dejaTerminee && $paiementReconnu) {
                  Agent::where('id_user', $request->id_user)->increment('deposit_recu', $clandoVerrouille->price);
+
+                 /*
+                  | Double écriture Phase 1 (voir App\Support\LivreDeComptes) :
+                  | le livre de comptes s'écrit en parallèle de l'existant,
+                  | sans changer aucun affichage. Règles validées le
+                  | 2026-09-01 — cash : l'agent garde le prix en main et doit
+                  | la commission ; OM : la société a encaissé et doit
+                  | (prix − commission) à l'agent.
+                  */
+                 $livre = app(\App\Support\LivreDeComptes::class);
+                 $commission = (float) ($clandoVerrouille->commission_agent ?? 0);
+                 if ($paymentMethod === 'cash') {
+                     $livre->courseCash((int) $request->id_user, $commission, 'clando', $clandoVerrouille->id, (string) $clandoVerrouille->ref);
+                 } else {
+                     $livre->courseOm((int) $request->id_user, (float) $clandoVerrouille->price, $commission, 'clando', $clandoVerrouille->id, (string) $clandoVerrouille->ref);
+                 }
              }
 
              return $misAJour;

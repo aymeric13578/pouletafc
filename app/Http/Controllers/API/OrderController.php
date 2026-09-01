@@ -1094,6 +1094,29 @@ Contact service client : 697 526 980";
 
                  if (! $dejaTerminee && $paiementReconnu) {
                      Agent::where('id_user', $request->id_user)->increment('deposit_recu', $orderVerrouille->price);
+
+                     /*
+                      | Double écriture Phase 1 (App\Support\LivreDeComptes).
+                      | Une demande de coursier suit la règle des courses (sa
+                      | part se calcule sur le prix) ; une livraison boutique,
+                      | celle des livraisons (sur les frais de livraison) —
+                      | règles validées le 2026-09-01.
+                      */
+                     $livre = app(\App\Support\LivreDeComptes::class);
+                     $commission = (float) ($orderVerrouille->commission_agent ?? 0);
+                     $idAgent = (int) $request->id_user;
+                     $ref = (string) $orderVerrouille->ref;
+
+                     if ($orderVerrouille->delivery_type === 'coursier') {
+                         $paymentMethod === 'cash'
+                             ? $livre->courseCash($idAgent, $commission, 'order', $orderVerrouille->id, $ref)
+                             : $livre->courseOm($idAgent, (float) $orderVerrouille->price, $commission, 'order', $orderVerrouille->id, $ref);
+                     } else {
+                         $frais = (float) ($orderVerrouille->delivery_fees ?? 0);
+                         $paymentMethod === 'cash'
+                             ? $livre->livraisonCash($idAgent, $commission, $orderVerrouille->id, $ref)
+                             : $livre->livraisonOm($idAgent, $frais, $commission, $orderVerrouille->id, $ref);
+                     }
                  }
 
                  return $misAJour;
