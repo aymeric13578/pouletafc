@@ -440,6 +440,7 @@ class UserController extends Controller
         }
 
         try {
+            $seachUser->tokens()->delete();
             $seachUser->purgeAccount();
         } catch (\Throwable $e) {
             Log::error("Échec suppression compte (ref {$ref}) : " . $e->getMessage());

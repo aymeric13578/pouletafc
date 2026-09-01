@@ -122,4 +122,24 @@ class JetonSessionMobileTest extends TestCase
 
         $this->assertNull($resolu, 'Le jeton émis avant la réinitialisation OTP doit être révoqué.');
     }
+
+    public function test_deleteUser_supprime_les_jetons_du_compte(): void
+    {
+        $agent = User::factory()->create(['role' => 'agent', 'status' => 'Success']);
+        // Pas ajouté à $utilisateursCrees : purgeAccount() le supprime déjà,
+        // un second delete() en tearDown lèverait une erreur sur rien.
+
+        $agent->createToken('agent-mobile');
+        $this->assertSame(1, $agent->tokens()->count());
+
+        $this->postJson('/api/v1.0/deleteUser', [
+            'ref' => $agent->ref,
+            'password' => 'password',
+        ])->assertOk()->assertJsonPath('response', 200);
+
+        $this->assertDatabaseMissing('personal_access_tokens', [
+            'tokenable_type' => User::class,
+            'tokenable_id' => $agent->id,
+        ]);
+    }
 }
