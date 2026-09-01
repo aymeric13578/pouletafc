@@ -8,16 +8,29 @@ use Illuminate\Http\Request;
 use Laravel\Sanctum\PersonalAccessToken;
 
 /**
- * Résout le jeton Sanctum envoyé par les applications mobiles (champ `token`,
- * jamais l'en-tête Authorization — voir spec 2026-09-01) vers l'utilisateur
- * réel qui l'a émis. Généralise MaBoutiqueController::boutiqueVerifiee(), qui
+ * Résout le jeton Sanctum envoyé par les applications mobiles vers
+ * l'utilisateur réel qui l'a émis — jamais l'en-tête Authorization, voir
+ * spec 2026-09-01. Généralise MaBoutiqueController::boutiqueVerifiee(), qui
  * dupliquait cette même logique pour un seul contrôleur.
+ *
+ * Le nom du champ de requête est paramétrable (`$champ`, par défaut
+ * `token`) car certains endpoints — deverrouillerEcranKiosk notamment —
+ * utilisent déjà ce même nom pour un jeton d'un autre type (jeton de
+ * déverrouillage de kiosk, sans rapport avec la session utilisateur) : ne
+ * jamais appeler cette méthode sans vérifier que `$champ` désigne bien un
+ * jeton Sanctum de session sur cet endpoint précis.
  */
 class ApiAuthentification
 {
-    public function utilisateur(Request $request): ?User
+    public function utilisateur(Request $request, string $champ = 'token'): ?User
     {
-        $jeton = PersonalAccessToken::findToken((string) $request->input('token'));
+        $brut = $request->input($champ);
+
+        if (! is_string($brut)) {
+            return null;
+        }
+
+        $jeton = PersonalAccessToken::findToken($brut);
 
         if (! $jeton || ! $jeton->tokenable instanceof User) {
             return null;
@@ -26,9 +39,9 @@ class ApiAuthentification
         return $jeton->tokenable;
     }
 
-    public function utilisateurOuErreur(Request $request): User|JsonResponse
+    public function utilisateurOuErreur(Request $request, string $champ = 'token'): User|JsonResponse
     {
-        $utilisateur = $this->utilisateur($request);
+        $utilisateur = $this->utilisateur($request, $champ);
 
         if (! $utilisateur) {
             return response()->json([

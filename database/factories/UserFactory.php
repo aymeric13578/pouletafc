@@ -36,6 +36,11 @@ class UserFactory extends Factory
             'city'=>fake()->city,
             'country_code'=>fake()->randomElement(['cm']),
             'ref'=>fake()->unique()->numberBetween(10000, 1000000),
+            // `whatsapp` n'existe pas comme colonne sur `users` dans cette base
+            // (vérifié via le schéma réel) — l'attribut a été retiré plutôt que
+            // deviné. `id_country` reste `null` : la table `countries` est vide
+            // en local, une valeur non nulle ferait échouer la contrainte de clé
+            // étrangère.
             'id_country'=>null,
             'photo'=>fake()->randomElement(['img/avatars/1.png']),
         ];

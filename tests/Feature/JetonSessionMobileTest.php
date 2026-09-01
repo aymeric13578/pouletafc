@@ -126,8 +126,12 @@ class JetonSessionMobileTest extends TestCase
     public function test_deleteUser_supprime_les_jetons_du_compte(): void
     {
         $agent = User::factory()->create(['role' => 'agent', 'status' => 'Success']);
-        // Pas ajouté à $utilisateursCrees : purgeAccount() le supprime déjà,
-        // un second delete() en tearDown lèverait une erreur sur rien.
+        // Enregistré comme les autres tests : purgeAccount() supprime déjà
+        // la ligne dans le cas nominal, mais un second delete() en
+        // tearDown() sur une ligne absente est un no-op sûr côté Eloquent
+        // (aucune exception) — ce filet couvre le cas où une assertion
+        // échouerait avant que deleteUser n'ait réellement supprimé le compte.
+        $this->utilisateursCrees[] = $agent;
 
         $agent->createToken('agent-mobile');
         $this->assertSame(1, $agent->tokens()->count());
