@@ -759,12 +759,17 @@ class ClandoController extends Controller
      */
     public function setPaymentMethodClando(Request $request)
     {
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
         if (! in_array($request->payment_method, ['LIVRAISON', 'OM'], true)) {
             return response()->json(['response' => 400, 'message' => 'Mode de paiement invalide']);
         }
 
         $clando = Clando::where('ref', $request->ref)
-            ->where('id_agent', $request->id_user)
+            ->where('id_agent', $utilisateur->id)
             ->first();
 
         if (! $clando) {
