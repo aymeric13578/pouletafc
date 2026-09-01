@@ -47,8 +47,19 @@ class ShopsController extends Controller
     }
     public function addShop(Request $request)
     {
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
+        if (! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+            return response()->json(['response' => 403, 'message' => "Seuls un employé ou un administrateur peuvent créer une boutique."]);
+        }
+
         $request->validate([
-            "shop_name" => 'required|unique:shops'
+            'shop_name' => 'required|unique:shops',
+            'shop_commercial_register_file' => ['required', 'file', 'mimes:jpeg,png,jpg,gif,svg,webp,pdf', 'max:4096'],
+            'shop_logo' => ['required', 'image', 'mimes:jpeg,png,jpg,gif,svg,webp', 'max:2048'],
         ]);
 
         $registry_file = $request->file('shop_commercial_register_file');

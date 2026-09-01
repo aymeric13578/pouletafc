@@ -79,6 +79,14 @@ class ProductsController extends Controller
 
     public function storeProduct(Request $request)
     {
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
+        if (! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+            return response()->json(['response' => 403, 'message' => "Seuls un employé ou un administrateur peuvent créer un produit."]);
+        }
 
         $request->validate([
             'designation_tech' => 'required|unique:products',
@@ -87,7 +95,12 @@ class ProductsController extends Controller
             'unit_price' => 'required',
             'quantity' => 'required',
             'description' => 'required',
-            'product_image1' => 'required|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+            'product_image1' => 'required|image|mimes:jpeg,png,jpg,gif,svg,webp|max:2048',
+            'product_image2' => 'required|image|mimes:jpeg,png,jpg,gif,svg,webp|max:2048',
+            'product_image3' => 'required|image|mimes:jpeg,png,jpg,gif,svg,webp|max:2048',
+            'product_video1' => ['required', 'file', 'mimetypes:video/mp4,video/quicktime,video/x-msvideo,video/webm', 'max:20480'],
+            'product_video2' => ['required', 'file', 'mimetypes:video/mp4,video/quicktime,video/x-msvideo,video/webm', 'max:20480'],
+            'shop_logo' => 'required|image|mimes:jpeg,png,jpg,gif,svg,webp|max:2048',
         ]);
         
      
