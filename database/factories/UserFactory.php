@@ -36,9 +36,8 @@ class UserFactory extends Factory
             'city'=>fake()->city,
             'country_code'=>fake()->randomElement(['cm']),
             'ref'=>fake()->unique()->numberBetween(10000, 1000000),
-            'id_country'=>fake()->randomElement(['37']),
+            'id_country'=>null,
             'photo'=>fake()->randomElement(['img/avatars/1.png']),
-            'whatsapp'=>fake()->phoneNumber,
         ];
     }
 
