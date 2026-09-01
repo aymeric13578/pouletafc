@@ -4,24 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Support\ApiAuthentification;
-use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class JetonSessionMobileTest extends TestCase
 {
     private array $utilisateursCrees = [];
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // Ensure role enum includes 'employee_afc' and 'client' for tests
-        try {
-            DB::statement("ALTER TABLE users MODIFY role ENUM('user', 'agent', 'admin', 'employee_afc', 'client') DEFAULT 'user'");
-        } catch (\Exception $e) {
-            // Enum might already be extended or database might not support it
-        }
-    }
 
     protected function tearDown(): void
     {
