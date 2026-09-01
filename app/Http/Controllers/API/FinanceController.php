@@ -23,7 +23,12 @@ class FinanceController extends Controller
      */
     public function requestWithdrawal(Request $request)
     {
-        $idAgent = $request->id_user;
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
+        $idAgent = $utilisateur->id;
 
         $existante = WithdrawalRequest::where('acteur_type', 'agent')->where('id_agent', $idAgent)
             ->where('status', 'pending')
@@ -80,7 +85,12 @@ class FinanceController extends Controller
      */
     public function getWithdrawalStatus(Request $request)
     {
-        $demande = WithdrawalRequest::where('acteur_type', 'agent')->where('id_agent', $request->id_user)
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
+        $demande = WithdrawalRequest::where('acteur_type', 'agent')->where('id_agent', $utilisateur->id)
             ->where('status', 'pending')
             ->first();
 
@@ -98,7 +108,12 @@ class FinanceController extends Controller
      */
     public function getPaymentsAgent(Request $request)
     {
-        $idAgent = $request->id_user;
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
+        $idAgent = $utilisateur->id;
 
         $viaCommandes = DB::table('payments')
             ->join('order_details', 'payments.id_order_details', '=', 'order_details.id')
@@ -131,30 +146,33 @@ class FinanceController extends Controller
 
     public function getfinanceAgent(Request $request)
     {
-        
-        
-         $solde =(new Fonction())->solde($request->id_user);
-         
-         
-         
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
+         $solde =(new Fonction())->solde($utilisateur->id);
+
+
+
         $totalearnClando = $solde['totalearnclando'];
         $totalearnCommand =  $solde['totalearncommand'];
         $totalcredit =  $solde['totalcredit'];
         $totaldeposit =  $solde['totaldeposit'];
         $soldeAgent =  $solde['solde'];
-        
-        
-        $historiqueClando = DB::table('clando')->where('id_agent',$request->id_user)->where('status','Success')->get();
-        $historiqueCommand = DB::table('order_details')->where('id_agent',$request->id_user)->where('status','Success')->get();
-        $historiqueCredit = DB::table('credit_agents')->where('id_agent',$request->id_user)->get();
-        $historiquedeposit = DB::table('deposits')->where('id_agent',$request->id_user)->where('status','Success')->get();
+
+
+        $historiqueClando = DB::table('clando')->where('id_agent',$utilisateur->id)->where('status','Success')->get();
+        $historiqueCommand = DB::table('order_details')->where('id_agent',$utilisateur->id)->where('status','Success')->get();
+        $historiqueCredit = DB::table('credit_agents')->where('id_agent',$utilisateur->id)->get();
+        $historiquedeposit = DB::table('deposits')->where('id_agent',$utilisateur->id)->where('status','Success')->get();
 
         // Demande de retrait en attente, s'il y en a une — voir
         // FinanceController::requestWithdrawal. Renvoyée ici pour que l'app
         // agent connaisse l'état du bouton "Demander un retrait" dès le
         // chargement de l'écran, sans appel séparé.
         $retraitEnAttente = WithdrawalRequest::where('acteur_type', 'agent')
-            ->where('id_agent', $request->id_user)
+            ->where('id_agent', $utilisateur->id)
             ->where('status', 'pending')
             ->first();
 
@@ -163,7 +181,7 @@ class FinanceController extends Controller
         // ClandoController::terminatedCourse. N'était renvoyé nulle part
         // jusqu'ici : aucun écran ne pouvait afficher ce chiffre, donc rien
         // ne pouvait jamais signaler qu'il était resté à zéro par erreur.
-        $depotRecu = (float) (\App\Models\Agent::where('id_user', $request->id_user)->value('deposit_recu') ?? 0);
+        $depotRecu = (float) (\App\Models\Agent::where('id_user', $utilisateur->id)->value('deposit_recu') ?? 0);
 
         // Les derniers mouvements du livre de comptes — la même liste que sur
         // la page finance du marchand (getMyShopFinance) : c'est ce que le
@@ -171,7 +189,7 @@ class FinanceController extends Controller
         // seule vue qui explique le chiffre affiché (commissions débitées,
         // gains OM crédités, primes, dépôts, retraits validés).
         $mouvements = \App\Models\MouvementFinancier::where('acteur_type', \App\Models\MouvementFinancier::ACTEUR_AGENT)
-            ->where('acteur_id', $request->id_user)
+            ->where('acteur_id', $utilisateur->id)
             ->orderByDesc('id')
             ->limit(20)
             ->get(['sens', 'type', 'montant', 'libelle', 'created_at']);
