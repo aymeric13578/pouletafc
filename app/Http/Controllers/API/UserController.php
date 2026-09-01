@@ -122,7 +122,12 @@ class UserController extends Controller
 
     public function getInfoUser(Request $request)
     {
-        $ref = $request->input('ref');
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
+        $ref = $utilisateur->ref;
         /*
          | Le dossier "agent" (photo, type de véhicule, matricule) vit dans la
          | table `agents` du tableau de bord — jamais alimenté depuis l'app
@@ -379,22 +384,17 @@ class UserController extends Controller
 
     public function updateUser(Request $request)
     {
-        $ref = $request->input('ref');
-        $seachUser = User::where('ref', $ref)->first();
-
-        if (!$seachUser) {
-            return response()->json([
-                "response" => 400,
-                "message" => "Utilisateur inexistant"
-            ]);
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
         }
 
-        $update = User::where('ref', $ref)->update([
-            'name' => $request->input('name', $seachUser->name),
-            'last_name' => $request->input('lastname', $seachUser->last_name),
-            'whatsapp' => $request->input('whatsapp', $seachUser->whatsapp),
-            'phone' => $request->input('phone', $seachUser->phone),
-            'city' => $request->input('city', $seachUser->city),
+        $update = $utilisateur->update([
+            'name' => $request->input('name', $utilisateur->name),
+            'last_name' => $request->input('lastname', $utilisateur->last_name),
+            'whatsapp' => $request->input('whatsapp', $utilisateur->whatsapp),
+            'phone' => $request->input('phone', $utilisateur->phone),
+            'city' => $request->input('city', $utilisateur->city),
         ]);
 
         if ($update) {
