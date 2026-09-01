@@ -165,6 +165,17 @@ class FinanceController extends Controller
         // ne pouvait jamais signaler qu'il était resté à zéro par erreur.
         $depotRecu = (float) (\App\Models\Agent::where('id_user', $request->id_user)->value('deposit_recu') ?? 0);
 
+        // Les derniers mouvements du livre de comptes — la même liste que sur
+        // la page finance du marchand (getMyShopFinance) : c'est ce que le
+        // solde ci-dessus additionne réellement depuis la bascule, donc la
+        // seule vue qui explique le chiffre affiché (commissions débitées,
+        // gains OM crédités, primes, dépôts, retraits validés).
+        $mouvements = \App\Models\MouvementFinancier::where('acteur_type', \App\Models\MouvementFinancier::ACTEUR_AGENT)
+            ->where('acteur_id', $request->id_user)
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get(['sens', 'type', 'montant', 'libelle', 'created_at']);
+
         return response()->json(['response' => 200,
         'totalearn'=> $totalearnClando +  $totalearnCommand,
         'totalcredit'=> $totalcredit,
@@ -176,6 +187,7 @@ class FinanceController extends Controller
          "historiquedeposit"=> $historiquedeposit,
          "retraitEnAttente" => $retraitEnAttente,
          "depositRecu" => $depotRecu,
+         "mouvements" => $mouvements,
 
         ]);
     }
