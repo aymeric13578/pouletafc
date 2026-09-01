@@ -604,7 +604,7 @@ class AuthPriseCommandeTest extends TestCase
         }
 
         $agentAppelant = $this->creerAgent();
-        Agent::create(['id_user' => $agentAppelant->id]);
+        $this->agentsCrees[] = Agent::create(['id_user' => $agentAppelant->id]);
         $victime = $this->creerAgent();
 
         $this->commande = order_detail::create([
@@ -1555,7 +1555,7 @@ class AuthArriveeAgentTest extends TestCase
         }
 
         $agentAssigne = $this->creerAgent();
-        Agent::create(['id_user' => $agentAssigne->id]);
+        $this->agentsCrees[] = Agent::create(['id_user' => $agentAssigne->id]);
         $autreAgent = $this->creerAgent();
 
         $this->commande = order_detail::create([
@@ -1584,7 +1584,7 @@ class AuthArriveeAgentTest extends TestCase
         }
 
         $agentAssigne = $this->creerAgent();
-        Agent::create(['id_user' => $agentAssigne->id]);
+        $this->agentsCrees[] = Agent::create(['id_user' => $agentAssigne->id]);
 
         $this->commande = order_detail::create([
             'ref' => 'TEST-ARR-' . uniqid(),
@@ -1787,7 +1787,7 @@ class AuthPaiementModeTest extends TestCase
         }
 
         $agentAssigne = $this->creerAgent();
-        Agent::create(['id_user' => $agentAssigne->id]);
+        $this->agentsCrees[] = Agent::create(['id_user' => $agentAssigne->id]);
         $autreAgent = $this->creerAgent();
 
         $this->commande = order_detail::create([
@@ -1813,7 +1813,7 @@ class AuthPaiementModeTest extends TestCase
         }
 
         $agentAssigne = $this->creerAgent();
-        Agent::create(['id_user' => $agentAssigne->id]);
+        $this->agentsCrees[] = Agent::create(['id_user' => $agentAssigne->id]);
 
         $this->commande = order_detail::create([
             'ref' => 'TEST-PAY-' . uniqid(),
@@ -2028,7 +2028,7 @@ class AuthTerminatedCourseTest extends TestCase
         }
 
         $agentAssigne = $this->creerAgent();
-        Agent::create(['id_user' => $agentAssigne->id]);
+        $this->agentsCrees[] = Agent::create(['id_user' => $agentAssigne->id]);
         $autreAgent = $this->creerAgent();
 
         $this->clando = Clando::create([
@@ -2176,7 +2176,7 @@ class AuthTerminatedCourseOrderTest extends TestCase
         }
 
         $agentAssigne = $this->creerAgent();
-        Agent::create(['id_user' => $agentAssigne->id]);
+        $this->agentsCrees[] = Agent::create(['id_user' => $agentAssigne->id]);
         $autreAgent = $this->creerAgent();
 
         $this->commande = order_detail::create([
