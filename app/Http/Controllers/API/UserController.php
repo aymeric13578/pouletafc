@@ -573,10 +573,18 @@ class UserController extends Controller
                 ]);
             }
 
+            /*
+             | Jeton Sanctum, même mécanisme que UserController::login() —
+             | voir App\Support\ApiAuthentification, qui le vérifiera sur
+             | chaque endpoint protégé (spec 2026-09-01).
+             */
+            $token = $seachUser->createToken('agent-mobile')->plainTextToken;
+
             return response()->json([
                 "response" => 200,
                 "message" => "Connexion établie avec succès",
-                "data" => $seachUser
+                "data" => $seachUser,
+                "token" => $token,
             ]);
         }
 
