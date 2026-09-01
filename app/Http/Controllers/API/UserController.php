@@ -800,6 +800,10 @@ class UserController extends Controller
                 'confirmation_code' => ""
             ]);
 
+            // Voir Task 4 (changePassword) — même garantie sur cet autre
+            // point d'entrée de réinitialisation.
+            $seachUser->tokens()->delete();
+
             return response()->json([
                 "response" => 200,
                 "message" => "Mot de passe modifié avec succès",

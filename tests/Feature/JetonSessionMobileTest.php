@@ -102,4 +102,24 @@ class JetonSessionMobileTest extends TestCase
 
         $this->assertNull($resolu, 'Le jeton émis avant le changement de mot de passe doit être révoqué.');
     }
+
+    public function test_changePasswordByOtp_revoque_les_jetons_existants(): void
+    {
+        $agent = $this->creerAgent();
+        $agent->forceFill(['confirmation_code' => '54321'])->save();
+
+        $jeton = $agent->createToken('agent-mobile')->plainTextToken;
+
+        $this->postJson('/api/v1.0/changePasswordByOtp', [
+            'method' => 'email',
+            'value' => $agent->email,
+            'otp' => '54321',
+            'password' => 'nouveau-mdp',
+        ])->assertOk()->assertJsonPath('response', 200);
+
+        $requete = \Illuminate\Http\Request::create('/', 'POST', ['token' => $jeton]);
+        $resolu = app(ApiAuthentification::class)->utilisateur($requete);
+
+        $this->assertNull($resolu, 'Le jeton émis avant la réinitialisation OTP doit être révoqué.');
+    }
 }
