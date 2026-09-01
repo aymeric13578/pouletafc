@@ -601,9 +601,27 @@ class ClandoController extends Controller
     
      public function declinCommand(Request $request)
     {
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
+        $clando = Clando::find($request->id_clando);
+
+        if (! $clando) {
+            return response()->json(['response' => 400, 'message' => 'Course introuvable']);
+        }
+
+        $estLeClient = (int) $clando->id_user === $utilisateur->id;
+        $nonEncoreAssignee = $clando->id_agent === null;
+        $estStaff = app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur);
+
+        if (! $estLeClient && ! $nonEncoreAssignee && ! $estStaff) {
+            return response()->json(['response' => 403, 'message' => "Vous n'êtes pas concerné par cette course."]);
+        }
 
          $order = DB::table('declin_command')->insert([
-             'id_user' => $request->id_user,
+             'id_user' => $utilisateur->id,
              'id_clando'=>$request->id_clando
 
 
