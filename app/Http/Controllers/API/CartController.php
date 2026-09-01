@@ -163,25 +163,46 @@ class CartController extends Controller
 
 
     public function deleteCart(Request $request)
-    { 
+    {
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
 
-        $carts = Cart::where('id', $request->id)->update([
-            'status'=>'failed'
-        ]);
+        $panier = Cart::where('id', $request->id)->first();
 
-        if($carts) return response()->json(['response' => 200]);
-        else return response()->json(['response' => 404]);
+        if (! $panier) {
+            return response()->json(['response' => 404]);
+        }
 
+        if ($panier->user_id !== $utilisateur->id) {
+            return response()->json(['response' => 403, 'message' => "Ce panier ne vous appartient pas."]);
+        }
+
+        $panier->update(['status' => 'failed']);
+
+        return response()->json(['response' => 200]);
     }
     public function deleteProductCart(Request $request)
     {
-        $cartItems = CartItem::where('id', $request->id)->update([
-            'status'=>'failed'
-        ]);
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
 
+        $article = CartItem::where('id', $request->id)->first();
 
-        if($cartItems) return response()->json(['response' => 200]);
-        else return response()->json(['response' => 404]);
+        if (! $article) {
+            return response()->json(['response' => 404]);
+        }
+
+        if ($article->user_id !== $utilisateur->id) {
+            return response()->json(['response' => 403, 'message' => "Cet article ne vous appartient pas."]);
+        }
+
+        $article->update(['status' => 'failed']);
+
+        return response()->json(['response' => 200]);
     }
     
     
@@ -240,11 +261,24 @@ class CartController extends Controller
     
     public function updateItem(Request $request)
     {
-        
-        $cartItems = CartItem::where('id', $request->id)->update([
-            'quantity'=> $request->quantity
-        ]);
-         return response()->json(['response' => 200, ]);
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
+        $article = CartItem::where('id', $request->id)->first();
+
+        if (! $article) {
+            return response()->json(['response' => 404]);
+        }
+
+        if ($article->user_id !== $utilisateur->id) {
+            return response()->json(['response' => 403, 'message' => "Cet article ne vous appartient pas."]);
+        }
+
+        $article->update(['quantity' => $request->quantity]);
+
+        return response()->json(['response' => 200]);
     }
     
     
