@@ -49,7 +49,7 @@ class AuthPriseCommandeTest extends TestCase
         }
 
         $agentAppelant = $this->creerAgent();
-        Agent::create(['id_user' => $agentAppelant->id]);
+        $this->agentsCrees[] = Agent::create(['id_user' => $agentAppelant->id]);
         $victime = $this->creerAgent();
 
         $this->commande = order_detail::create([
