@@ -11,7 +11,6 @@ use App\Support\AnnulationDeCommande;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Laravel\Sanctum\PersonalAccessToken;
 
 /**
  * Espace boutique dans l'application, pendant du module « Ma boutique » du
@@ -41,13 +40,13 @@ class MaBoutiqueController extends Controller
      */
     private function boutiqueVerifiee(Request $request): ?Shop
     {
-        $jeton = PersonalAccessToken::findToken((string) $request->input('token'));
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateur($request);
 
-        if (! $jeton || ! $jeton->tokenable) {
+        if (! $utilisateur) {
             return null;
         }
 
-        return Shop::where('id_user', $jeton->tokenable_id)->first();
+        return Shop::where('id_user', $utilisateur->id)->first();
     }
 
     /**
