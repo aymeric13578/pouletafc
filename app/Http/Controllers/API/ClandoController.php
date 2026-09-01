@@ -783,10 +783,19 @@ class ClandoController extends Controller
 
        public function terminatedCourse(Request $request)
     {
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
          $clando = Clando::where('ref',$request->ref)->first();
 
          if (! $clando) {
              return response()->json(['response' => 400, 'message' => 'Course introuvable']);
+         }
+
+         if ((int) $clando->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+             return response()->json(['response' => 403, 'message' => "Vous n'êtes pas assigné à cette course."]);
          }
 
          /*
