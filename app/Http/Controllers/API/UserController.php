@@ -490,6 +490,13 @@ class UserController extends Controller
         ]);
 
         if ($update) {
+            /*
+             | Un jeton émis avant ce changement ne doit plus être utilisable
+             | après — sinon un jeton volé reste valide malgré la
+             | réinitialisation (spec 2026-09-01, §6.3).
+             */
+            $seachUser->tokens()->delete();
+
             return response()->json([
                 "response" => 200,
                 "message" => "Mot de passe modifié avec succès"

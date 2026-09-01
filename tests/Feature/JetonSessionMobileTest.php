@@ -82,4 +82,24 @@ class JetonSessionMobileTest extends TestCase
         $this->assertNotNull($resolu);
         $this->assertTrue($resolu->is($employe));
     }
+
+    public function test_changePassword_revoque_les_jetons_existants(): void
+    {
+        $agent = $this->creerAgent();
+        $agent->forceFill(['password' => \Illuminate\Support\Facades\Hash::make('ancien-mdp')])->save();
+
+        $jeton = $agent->createToken('agent-mobile')->plainTextToken;
+
+        $this->postJson('/api/v1.0/changePassword', [
+            'ref' => $agent->ref,
+            'password' => 'ancien-mdp',
+            'newpassword' => 'nouveau-mdp',
+            'confirmpassword' => 'nouveau-mdp',
+        ])->assertOk()->assertJsonPath('response', 200);
+
+        $requete = \Illuminate\Http\Request::create('/', 'POST', ['token' => $jeton]);
+        $resolu = app(ApiAuthentification::class)->utilisateur($requete);
+
+        $this->assertNull($resolu, 'Le jeton émis avant le changement de mot de passe doit être révoqué.');
+    }
 }
