@@ -562,6 +562,16 @@ public function testfunction()
          order_detail::where('id', $deposit->id_order_details)->update([
              'status_paiement' => 'Success',
          ]);
+
+         /*
+          | Phase 2 (livre de comptes) : une commande payée Orange Money
+          | crédite chaque boutique concernée de SES lignes de panier, net
+          | de majoration — la part de majoration, figée à la vente
+          | (cart_items.majoration_unitaire), revient à la société.
+          | Idempotent par (boutique, commande) : revérifier le même
+          | paiement n'écrit rien deux fois.
+          */
+         \App\Support\VentilationVenteOm::crediter((int) $deposit->id_order_details);
      }
 
                  return response()->json([

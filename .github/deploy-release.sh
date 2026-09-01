@@ -437,7 +437,18 @@ step "9 - taches artisan (migrate / config / view)"
 # 9. Tâches de release Laravel
 cd "$DEPLOY_PATH"
 php artisan migrate --force
-step "9 - migrate termine, config:cache"
+step "9 - migrate termine, finances:ouvrir"
+# Livre de comptes (Phase 2, bascule du 2026-09-01) : Fonction::solde() lit
+# désormais le livre — sans report d'ouverture, un agent verrait un solde
+# proche de zéro. La commande est idempotente par agent (clé unique) : la
+# lancer à chaque déploiement ne coûte qu'un parcours, ouvre les agents
+# créés depuis le déploiement précédent, et supprime tout risque d'ordre
+# entre "déployer la bascule" et "ouvrir les comptes". `|| true` : un échec
+# ici ne doit pas annuler le déploiement entier — le solde du livre reste
+# alors simplement en retard d'une ouverture, rattrapée au déploiement
+# suivant.
+php artisan finances:ouvrir || true
+step "9 - finances:ouvrir termine, config:cache"
 php artisan config:cache
 # route:cache désactivé : routes/web.php contient des noms de route dupliqués
 # (dashboard, home, status.change, ...) qui font échouer la compilation du cache.

@@ -25,7 +25,7 @@ class FinanceController extends Controller
     {
         $idAgent = $request->id_user;
 
-        $existante = WithdrawalRequest::where('id_agent', $idAgent)
+        $existante = WithdrawalRequest::where('acteur_type', 'agent')->where('id_agent', $idAgent)
             ->where('status', 'pending')
             ->first();
 
@@ -80,7 +80,7 @@ class FinanceController extends Controller
      */
     public function getWithdrawalStatus(Request $request)
     {
-        $demande = WithdrawalRequest::where('id_agent', $request->id_user)
+        $demande = WithdrawalRequest::where('acteur_type', 'agent')->where('id_agent', $request->id_user)
             ->where('status', 'pending')
             ->first();
 
@@ -153,7 +153,8 @@ class FinanceController extends Controller
         // FinanceController::requestWithdrawal. Renvoyée ici pour que l'app
         // agent connaisse l'état du bouton "Demander un retrait" dès le
         // chargement de l'écran, sans appel séparé.
-        $retraitEnAttente = WithdrawalRequest::where('id_agent', $request->id_user)
+        $retraitEnAttente = WithdrawalRequest::where('acteur_type', 'agent')
+            ->where('id_agent', $request->id_user)
             ->where('status', 'pending')
             ->first();
 

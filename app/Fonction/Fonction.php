@@ -40,7 +40,34 @@ class Fonction
         
     }
     
+    /*
+     | Bascule du 2026-09-01 (Phase 2, décision explicite du propriétaire) :
+     | « solde » est désormais lu au livre de comptes
+     | (App\Support\LivreDeComptes / mouvements_financiers) — nouvelles
+     | règles cash/OM, primes, report à nouveau compris. App agent, tableau
+     | de bord, barrière de prise de commande et validation de retrait
+     | basculent donc tous en même temps, par ce seul point.
+     |
+     | Les autres clés (totalearn*, totaldeposit…) restent calculées comme
+     | avant : plusieurs écrans les affichent comme statistiques, elles ne
+     | prétendent pas être un solde.
+     */
     public function solde($id)
+    {
+        $ancien = $this->soldeAncienneFormule($id);
+
+        $ancien['solde'] = app(\App\Support\LivreDeComptes::class)
+            ->solde(\App\Models\MouvementFinancier::ACTEUR_AGENT, (int) $id);
+
+        return $ancien;
+    }
+
+    /**
+     * L'ancienne formule (dépôts + crédits − prix pleins − retraits),
+     * conservée pour la commande finances:reconcilier — elle sert de point
+     * de comparaison au livre, plus jamais d'affichage.
+     */
+    public function soldeAncienneFormule($id)
     {
 
 

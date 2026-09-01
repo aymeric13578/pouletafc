@@ -92,6 +92,8 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
     Route::get('cancelMyShopDeliveryRequest', 'MaBoutiqueController@cancelMyShopDeliveryRequest');
     Route::post('cancelMyShopDeliveryRequest', 'MaBoutiqueController@cancelMyShopDeliveryRequest');
     Route::get('getMyShopFinance', 'MaBoutiqueController@getMyShopFinance');
+    // Retrait marchand — mêmes règles que l'agent, validé sur la même page du tableau de bord (colonne Type).
+    Route::post('requestWithdrawalShop', 'MaBoutiqueController@requestWithdrawalShop');
     Route::get('getShopCategories', 'MaBoutiqueController@getCategories');
     // Onglet « Boutiques » de l'application : ces deux routes n'existaient pas,
     // l'écran répondait donc « aucune boutique » à tous les marchands.

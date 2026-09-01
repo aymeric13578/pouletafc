@@ -23,6 +23,11 @@ class Kernel extends ConsoleKernel
          | vérifier au déploiement — sinon, panel N0C → Crons.
          */
         $schedule->command('primes:verser')->dailyAt('02:00');
+
+        // Abonnements boutique : chaque nuit aussi — la commande ne prélève
+        // que les échéances arrivées (date par boutique, tableau de bord) et
+        // rattrape seule un jour de cron manqué. Idempotente par échéance.
+        $schedule->command('abonnements:prelever')->dailyAt('02:30');
     }
 
     /**

@@ -113,6 +113,69 @@ class LivreDeComptesTest extends TestCase
         );
     }
 
+    public function test_deux_boutiques_sur_la_meme_commande_apportent_chacune_leur_majoration(): void
+    {
+        $soldeSocieteAvant = $this->livre->solde('societe', null);
+
+        // Une commande mêlant deux boutiques : sans la boutique dans la clé
+        // d'idempotence, la seconde majoration serait silencieusement perdue.
+        $this->livre->venteOm(self::ID_BOUTIQUE, 1000, 100, 'order', 424242, 'REF_T8');
+        $this->livre->venteOm(self::ID_BOUTIQUE + 1, 500, 50, 'order', 424242, 'REF_T8');
+
+        $this->assertSame(
+            round($soldeSocieteAvant + 150, 2),
+            $this->livre->solde('societe', null),
+        );
+
+        MouvementFinancier::where('acteur_id', self::ID_BOUTIQUE + 1)->delete();
+    }
+
+    public function test_abonnement_debite_la_boutique_une_fois_par_echeance(): void
+    {
+        $this->livre->abonnement(self::ID_BOUTIQUE, 5000, '2026-09-30');
+        $this->livre->abonnement(self::ID_BOUTIQUE, 5000, '2026-09-30'); // rejeu
+        $this->livre->abonnement(self::ID_BOUTIQUE, 5000, '2026-10-31'); // mois suivant
+
+        $this->assertSame(-10000.0, $this->livre->solde('boutique', self::ID_BOUTIQUE));
+    }
+
+    /**
+     * finances:ouvrir tourne à chaque déploiement : un agent né APRÈS la
+     * bascule a un livre déjà vivant mais aucun report — sans cette garde,
+     * l'ouverture lui ajouterait l'ancienne formule par-dessus ses lignes,
+     * comptant tout deux fois.
+     */
+    public function test_l_ouverture_saute_un_agent_dont_le_livre_est_deja_entame(): void
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('agents')
+            || ! \Illuminate\Support\Facades\Schema::hasColumn('agents', 'id_user')) {
+            $this->markTestSkipped('Table `agents` incomplète dans cette base.');
+        }
+
+        \Illuminate\Support\Facades\DB::table('agents')->where('id_user', self::ID_AGENT)->delete();
+        \Illuminate\Support\Facades\DB::table('agents')->insert([
+            'id_user' => self::ID_AGENT,
+            'agent_name' => 'Agent né après bascule',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Sa vie a commencé au livre : une course cash, rien d'autre.
+        $this->livre->courseCash(self::ID_AGENT, 200, 'clando', 424242, 'REF_T9');
+
+        $this->artisan('finances:ouvrir')->assertSuccessful();
+
+        // Aucun report ajouté : son solde reste exactement sa seule ligne.
+        $this->assertSame(-200.0, $this->livre->solde('agent', self::ID_AGENT));
+        $this->assertSame(
+            0,
+            MouvementFinancier::where('acteur_id', self::ID_AGENT)
+                ->where('type', MouvementFinancier::REPORT_OUVERTURE)->count(),
+        );
+
+        \Illuminate\Support\Facades\DB::table('agents')->where('id_user', self::ID_AGENT)->delete();
+    }
+
     public function test_un_mouvement_nul_n_ecrit_rien(): void
     {
         // Boutique sans majoration : pas de ligne société à zéro.

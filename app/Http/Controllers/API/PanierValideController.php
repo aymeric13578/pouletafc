@@ -164,12 +164,30 @@ class PanierValideController extends Controller
                     $promotion = $promotions->get($produit->id);
                     $montant = $promotion ? $promotion->prixApres((float) $prixBase) : (float) $prixBase;
 
+                    /*
+                     | Part de majoration figée au moment de la vente (Phase 2,
+                     | livre de comptes) : le taux peut changer demain, la
+                     | ventilation « net marchand / part société » de CETTE
+                     | vente, elle, ne doit plus bouger.
+                     |
+                     | En promotion, la remise s'applique au prix majoré : la
+                     | part société est réduite dans la même proportion, si
+                     | bien que le marchand encaisse exactement son prix promo
+                     | (prix de base × taux de promo) — c'est lui qui décide
+                     | de ses promotions, la plateforme ne s'enrichit ni ne
+                     | s'appauvrit sur cette décision.
+                     */
+                    $majorationUnitaire = $prixBase > 0
+                        ? $montant * (($prixBase - (float) $produit->price) / $prixBase)
+                        : 0.0;
+
                     CartItem::create([
                         'user_id' => $client->id,
                         'cart_id' => $panier->id,
                         'product_id' => $produit->id,
                         'quantity' => $article['quantite'],
                         'amount' => $montant,
+                        'majoration_unitaire' => round($majorationUnitaire, 2),
                         'status' => 'Success',
                     ]);
 

@@ -14,9 +14,16 @@ use Illuminate\Console\Command;
  * le jour de la bascule, les nouvelles règles ne s'appliquent qu'aux
  * mouvements suivants.
  *
- * Relançable sans risque : le report d'ouverture est idempotent par acteur
- * (clé unique), un agent déjà ouvert est simplement sauté — ce qui permet
- * aussi de rattraper les agents créés entre deux exécutions.
+ * Relançable sans risque — elle tourne d'ailleurs à chaque déploiement
+ * (deploy-release.sh, étape 9) : le report d'ouverture est idempotent par
+ * acteur (clé unique), un agent déjà ouvert est simplement sauté.
+ *
+ * Un agent qui possède déjà N'IMPORTE QUELLE ligne au livre est sauté tout
+ * entier, pas seulement protégé par la clé du report : créé après la
+ * bascule, son livre est né avec lui et constitue déjà toute sa vérité —
+ * l'ancienne formule, alimentée en parallèle par les mêmes événements
+ * (dépôts, courses, retraits), recompterait ce que le livre porte déjà, et
+ * lui ajouter ce "report" reviendrait à tout compter deux fois.
  */
 class OuvrirLeLivreDeComptes extends Command
 {
@@ -33,7 +40,20 @@ class OuvrirLeLivreDeComptes extends Command
         // lui la deuxième page ne démarre jamais (curseur nul).
         Agent::query()->select('id', 'id_user')->whereNotNull('id_user')->chunkById(100, function ($agents) use ($livre, $fonction, &$ouverts) {
             foreach ($agents as $agent) {
-                $solde = (float) ($fonction->solde($agent->id_user)['solde'] ?? 0);
+                // Voir l'en-tête : un livre déjà entamé est déjà la vérité de
+                // cet agent, y déposer un report recompterait tout en double.
+                $dejaAuLivre = \App\Models\MouvementFinancier::where('acteur_type', 'agent')
+                    ->where('acteur_id', $agent->id_user)
+                    ->exists();
+                if ($dejaAuLivre) {
+                    continue;
+                }
+
+                // Ancienne formule, jamais Fonction::solde() : depuis la
+                // bascule celui-ci lit le livre — l'utiliser ici figerait la
+                // valeur du livre dans le livre (zéro pour un agent jamais
+                // ouvert), au lieu du solde hérité qu'on veut reporter.
+                $solde = (float) ($fonction->soldeAncienneFormule($agent->id_user)['solde'] ?? 0);
                 $livre->reportOuverture('agent', (int) $agent->id_user, $solde);
                 $ouverts++;
             }

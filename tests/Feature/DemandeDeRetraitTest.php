@@ -46,6 +46,11 @@ class DemandeDeRetraitTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        // Depuis la bascule du 2026-09-01, le solde qui borne un retrait est
+        // celui du livre de comptes : l'agent de test y reçoit le même
+        // report d'ouverture qu'un vrai agent au moment de la bascule.
+        app(\App\Support\LivreDeComptes::class)->reportOuverture('agent', self::ID_AGENT, 10000);
     }
 
     protected function tearDown(): void
@@ -61,6 +66,10 @@ class DemandeDeRetraitTest extends TestCase
         }
         if (Schema::hasTable('credit_agents')) {
             DB::table('credit_agents')->where('id_agent', self::ID_AGENT)->delete();
+        }
+        if (Schema::hasTable('mouvements_financiers')) {
+            \App\Models\MouvementFinancier::where('acteur_type', 'agent')
+                ->where('acteur_id', self::ID_AGENT)->delete();
         }
     }
 

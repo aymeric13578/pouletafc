@@ -20,27 +20,49 @@ new class extends Component {
         $demande = WithdrawalRequest::findOrFail($id);
         $demande->update(['status' => 'validated', 'validated_at' => now()]);
 
-        // Double écriture Phase 1 (App\Support\LivreDeComptes) : le retrait
-        // validé débite le compte de l'agent au livre, en parallèle de
-        // Fonction::solde() qui le soustrait déjà de son côté.
-        app(\App\Support\LivreDeComptes::class)->retrait(
-            (int) $demande->id_agent,
-            (float) $demande->amount,
-            (int) $demande->id,
-        );
+        // Le retrait validé débite le compte de l'acteur au livre
+        // (App\Support\LivreDeComptes) — agent ou boutique selon le type de
+        // la demande, même page pour les deux (Phase 2).
+        $livre = app(\App\Support\LivreDeComptes::class);
+        if ($demande->acteur_type === 'boutique') {
+            $livre->retraitBoutique((int) $demande->id_agent, (float) $demande->amount, (int) $demande->id);
+        } else {
+            $livre->retrait((int) $demande->id_agent, (float) $demande->amount, (int) $demande->id);
+        }
 
         $this->dispatch('notify', ['message' => 'Demande de retrait validée.', 'type' => 'success']);
     }
 
     public function getDemandesProperty()
     {
-        return WithdrawalRequest::with(['agent' => fn ($q) => $q->select('id', 'id_user', 'agent_name', 'phone')])
+        $demandes = WithdrawalRequest::with(['agent' => fn ($q) => $q->select('id', 'id_user', 'agent_name', 'phone')])
             ->when($this->search, function ($query) {
                 $query->whereHas('agent', fn ($q) => $q->where('agent_name', 'like', '%' . $this->search . '%'));
             })
             ->orderByRaw("status = 'pending' desc")
             ->orderByDesc('id')
             ->get();
+
+        /*
+         | Les demandes de boutique portent l'id de la boutique, pas d'un
+         | agent : la relation `agent` n'y correspond à rien. On résout leurs
+         | noms/téléphones en un seul lot plutôt qu'une requête par ligne.
+         */
+        $idsBoutiques = $demandes->where('acteur_type', 'boutique')->pluck('id_agent')->unique();
+        $boutiques = $idsBoutiques->isEmpty()
+            ? collect()
+            : \App\Models\Shop::whereIn('id', $idsBoutiques)->get(['id', 'shop_name', 'shop_telephone1'])->keyBy('id');
+
+        return $demandes->each(function ($demande) use ($boutiques) {
+            if ($demande->acteur_type === 'boutique') {
+                $boutique = $boutiques->get($demande->id_agent);
+                $demande->nom_acteur = $boutique->shop_name ?? "Boutique #{$demande->id_agent}";
+                $demande->tel_acteur = $boutique->shop_telephone1 ?? null;
+            } else {
+                $demande->nom_acteur = $demande->agent?->agent_name;
+                $demande->tel_acteur = $demande->agent?->phone;
+            }
+        });
     }
 
     public function getEnAttenteCountProperty()
@@ -116,7 +138,8 @@ new class extends Component {
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600">Agent</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600">Type</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600">Demandeur</th>
                                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600">Téléphone</th>
                                 <th class="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-gray-600">Montant</th>
                                 {{-- Comment payer : sans ces deux colonnes, il fallait rappeler
@@ -130,8 +153,14 @@ new class extends Component {
                         <tbody class="divide-y divide-gray-100">
                             @forelse ($this->demandes as $demande)
                                 <tr wire:key="retrait-{{ $demande->id }}" class="{{ $demande->status === 'pending' ? 'bg-amber-50/40' : '' }}">
-                                    <td class="px-4 py-3 text-sm font-semibold text-gray-900">{{ $demande->agent?->agent_name ?? '—' }}</td>
-                                    <td class="px-4 py-3 text-sm text-gray-600">{{ $demande->agent?->phone ?? '—' }}</td>
+                                    <td class="px-4 py-3">
+                                        <span class="rounded-full px-2.5 py-1 text-xs font-semibold
+                                            {{ $demande->acteur_type === 'boutique' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700' }}">
+                                            {{ $demande->acteur_type === 'boutique' ? 'Boutique' : 'Agent' }}
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm font-semibold text-gray-900">{{ $demande->nom_acteur ?? '—' }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-600">{{ $demande->tel_acteur ?? '—' }}</td>
                                     <td class="px-4 py-3 text-sm font-bold text-indigo-700">{{ number_format($demande->amount, 0, ',', ' ') }} F</td>
                                     <td class="px-4 py-3 text-sm">
                                         @if ($demande->mode === 'om')
@@ -164,7 +193,7 @@ new class extends Component {
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="px-4 py-10 text-center text-sm text-gray-500">
+                                    <td colspan="8" class="px-4 py-10 text-center text-sm text-gray-500">
                                         Aucune demande de retrait pour le moment.
                                     </td>
                                 </tr>

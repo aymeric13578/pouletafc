@@ -415,6 +415,26 @@ class MaBoutiqueController extends Controller
             return response()->json(['response' => 404, 'data' => null]);
         }
 
+        /*
+         | Phase 2 (livre de comptes) : le marchand a désormais un vrai
+         | solde — crédité par ses ventes payées Orange Money (net de
+         | majoration), débité par ses retraits validés et son abonnement
+         | mensuel. Distinct du chiffre d'affaires ci-dessous, qui reste une
+         | statistique de ventes toutes méthodes de paiement confondues.
+         */
+        $livre = app(\App\Support\LivreDeComptes::class);
+        $solde = $livre->solde(\App\Models\MouvementFinancier::ACTEUR_BOUTIQUE, (int) $boutique->id);
+        $mouvements = \App\Models\MouvementFinancier::where('acteur_type', \App\Models\MouvementFinancier::ACTEUR_BOUTIQUE)
+            ->where('acteur_id', $boutique->id)
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get(['sens', 'type', 'montant', 'libelle', 'created_at']);
+
+        $retraitEnAttente = \App\Models\WithdrawalRequest::where('acteur_type', 'boutique')
+            ->where('id_agent', $boutique->id)
+            ->where('status', 'pending')
+            ->first();
+
         $commandes = $this->commandesDe($boutique->id)
             ->whereNotIn('status', ['declin', 'failed'])
             ->with('carts.cart_items.product:id,id_shop')
@@ -475,6 +495,9 @@ class MaBoutiqueController extends Controller
         return response()->json([
             'response' => 200,
             'data' => [
+                'solde' => $solde,
+                'mouvements' => $mouvements,
+                'retrait_en_attente' => $retraitEnAttente,
                 'revenu_total' => round($revenuTotal, 2),
                 'revenu_aujourdhui' => round($revenuAujourdhui, 2),
                 'revenu_semaine' => round($revenuSemaine, 2),
@@ -487,6 +510,59 @@ class MaBoutiqueController extends Controller
                 'transactions' => array_slice($transactions, 0, 20),
             ],
         ]);
+    }
+
+    /**
+     * Demande de retrait du marchand — mêmes règles que l'agent
+     * (FinanceController::requestWithdrawal) : montant validé contre le
+     * solde recalculé côté serveur, numéro à 9 chiffres obligatoire pour
+     * Orange Money, une seule demande en attente à la fois. La validation
+     * se fait sur la même page Retraits du tableau de bord, colonne Type.
+     *
+     * Contrairement aux routes financières agent, celle-ci est réellement
+     * authentifiée : boutiqueVerifiee exige le jeton du marchand.
+     */
+    public function requestWithdrawalShop(Request $request): JsonResponse
+    {
+        $boutique = $this->boutiqueVerifiee($request);
+
+        if (! $boutique) {
+            return response()->json(['response' => 404, 'data' => null]);
+        }
+
+        $existante = \App\Models\WithdrawalRequest::where('acteur_type', 'boutique')
+            ->where('id_agent', $boutique->id)
+            ->where('status', 'pending')
+            ->first();
+
+        if ($existante) {
+            return response()->json(['response' => 200, 'data' => $existante, 'already_pending' => true]);
+        }
+
+        $solde = app(\App\Support\LivreDeComptes::class)
+            ->solde(\App\Models\MouvementFinancier::ACTEUR_BOUTIQUE, (int) $boutique->id);
+
+        $valide = $request->validate([
+            'montant' => ['required', 'numeric', 'gt:0', 'max:' . $solde],
+            'mode' => ['required', 'in:cash,om'],
+            'numero' => ['required_if:mode,om', 'nullable', 'digits:9'],
+        ], [
+            'montant.max' => 'Le montant demandé dépasse votre solde disponible.',
+            'montant.gt' => 'Le montant doit être supérieur à zéro.',
+            'numero.required_if' => 'Le numéro Orange Money est obligatoire.',
+            'numero.digits' => 'Le numéro doit contenir 9 chiffres.',
+        ]);
+
+        $demande = \App\Models\WithdrawalRequest::create([
+            'acteur_type' => 'boutique',
+            'id_agent' => $boutique->id,
+            'amount' => $valide['montant'],
+            'mode' => $valide['mode'],
+            'phone' => $valide['mode'] === 'om' ? $valide['numero'] : null,
+            'status' => 'pending',
+        ]);
+
+        return response()->json(['response' => 200, 'data' => $demande, 'already_pending' => false]);
     }
 
     /**

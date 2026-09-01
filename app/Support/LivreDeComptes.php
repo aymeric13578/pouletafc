@@ -119,7 +119,7 @@ class LivreDeComptes
         );
     }
 
-    /** Retrait validé au tableau de bord. */
+    /** Retrait agent validé au tableau de bord. */
     public function retrait(int $idAgent, float $montant, int $idDemande): void
     {
         $this->ecrire(
@@ -127,6 +127,35 @@ class LivreDeComptes
             MouvementFinancier::DEBIT, MouvementFinancier::RETRAIT,
             $montant, 'withdrawal_request', $idDemande,
             'Retrait validé',
+        );
+    }
+
+    /** Retrait marchand validé au tableau de bord — même page, colonne Type. */
+    public function retraitBoutique(int $idBoutique, float $montant, int $idDemande): void
+    {
+        $this->ecrire(
+            MouvementFinancier::ACTEUR_BOUTIQUE, $idBoutique,
+            MouvementFinancier::DEBIT, MouvementFinancier::RETRAIT,
+            $montant, 'withdrawal_request', $idDemande,
+            'Retrait validé',
+        );
+    }
+
+    /**
+     * Abonnement mensuel d'une boutique, prélevé à son échéance. Le solde
+     * peut devenir négatif (règle validée le 2026-09-01) : les prochaines
+     * ventes OM le remboursent en premier. La clé inclut l'échéance : le
+     * prélèvement du mois suivant est un événement distinct, relancer la
+     * commande le même jour n'écrit rien deux fois.
+     */
+    public function abonnement(int $idBoutique, float $montant, string $echeance): void
+    {
+        $this->ecrire(
+            MouvementFinancier::ACTEUR_BOUTIQUE, $idBoutique,
+            MouvementFinancier::DEBIT, MouvementFinancier::ABONNEMENT,
+            $montant, 'boutique_facturation', $idBoutique,
+            "Abonnement — échéance du $echeance",
+            "abonnement|$idBoutique|$echeance",
         );
     }
 
@@ -148,6 +177,11 @@ class LivreDeComptes
                 MouvementFinancier::CREDIT, MouvementFinancier::MAJORATION,
                 $majoration, $sourceType, $sourceId,
                 "Majoration — vente #$ref",
+                // La boutique fait partie de la clé : une commande peut mêler
+                // plusieurs boutiques, chacune apportant SA majoration à la
+                // société sur la même source — sans ça, seule la première
+                // serait écrite (collision de clé).
+                MouvementFinancier::MAJORATION . "|societe|$sourceType|$sourceId|boutique|$idBoutique",
             );
         }
     }

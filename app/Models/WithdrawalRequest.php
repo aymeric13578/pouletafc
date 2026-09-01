@@ -17,6 +17,9 @@ class WithdrawalRequest extends Model
     protected $table = 'withdrawal_requests';
 
     protected $fillable = [
+        // 'agent' | 'boutique' — même mécanisme pour les deux, id_agent
+        // portant l'id de l'acteur (id_user d'agent, ou id de boutique).
+        'acteur_type',
         'id_agent',
         'amount',
         // 'cash' | 'om' — comment l'agent veut être payé, et le numéro à

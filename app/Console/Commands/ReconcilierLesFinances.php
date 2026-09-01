@@ -85,7 +85,9 @@ class ReconcilierLesFinances extends Command
         $lignes = [];
 
         foreach (Agent::query()->whereNotNull('id_user')->limit((int) $this->option('agents'))->get(['id_user', 'agent_name']) as $agent) {
-            $ancien = (float) ($fonction->solde($agent->id_user)['solde'] ?? 0);
+            // Depuis la bascule, Fonction::solde() lit le livre : la
+            // comparaison n'a de sens que contre l'ancienne formule.
+            $ancien = (float) ($fonction->soldeAncienneFormule($agent->id_user)['solde'] ?? 0);
             $nouveau = $livre->solde(MouvementFinancier::ACTEUR_AGENT, (int) $agent->id_user);
             $lignes[] = [
                 $agent->agent_name ?? $agent->id_user,
