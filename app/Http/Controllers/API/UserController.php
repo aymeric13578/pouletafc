@@ -412,27 +412,15 @@ class UserController extends Controller
 
     public function deleteUser(Request $request)
     {
-        $ref = $request->input('ref');
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
         $password = $request->input('password');
 
-        if (!$ref) {
-            return response()->json([
-                "response" => 400,
-                "message" => "Référence utilisateur manquante",
-            ]);
-        }
-
-        $seachUser = User::where('ref', $ref)->first();
-
-        if (!$seachUser) {
-            return response()->json([
-                "response" => 400,
-                "message" => "Utilisateur inexistant"
-            ]);
-        }
-
         // Confirmation par mot de passe avant suppression définitive
-        if (!$password || !Hash::check($password, $seachUser->password)) {
+        if (!$password || !Hash::check($password, $utilisateur->password)) {
             return response()->json([
                 "response" => 400,
                 "message" => "Mot de passe incorrect"
@@ -440,10 +428,10 @@ class UserController extends Controller
         }
 
         try {
-            $seachUser->tokens()->delete();
-            $seachUser->purgeAccount();
+            $utilisateur->tokens()->delete();
+            $utilisateur->purgeAccount();
         } catch (\Throwable $e) {
-            Log::error("Échec suppression compte (ref {$ref}) : " . $e->getMessage());
+            Log::error("Échec suppression compte (ref {$utilisateur->ref}) : " . $e->getMessage());
             return response()->json([
                 "response" => 400,
                 "message" => "Impossible de supprimer le compte. Veuillez réessayer."

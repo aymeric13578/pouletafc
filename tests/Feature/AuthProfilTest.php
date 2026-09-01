@@ -78,4 +78,28 @@ class AuthProfilTest extends TestCase
         $this->assertSame('Nom modifié', $agent->name, "Le nom de l'appelant authentifié doit changer.");
         $this->assertNotSame('Nom modifié', $victime->name, "Le compte visé par le ref du client ne doit jamais être modifié.");
     }
+
+    public function test_deleteUser_sans_jeton_c_est_401(): void
+    {
+        $this->postJson('/api/v1.0/deleteUser', ['ref' => 'peu-importe', 'password' => 'password'])
+            ->assertOk()->assertJsonPath('response', 401);
+    }
+
+    public function test_deleteUser_supprime_l_appelant_authentifie_pas_le_ref_du_client(): void
+    {
+        $victime = User::factory()->create(['role' => 'agent', 'status' => 'Success']);
+        $agent = $this->creerAgent();
+        $jeton = $agent->createToken('agent-mobile')->plainTextToken;
+
+        $this->postJson('/api/v1.0/deleteUser', [
+            'token' => $jeton,
+            'ref' => $victime->ref,
+            'password' => 'password',
+        ])->assertOk()->assertJsonPath('response', 200);
+
+        $this->assertDatabaseMissing('users', ['id' => $agent->id]);
+        $this->assertDatabaseHas('users', ['id' => $victime->id]);
+
+        $victime->delete();
+    }
 }
