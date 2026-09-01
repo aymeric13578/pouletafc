@@ -1059,13 +1059,19 @@ Contact service client : 697 526 980";
 
        public function terminatedCourseOrder(Request $request)
     {
-        
-        
-        
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
          $order = order_detail::where('ref',$request->ref)->first();
 
          if (! $order) {
              return response()->json(['response' => 400, 'message' => 'Commande introuvable']);
+         }
+
+         if ((int) $order->id_agent !== $utilisateur->id && ! app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur)) {
+             return response()->json(['response' => 403, 'message' => "Vous n'êtes pas assigné à cette commande."]);
          }
 
          /*
