@@ -1164,13 +1164,24 @@ Contact service client : 697 526 980";
                      $commission = (float) ($orderVerrouille->commission_agent ?? 0);
                      $ref = (string) $orderVerrouille->ref;
 
+                     // 'LIVRAISON' est le paiement à la livraison (espèces) —
+                     // équivalent de 'cash' côté courses (CoursierController::
+                     // moyenDePaiement le renvoie par défaut pour toute
+                     // valeur qui n'est pas MOMO/OM). Comparer à 'cash' ici
+                     // était un reliquat du vocabulaire de terminatedCourse
+                     // (courses), jamais traduit pour les commandes : toute
+                     // livraison LIVRAISON tombait alors dans la branche OM
+                     // (crédit prix−commission) au lieu de la branche cash
+                     // (débit commission), en plus de l'incrément normal de
+                     // deposit_recu — l'agent était crédité deux fois sur
+                     // une même livraison payée en espèces.
                      if ($orderVerrouille->delivery_type === 'coursier') {
-                         $paymentMethod === 'cash'
+                         $paymentMethod === 'LIVRAISON'
                              ? $livre->courseCash($idAgent, $commission, 'order', $orderVerrouille->id, $ref)
                              : $livre->courseOm($idAgent, (float) $orderVerrouille->price, $commission, 'order', $orderVerrouille->id, $ref);
                      } else {
                          $frais = (float) ($orderVerrouille->delivery_fees ?? 0);
-                         $paymentMethod === 'cash'
+                         $paymentMethod === 'LIVRAISON'
                              ? $livre->livraisonCash($idAgent, $commission, $orderVerrouille->id, $ref)
                              : $livre->livraisonOm($idAgent, $frais, $commission, $orderVerrouille->id, $ref);
                      }

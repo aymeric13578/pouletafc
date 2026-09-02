@@ -143,4 +143,56 @@ class AuthTerminatedCourseOrderTest extends TestCase
             // ci-dessus échoue.
         }
     }
+
+    public function test_terminatedCourseOrder_livraison_debite_la_commission_au_lieu_de_crediter_le_prix(): void
+    {
+        if (! Schema::hasColumn('agents', 'id_user') || ! Schema::hasColumn('agents', 'deposit_recu') || ! Schema::hasColumn('agents', 'freeStatus')) {
+            $this->markTestSkipped('Colonnes agents.id_user/deposit_recu/freeStatus absentes de cette base locale.');
+        }
+        if (! Schema::hasTable('mouvements_financiers')) {
+            $this->markTestSkipped('Table mouvements_financiers absente de cette base locale.');
+        }
+
+        $agentAssigne = $this->creerAgent();
+        $ficheAssignee = Agent::create(['id_user' => $agentAssigne->id, 'deposit_recu' => 0, 'freeStatus' => 0]);
+        $this->agentsCrees[] = $ficheAssignee;
+
+        $this->commande = order_detail::create([
+            'ref' => 'TEST-TERMO-' . uniqid(),
+            'id_agent' => $agentAssigne->id,
+            'status' => 'process',
+            'price' => 1000,
+            'commission_agent' => 200,
+            'delivery_code' => '4242',
+            'delivery_type' => 'coursier',
+        ]);
+
+        $jeton = $agentAssigne->createToken('agent-mobile')->plainTextToken;
+
+        // 'LIVRAISON' = paiement à la livraison, en espèces (équivalent de
+        // 'cash' côté courses — CoursierController::moyenDePaiement le
+        // renvoie par défaut pour toute valeur qui n'est pas MOMO/OM).
+        // Avant le correctif, la comparaison au livre de comptes testait
+        // encore 'cash' (jamais atteignable ici) et traitait donc TOUTE
+        // livraison LIVRAISON comme un paiement électronique : l'agent
+        // était crédité (prix − commission) en plus de l'incrément normal
+        // de deposit_recu, au lieu de simplement devoir la commission.
+        $this->postJson('/api/v1.0/terminatedCourseOrder', [
+            'token' => $jeton,
+            'ref' => $this->commande->ref,
+            'code' => '4242',
+            'payment_method' => 'LIVRAISON',
+        ])->assertOk()->assertJsonPath('response', 200);
+
+        $mouvement = MouvementFinancier::where('acteur_type', MouvementFinancier::ACTEUR_AGENT)
+            ->where('acteur_id', $agentAssigne->id)
+            ->where('source_type', 'order')
+            ->where('source_id', $this->commande->id)
+            ->first();
+
+        $this->assertNotNull($mouvement, "Une livraison payée en LIVRAISON doit écrire une ligne au livre de comptes.");
+        $this->assertSame(MouvementFinancier::DEBIT, $mouvement->sens, "Un paiement LIVRAISON (espèces) doit débiter la commission de l'agent, pas le créditer comme un paiement électronique (MOMO/OM).");
+        $this->assertSame(MouvementFinancier::COMMISSION_COURSE, $mouvement->type);
+        $this->assertEqualsWithDelta(200.0, (float) $mouvement->montant, 0.01);
+    }
 }
