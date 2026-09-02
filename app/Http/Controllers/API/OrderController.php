@@ -450,9 +450,13 @@ Contact service client : 697 526 980";
     
       public function declinOrderCommand(Request $request)
         {
-        
+        $utilisateur = app(\App\Support\ApiAuthentification::class)->utilisateurOuErreur($request);
+        if ($utilisateur instanceof \Illuminate\Http\JsonResponse) {
+            return $utilisateur;
+        }
+
          $order = DB::table('declin_command')->insert([
-             'id_user' => $request->id_user, 
+             'id_user' => $utilisateur->id,
              'id_order'=>$request->id_order
              ]);
          if($order)
@@ -460,7 +464,7 @@ Contact service client : 697 526 980";
              return response()->json(['response' => 200]);
          }
           return response()->json(['response' => 400 ]);
-            
+
         }
     
      public function takeOrderCommand(Request $request)
