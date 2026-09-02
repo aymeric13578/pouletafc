@@ -613,7 +613,7 @@ class ClandoController extends Controller
         }
 
         $estLeClient = (int) $clando->id_user === $utilisateur->id;
-        $nonEncoreAssignee = $clando->id_agent === null;
+        $nonEncoreAssignee = $clando->id_agent === null && $utilisateur->role === 'agent';
         $estStaff = app(\App\Support\ApiAuthentification::class)->estStaff($utilisateur);
 
         if (! $estLeClient && ! $nonEncoreAssignee && ! $estStaff) {

@@ -49,9 +49,14 @@ class AuthDeclinCommandTest extends TestCase
     public function test_declinCommand_le_client_proprietaire_peut_annuler(): void
     {
         $client = $this->creerUtilisateur('user');
+        // Course déjà assignée à un agent : seul le branchement "client
+        // propriétaire" peut autoriser ce 200, pas le branchement "pas encore
+        // assignée" — isole vraiment la branche testée.
+        $agentAssigne = $this->creerUtilisateur('agent');
         $this->clando = Clando::create([
             'ref' => 'TEST-DECLIN-' . uniqid(),
             'id_user' => $client->id,
+            'id_agent' => $agentAssigne->id,
             'status' => 'want',
             'price' => 1000,
         ]);
@@ -97,5 +102,8 @@ class AuthDeclinCommandTest extends TestCase
 
         $this->getJson('/api/v1.0/declinCommand?token=' . $jeton . '&id_clando=' . $this->clando->id)
             ->assertOk()->assertJsonPath('response', 403);
+
+        $this->clando->refresh();
+        $this->assertSame('process', $this->clando->status, "Le statut ne doit pas changer si l'appelant n'est ni le client ni un agent autorisé.");
     }
 }
