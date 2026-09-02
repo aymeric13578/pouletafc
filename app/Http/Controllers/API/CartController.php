@@ -175,7 +175,7 @@ class CartController extends Controller
             return response()->json(['response' => 404]);
         }
 
-        if ($panier->user_id !== $utilisateur->id) {
+        if ((int) $panier->user_id !== $utilisateur->id) {
             return response()->json(['response' => 403, 'message' => "Ce panier ne vous appartient pas."]);
         }
 
@@ -196,7 +196,7 @@ class CartController extends Controller
             return response()->json(['response' => 404]);
         }
 
-        if ($article->user_id !== $utilisateur->id) {
+        if ((int) $article->user_id !== $utilisateur->id) {
             return response()->json(['response' => 403, 'message' => "Cet article ne vous appartient pas."]);
         }
 
@@ -272,7 +272,7 @@ class CartController extends Controller
             return response()->json(['response' => 404]);
         }
 
-        if ($article->user_id !== $utilisateur->id) {
+        if ((int) $article->user_id !== $utilisateur->id) {
             return response()->json(['response' => 403, 'message' => "Cet article ne vous appartient pas."]);
         }
 

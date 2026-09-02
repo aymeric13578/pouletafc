@@ -106,4 +106,25 @@ class AuthDeclinCommandTest extends TestCase
         $this->clando->refresh();
         $this->assertSame('process', $this->clando->status, "Le statut ne doit pas changer si l'appelant n'est ni le client ni un agent autorisé.");
     }
+
+    public function test_declinCommand_un_client_ne_peut_pas_decliner_une_course_non_assignee_d_un_autre_client(): void
+    {
+        $proprietaire = $this->creerUtilisateur('user');
+        $intrus = $this->creerUtilisateur('user');
+        $this->clando = Clando::create([
+            'ref' => 'TEST-DECLIN-' . uniqid(),
+            'id_user' => $proprietaire->id,
+            'id_agent' => null,
+            'status' => 'want',
+            'price' => 1000,
+        ]);
+
+        $jeton = $intrus->createToken('client-mobile')->plainTextToken;
+
+        $this->getJson('/api/v1.0/declinCommand?token=' . $jeton . '&id_clando=' . $this->clando->id)
+            ->assertOk()->assertJsonPath('response', 403);
+
+        $this->clando->refresh();
+        $this->assertSame('want', $this->clando->status, "Un client tiers ne doit jamais pouvoir décliner la course non assignée d'un autre client.");
+    }
 }

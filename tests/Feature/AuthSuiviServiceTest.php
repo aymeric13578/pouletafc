@@ -70,6 +70,7 @@ class AuthSuiviServiceTest extends TestCase
         }
 
         $victime = $this->creerAgent();
+        $victime->update(['in_activity' => 1]);
         $agent = $this->creerAgent();
         $agent->update(['in_activity' => 1]); // Start active
         $jeton = $agent->createToken('agent-mobile')->plainTextToken;
@@ -84,7 +85,7 @@ class AuthSuiviServiceTest extends TestCase
         $agent->refresh();
         $victime->refresh();
         $this->assertSame(0, (int) $agent->in_activity);
-        $this->assertNotSame(0, (int) $victime->in_activity);
+        $this->assertSame(1, (int) $victime->in_activity, "Le compte visé par le ref du client ne doit jamais être modifié.");
     }
 
     public function test_updateDeliveryPosition_sans_jeton_c_est_401(): void
