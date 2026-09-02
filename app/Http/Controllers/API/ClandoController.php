@@ -825,7 +825,7 @@ class ClandoController extends Controller
           | libéré : il n'a plus rien à livrer sur cette course.
           */
          if (\App\Support\AnnulationDeCommande::estAnnulee($clando)) {
-             Agent::where('id_user', $request->id_user)->update(['freeStatus' => 1]);
+             Agent::where('id_user', (int) $clando->id_agent)->update(['freeStatus' => 1]);
 
              return response()->json([
                  'response' => 409,
@@ -882,8 +882,15 @@ class ClandoController extends Controller
              // la course passe réellement à 'Success' pour la première fois
              // — pas dans Fonction::solde()/Agent::getBalanceAttribute(),
              // qui restent un chiffre séparé.
-             if (! $dejaTerminee && $paiementReconnu) {
-                 Agent::where('id_user', $request->id_user)->increment('deposit_recu', $clandoVerrouille->price);
+             // L'agent crédité est celui déjà vérifié assigné à cette
+             // course (id_agent, contrôlé plus haut) — jamais un id_user
+             // fourni par le client, qui permettrait à l'agent assigné de
+             // rediriger le crédit/la dette vers n'importe quel autre
+             // compte. > 0 exclu délibérément le cas staff sur une course
+             // jamais assignée (id_agent null) : personne à créditer.
+             $idAgentACrediter = (int) $clandoVerrouille->id_agent;
+             if (! $dejaTerminee && $paiementReconnu && $idAgentACrediter > 0) {
+                 Agent::where('id_user', $idAgentACrediter)->increment('deposit_recu', $clandoVerrouille->price);
 
                  /*
                   | Double écriture Phase 1 (voir App\Support\LivreDeComptes) :
@@ -896,16 +903,16 @@ class ClandoController extends Controller
                  $livre = app(\App\Support\LivreDeComptes::class);
                  $commission = (float) ($clandoVerrouille->commission_agent ?? 0);
                  if ($paymentMethod === 'cash') {
-                     $livre->courseCash((int) $request->id_user, $commission, 'clando', $clandoVerrouille->id, (string) $clandoVerrouille->ref);
+                     $livre->courseCash($idAgentACrediter, $commission, 'clando', $clandoVerrouille->id, (string) $clandoVerrouille->ref);
                  } else {
-                     $livre->courseOm((int) $request->id_user, (float) $clandoVerrouille->price, $commission, 'clando', $clandoVerrouille->id, (string) $clandoVerrouille->ref);
+                     $livre->courseOm($idAgentACrediter, (float) $clandoVerrouille->price, $commission, 'clando', $clandoVerrouille->id, (string) $clandoVerrouille->ref);
                  }
              }
 
              return $misAJour;
          });
 
-        $freeStatusAgent = Agent::where('id_user',$request->id_user)->update([
+        $freeStatusAgent = Agent::where('id_user', (int) $clando->id_agent)->update([
 
             'freeStatus' => 1
 

@@ -1107,7 +1107,7 @@ Contact service client : 697 526 980";
               | libéré : il n'a plus rien à livrer sur cette commande.
               */
              if (\App\Support\AnnulationDeCommande::estAnnulee($order)) {
-                 Agent::where('id_user', $request->id_user)->update(['freeStatus' => 1]);
+                 Agent::where('id_user', (int) $order->id_agent)->update(['freeStatus' => 1]);
 
                  return response()->json([
                      'response' => 409,
@@ -1142,8 +1142,16 @@ Contact service client : 697 526 980";
 
                  $misAJour = $orderVerrouille->update($misesAJour);
 
-                 if (! $dejaTerminee && $paiementReconnu) {
-                     Agent::where('id_user', $request->id_user)->increment('deposit_recu', $orderVerrouille->price);
+                 // L'agent crédité est celui déjà vérifié assigné à cette
+                 // commande (id_agent, contrôlé plus haut) — jamais un
+                 // id_user fourni par le client, qui permettrait à
+                 // l'agent assigné de rediriger le crédit/la dette vers
+                 // n'importe quel autre compte. > 0 exclut délibérément le
+                 // cas staff sur une commande jamais assignée (id_agent
+                 // null) : personne à créditer.
+                 $idAgent = (int) $orderVerrouille->id_agent;
+                 if (! $dejaTerminee && $paiementReconnu && $idAgent > 0) {
+                     Agent::where('id_user', $idAgent)->increment('deposit_recu', $orderVerrouille->price);
 
                      /*
                       | Double écriture Phase 1 (App\Support\LivreDeComptes).
@@ -1154,7 +1162,6 @@ Contact service client : 697 526 980";
                       */
                      $livre = app(\App\Support\LivreDeComptes::class);
                      $commission = (float) ($orderVerrouille->commission_agent ?? 0);
-                     $idAgent = (int) $request->id_user;
                      $ref = (string) $orderVerrouille->ref;
 
                      if ($orderVerrouille->delivery_type === 'coursier') {
@@ -1174,7 +1181,7 @@ Contact service client : 697 526 980";
 
 
 
-                   $freeStatusAgent = Agent::where('id_user',$request->id_user)->update([
+                   $freeStatusAgent = Agent::where('id_user', (int) $order->id_agent)->update([
 
             'freeStatus' => 1
 
