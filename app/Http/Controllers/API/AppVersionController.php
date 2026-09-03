@@ -34,6 +34,7 @@ class AppVersionController extends Controller
                 'data' => [
                     'version_code' => config('mobile_app.agent.version_code'),
                     'version_name' => config('mobile_app.agent.version'),
+                    'min_version_code' => (int) config('mobile_app.agent.min_version_code', 0),
                     'download_url' => route('app.agent.apk'),
                 ],
             ]);
@@ -44,6 +45,7 @@ class AppVersionController extends Controller
             'data' => [
                 'version_code' => config('mobile_app.android.version_code'),
                 'version_name' => config('mobile_app.android.version'),
+                'min_version_code' => (int) config('mobile_app.android.min_version_code', 0),
                 'download_url' => $app->playStoreUrl() ?: route('shop.app.android.apk'),
             ],
         ]);

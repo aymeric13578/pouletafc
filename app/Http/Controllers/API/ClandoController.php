@@ -19,14 +19,21 @@ class ClandoController extends Controller
     public function Insertclando(Request $request)
     {
         /*
-         | Le prix vient entièrement du téléphone du client, sans aucune
-         | validation jusqu'ici — un montant nul, négatif ou non numérique
-         | était accepté tel quel et servait ensuite de base à la commission
-         | de l'agent et au calcul du solde. Un plancher à 1 FCFA n'empêche
-         | aucun tarif légitime (aucune course ne coûte 0), seulement les cas
-         | manifestement invalides.
+         | Le prix est désormais calculé par le serveur dès que le client
+         | envoie la distance (App\Support\Tarification::prixRetenu) : le
+         | montant envoyé par le téléphone ne fait plus foi — il servait
+         | jusqu'ici de base à la commission de l'agent et au solde sans
+         | aucune vérification. Sans distance (anciens builds), on garde le
+         | comportement précédent : prix client, plancher à 1 F.
          */
-        if (! is_numeric($request->price) || (float) $request->price < 1) {
+        $prix = app(\App\Support\Tarification::class)->prixRetenu(
+            \App\Models\Tarif::CLANDO,
+            $request->price,
+            $request->distance,
+            $request->input('type') === 'vip'
+        );
+
+        if ($prix === null) {
             return response()->json([
                 'response' => 400,
                 'message' => 'Prix de course invalide.',
@@ -63,7 +70,7 @@ class ClandoController extends Controller
          | App\Support\GrilleTarifaire).
          */
         $commission_agent = app(\App\Support\GrilleTarifaire::class)->commissionClando(
-            (float) $request->price,
+            (float) $prix,
             $request->input('type') === 'vip'
         );
         
@@ -80,7 +87,7 @@ class ClandoController extends Controller
                 'lonMyPosition' =>   $request->lonMyPosition,
                 'latDestination' => $request->latDestination,
                 'lonDestination'=> $request->lonDestination,
-                'price'=>$request->price,
+                'price'=>$prix,
                 'times'=>$request->times,
                 'distance'=>$request->distance,
                 'destinationName'=>$request->destinationName,

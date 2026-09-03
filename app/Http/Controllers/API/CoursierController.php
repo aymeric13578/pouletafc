@@ -42,6 +42,10 @@ class CoursierController extends Controller
             // sens, et laissait passer un prix nul soumis par erreur ou
             // intentionnellement modifié côté client.
             'price' => ['required', 'numeric', 'min:1'],
+            // Distance routière du colis (km). Optionnelle pour ne pas casser
+            // les builds déjà installés ; dès qu'elle est là, le serveur
+            // recalcule le prix et ignore celui du client.
+            'distance_km' => ['nullable', 'numeric', 'gt:0', 'max:500'],
             'delivery_fees' => ['nullable', 'numeric', 'min:0'],
             'phone_customer' => ['nullable', 'string', 'max:20'],
             // Nom du destinataire, désormais dans son propre champ plutôt
@@ -52,6 +56,14 @@ class CoursierController extends Controller
             'note' => ['nullable', 'string'],
             'image' => ['nullable', 'image', 'max:' . self::PHOTO_MAX_KO],
         ]);
+
+        // Voir App\Support\Tarification::prixRetenu : prix serveur si distance
+        // fournie, prix client (déjà validé ≥ 1 ci-dessus) sinon.
+        $prix = app(\App\Support\Tarification::class)->prixRetenu(
+            \App\Models\Tarif::COURSIER,
+            $valide['price'],
+            $valide['distance_km'] ?? null,
+        );
 
         do {
             $ref = 'REF_' . (new Fonction())->genUniqueID('10');
@@ -68,7 +80,7 @@ class CoursierController extends Controller
                 'qty' => 1,
                 'ref' => $ref,
                 'status' => 'pending',
-                'price' => (float) $valide['price'],
+                'price' => (float) $prix,
                 'panier_price' => 0,
                 'delivery_fees' => (int) ($valide['delivery_fees'] ?? 0),
 

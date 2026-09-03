@@ -40,6 +40,16 @@ return [
         */
         'version_code' => (int) env('MOBILE_APP_ANDROID_VERSION_CODE', 0),
 
+        /*
+        | Build le plus ancien encore accepté. En dessous, l'application
+        | affiche une mise à jour obligatoire (dialogue non fermable) au lieu
+        | du simple popup — c'est le levier qui retire de la circulation un
+        | build qui n'envoie pas encore la distance à la création d'une
+        | course (CLAUDE.md règle 23 : sans distance, le prix client n'est
+        | pas recalculé). 0 = aucune exigence.
+        */
+        'min_version_code' => (int) env('MOBILE_APP_ANDROID_MIN_VERSION_CODE', 0),
+
         'min_os' => env('MOBILE_APP_ANDROID_MIN_OS', 'Android 7.0'),
 
         /*
@@ -80,7 +90,31 @@ return [
         // à incrémenter à chaque nouvel APK agent mis en ligne.
         'version_code' => (int) env('MOBILE_APP_AGENT_VERSION_CODE', 0),
 
+        // Même sémantique que android.min_version_code ci-dessus.
+        'min_version_code' => (int) env('MOBILE_APP_AGENT_MIN_VERSION_CODE', 0),
+
         'min_os' => env('MOBILE_APP_AGENT_MIN_OS', 'Android 7.0'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Configuration distante (/api/v2/config)
+    |--------------------------------------------------------------------------
+    | Lue par les deux applications au démarrage. Les drapeaux permettent de
+    | masquer une fonctionnalité sans republier un build. Éditables depuis
+    | .env pour l'instant ; passeront en base (tableau de bord) plus tard sans
+    | changer le contrat JSON.
+    */
+    'contact' => [
+        'telephone' => env('MOBILE_APP_CONTACT_TELEPHONE', '697526980'),
+        'whatsapp' => env('MOBILE_APP_CONTACT_WHATSAPP'),
+    ],
+
+    'fonctionnalites' => [
+        'coursier' => (bool) env('MOBILE_APP_FONCTION_COURSIER', true),
+        'vip' => (bool) env('MOBILE_APP_FONCTION_VIP', true),
+        'promotions' => (bool) env('MOBILE_APP_FONCTION_PROMOTIONS', true),
+        'paiement_om' => (bool) env('MOBILE_APP_FONCTION_PAIEMENT_OM', true),
     ],
 
 ];

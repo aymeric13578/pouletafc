@@ -42,7 +42,12 @@ class GrilleTarifaire
         return $this->plages[$service];
     }
 
-    private function parametres(): ?Parameter
+    /**
+     * La ligne plate `parameters` active, ou null. Publique pour que le
+     * moteur de tarification (App\Support\Tarification) puisse appliquer le
+     * même repli que les commissions ci-dessous — sans dupliquer la lecture.
+     */
+    public function parametres(): ?Parameter
     {
         return $this->parametres ??= Parameter::active();
     }
