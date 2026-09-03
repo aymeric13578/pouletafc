@@ -174,7 +174,35 @@ class PointDeLivraison
     }
 
     /**
-     * Lieu de retrait désigné dans la configuration active.
+     * Le point de retrait désigné, avec ses coordonnées — pour calculer une
+     * distance de livraison (FraisDeLivraison) et pour l'exposer aux
+     * applications (/api/v2/config) à la place d'un point codé en dur.
+     *
+     * @return array{id: int, nom: string, lat: float, lon: float}|null
+     */
+    public function pointDeRetrait(): ?array
+    {
+        $idLieu = AppModelsParameter::active()?->default_pickup_location_id;
+        $lieu = $idLieu ? AppModelsocation::find($idlieu) : null;
+        $lat = $this->nombre($lieu?->latitude);
+        $lon = $this->nombre($lieu?->longitude);
+
+        if (! $lieu || $lat === null || $lon === null) {
+            return null;
+        }
+
+        $quartier = $lieu->quarter?->name;
+
+        return [
+            'id' => (int) $lieu->id,
+            'nom' => $quartier ? $lieu->name . ' — ' . $quartier : $lieu->name,
+            'lat' => $lat,
+            'lon' => $lon,
+        ];
+    }
+
+    /**
+     * lieu de retrait désigné dans la configuration active.
      *
      * @return array{0: float|null, 1: float|null}
      */

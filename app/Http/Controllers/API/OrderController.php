@@ -37,7 +37,21 @@ class OrderController extends Controller
         [$lat, $lon, $origineDuPoint] = app(\App\Support\PointDeLivraison::class)
             ->resoudre($request, $client);
 
-        $fraisDeLivraison = (float) $request->input('delivery_fees', 0);
+        /*
+         | Frais décidés par le serveur (App\Support\FraisDeLivraison) : la
+         | distance envoyée par l'application est bornée par le vol d'oiseau
+         | entre le point de retrait et le point de livraison résolu ci-dessus,
+         | un retrait au comptoir ne coûte rien, et un ancien build sans
+         | distance garde ses frais tels quels.
+         */
+        $frais = app(\App\Support\FraisDeLivraison::class)->calculer(
+            $request->input('delivery_fees'),
+            $request->input('distance_km'),
+            $request->input('reception_mode'),
+            app(\App\Support\PointDeLivraison::class)->pointDeRetrait(),
+            ($lat !== null && $lon !== null) ? ['lat' => $lat, 'lon' => $lon] : null,
+        );
+        $fraisDeLivraison = (float) $frais['frais'];
 
         /*
          | Commission retenue sur la livraison.
@@ -164,6 +178,8 @@ class OrderController extends Controller
 
      $orderverified = $sansDoublon->parCle($cleUnique);
 
+     // Empreinte de doublon : comparée à ce que le client renvoie à l'identique,
+     // donc sur ses propres valeurs (delivery_fees tel qu'envoyé, pas recalculé).
      $orderverified ??= $sansDoublon->dejaPassee(
          (int) $request->user_id,
          $request->cart_id ? (int) $request->cart_id : null,
@@ -194,7 +210,18 @@ class OrderController extends Controller
      */
     [$lat, $lon, $origineDuPoint] = app(\App\Support\PointDeLivraison::class)
         ->resoudre($request, $user);
-              
+
+    // Même décision que dans creerDepuisPanier (App\Support\FraisDeLivraison) :
+    // les deux chemins de création d'une commande doivent facturer pareil.
+    $frais = app(\App\Support\FraisDeLivraison::class)->calculer(
+        $request->input('delivery_fees'),
+        $request->input('distance_km'),
+        $request->input('reception_mode'),
+        app(\App\Support\PointDeLivraison::class)->pointDeRetrait(),
+        ($lat !== null && $lon !== null) ? ['lat' => $lat, 'lon' => $lon] : null,
+    );
+    $fraisDeLivraison = (float) $frais['frais'];
+
      
      
      
@@ -207,7 +234,7 @@ class OrderController extends Controller
        | diverger réintroduirait l'incohérence que cette grille corrige.
        */
       $commission_agent = app(\App\Support\GrilleTarifaire::class)->commissionLivraison(
-          (float) $request->input('delivery_fees', 0),
+          $fraisDeLivraison,
           (float) $request->price
       );
         
@@ -221,7 +248,7 @@ class OrderController extends Controller
                 'id_user' => $request->user_id,
                 'id_cart' => $request->cart_id,
                 'qty' =>  $quantity, 
-                'price' =>$totalamount + $request->delivery_fees,
+                'price' => $totalamount + $fraisDeLivraison,
                 'panier_price'=>$totalamount,
                 'ref'=>$ref,
                 'status'=>'pending',
@@ -233,7 +260,7 @@ class OrderController extends Controller
                 'address'=> app(\App\Support\PointDeLivraison::class)
                     ->adresse($request->delivery_address),
                 'commission_agent'=>$commission_agent,
-                'delivery_fees'=>$request->delivery_fees,
+                'delivery_fees' => $fraisDeLivraison,
             ] + ($cleUnique !== '' && $sansDoublon->peutRetenirLaCle()
                 ? ['cle_unique' => $cleUnique]
                 : []));
@@ -294,7 +321,7 @@ Contact service client : 697 526 980";
          if ($panierReel > 0 && (int) $panierReel !== (int) $totalamount) {
              $order->update([
                  'panier_price' => $panierReel,
-                 'price' => $panierReel + (float) $request->delivery_fees,
+                 'price' => $panierReel + $fraisDeLivraison,
                  'qty' => (int) $reels->sum('quantity'),
              ]);
          }

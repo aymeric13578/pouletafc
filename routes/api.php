@@ -343,14 +343,14 @@ Route::post('verifiedOrangePaymentStatus','PaymentController@verifiedOrangePayme
     //user
     
     
-    Route::get('changePasswordByOtp', 'UserController@changePasswordByOtp');
-    Route::post('changePasswordByOtp', 'UserController@changePasswordByOtp');
-    
-    
-    
-    
-    Route::get('verifyOtpChangePassword', 'UserController@verifyOtpChangePassword');
-     Route::post('verifyOtpChangePassword', 'UserController@verifyOtpChangePassword');
+    Route::get('changePasswordByOtp', 'UserController@changePasswordByOtp')->middleware('throttle:5,1');
+    Route::post('changePasswordByOtp', 'UserController@changePasswordByOtp')->middleware('throttle:5,1');
+
+
+
+
+    Route::get('verifyOtpChangePassword', 'UserController@verifyOtpChangePassword')->middleware('throttle:5,1');
+     Route::post('verifyOtpChangePassword', 'UserController@verifyOtpChangePassword')->middleware('throttle:5,1');
     
     
     
@@ -547,4 +547,25 @@ Route::get('deverrouillerEcranKiosk', 'KioskLockController@deverrouiller')
 Route::post('deverrouillerEcranKiosk', 'KioskLockController@deverrouiller')
     ->middleware('throttle:20,1')
     ->name('deverrouillerEcranKiosk.post');
+});
+
+/*
+|--------------------------------------------------------------------------
+| API v2
+|--------------------------------------------------------------------------
+|
+| Nouveau préfixe, distinct de v1.0 dont aucune route n'est authentifiée par
+| défaut (CLAUDE.md règle 8). Ici chaque route dit explicitement ce qu'elle
+| exige : soit App\Support\ApiAuthentification::utilisateurOuErreur(), soit
+| un commentaire expliquant pourquoi elle s'en passe. GET et POST pointent
+| toujours vers la même méthode (règle 2).
+*/
+Route::group(['namespace' => 'App\Http\Controllers\API', 'prefix' => 'v2'], function () {
+    // Public : calcul pur sur des tarifs déjà exposés par getParameters (voir DevisController).
+    Route::get('devis', 'DevisController')->middleware('throttle:60,1')->name('v2.devis.get');
+    Route::post('devis', 'DevisController')->middleware('throttle:60,1')->name('v2.devis.post');
+
+    // Public : configuration de démarrage, rien de propre à un utilisateur (voir ConfigController).
+    Route::get('config', 'ConfigController')->middleware('throttle:60,1')->name('v2.config.get');
+    Route::post('config', 'ConfigController')->middleware('throttle:60,1')->name('v2.config.post');
 });
