@@ -182,8 +182,8 @@ class PointDeLivraison
      */
     public function pointDeRetrait(): ?array
     {
-        $idLieu = AppModelsParameter::active()?->default_pickup_location_id;
-        $lieu = $idLieu ? AppModelsocation::find($idlieu) : null;
+        $idLieu = \App\Models\Parameter::active()?->default_pickup_location_id;
+        $lieu = $idLieu ? Location::find((int) $idLieu) : null;
         $lat = $this->nombre($lieu?->latitude);
         $lon = $this->nombre($lieu?->longitude);
 
@@ -202,7 +202,7 @@ class PointDeLivraison
     }
 
     /**
-     * lieu de retrait désigné dans la configuration active.
+     * Lieu de retrait désigné dans la configuration active.
      *
      * @return array{0: float|null, 1: float|null}
      */
