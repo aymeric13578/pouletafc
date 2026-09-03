@@ -1,0 +1,131 @@
+name: Publish Mobile App
+
+# Dépose un APK déjà construit (localement, avec la vraie clé de signature —
+# jamais dans GitHub) sur le serveur de production, et met à jour la version
+# annoncée par /api/v2/config et /api/v1.0/getAppVersion. Un premier
+# téléchargement obtient toujours ce fichier : il est réécrit à chaque
+# publication, jamais versionné par app_version.
+#
+# Déclenchement : `gh release create <tag> app.apk --repo AlIOUFASHION/clando-serveur`
+# puis `gh workflow run publish-app.yml -f app=client -f version_code=39
+# -f version_name=1.0.0 -f release_tag=<tag>` (ou app=agent).
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "Application à publier"
+        required: true
+        type: choice
+        options:
+          - client
+          - agent
+      version_code:
+        description: "Numéro de build — le nombre après le + dans pubspec.yaml"
+        required: true
+        type: string
+      version_name:
+        description: "Nom de version affiché (ex: 1.0.0)"
+        required: true
+        type: string
+      release_tag:
+        description: "Tag de la release GitHub de ce dépôt qui porte l'APK"
+        required: true
+        type: string
+
+# Même groupe que Deploy : une publication d'app ne doit jamais s'exécuter en
+# même temps qu'un déploiement de code, les deux écrivent dans DEPLOY_PATH.
+concurrency:
+  group: deploiement-production
+  cancel-in-progress: false
+
+env:
+  DEPLOY_HOST: 209.16.158.105
+  DEPLOY_PORT: 5022
+  DEPLOY_USER: mnnvvrcp
+  DEPLOY_PATH: /home/mnnvvrcp/pouletafc
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Résoudre le fichier et les variables .env selon l'application
+        id: cible
+        env:
+          APP_CHOISIE: ${{ inputs.app }}
+        run: |
+          if [ "$APP_CHOISIE" = "agent" ]; then
+            echo "filename=pouletafc-agent.apk" >> "$GITHUB_OUTPUT"
+            echo "code_var=MOBILE_APP_AGENT_VERSION_CODE" >> "$GITHUB_OUTPUT"
+            echo "name_var=MOBILE_APP_AGENT_VERSION" >> "$GITHUB_OUTPUT"
+          else
+            echo "filename=clando.apk" >> "$GITHUB_OUTPUT"
+            echo "code_var=MOBILE_APP_ANDROID_VERSION_CODE" >> "$GITHUB_OUTPUT"
+            echo "name_var=MOBILE_APP_ANDROID_VERSION" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Télécharger l'APK depuis la release GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.apk' --dir .
+          apk=$(ls -1 *.apk | head -1)
+          [ -n "$apk" ] || { echo "Aucun .apk trouvé dans la release $RELEASE_TAG" >&2; exit 1; }
+          mv "$apk" app-a-publier.apk
+          ls -la app-a-publier.apk
+
+      - name: Add server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          # Clés d'hôte figées, identiques à Deploy — voir ce workflow pour le
+          # raisonnement (anti-scan de l'hébergeur, identité du serveur vérifiée).
+          {
+            echo '[209.16.158.105]:5022 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBIMOm8QHHSXneiyNliJJXnFnnhgMU3c8sJXSO6csfkxKegUvDE0isV5L0xLUspeK8BsJCbxp1nUZcX8RXR9mvgc='
+            echo '[209.16.158.105]:5022 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDeA9eJeZRXTS6X29nkQk/FxuLGUFGzZP2MwZoUjAtSXffUztALLVslFCeZhr1uk6v5qHzCKJWtHj/KAr8twmpVEhh0gKe8I/pMeFHUmzsw7MAInWtVvZqzSqOXxgukaH4zGQF9zNKdICRYGPWNOYvKnMiownuh/nMu3it6nM+y9aSwCUeLzYHeCQDE4rvuZEJNWdQ0PH8yQkjj8vQ9QA7nnI9G7spw3qK65SSIZnUqYB34hQ74RLYkLcVd5vmxG1G7jktVCOc6XPoxcZpj874STj782npt2wjXBSCI4Q1fg3LppKDfzzyyc6WixXB0TyeGCsXacv5+W54mRbaHl3vt/QhfAB7z2eubUudaGfN09ldsAoJFbB0lsFjKmDPw7+Hnh07+VV6BZedaVo83eBU9DK5zY+f8TLAYQJn8BLoGpv854TbZSVjhiARTJoU7wZVQvybF4mlvTrVeYk9x+nbgMRLaa25K9K4LPy56/XmcKP9SAdLpG3Hci/1IwdibXOk='
+            echo '[209.16.158.105]:5022 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIrOLR8T7kongCpfUuIneume8pLqSyhnhzr4pykSikXF'
+          } >> ~/.ssh/known_hosts
+
+      - name: Déposer l'APK sur le serveur (storage/app survit aux déploiements de code, voir deploy-release.sh étape 5)
+        env:
+          SSHPASS: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+          REMOTE_FILENAME: ${{ steps.cible.outputs.filename }}
+        run: |
+          command -v sshpass >/dev/null \
+            || { sudo apt-get update -qq && sudo apt-get install -y -qq sshpass; }
+          sshpass -e ssh -p "$DEPLOY_PORT" -o StrictHostKeyChecking=yes -o ConnectTimeout=30 \
+            "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$DEPLOY_PATH/storage/app/mobile'"
+          sshpass -e scp -P "$DEPLOY_PORT" -o StrictHostKeyChecking=yes -o ConnectTimeout=30 \
+            app-a-publier.apk \
+            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/storage/app/mobile/$REMOTE_FILENAME"
+
+      # Les valeurs d'entrée sont passées en variables d'environnement locales
+      # (jamais interpolées directement dans la commande distante) pour éviter
+      # toute injection shell via un champ workflow_dispatch.
+      - name: Mettre à jour la version annoncée (v2/config, getAppVersion)
+        env:
+          SSHPASS: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+          CODE_VAR: ${{ steps.cible.outputs.code_var }}
+          NAME_VAR: ${{ steps.cible.outputs.name_var }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          VERSION_NAME: ${{ inputs.version_name }}
+        run: |
+          remote_script=$(cat <<-SCRIPT
+          set -e
+          cd '$DEPLOY_PATH'
+          sed -i "/^${CODE_VAR}=/d;/^${NAME_VAR}=/d" .env
+          printf '%s=%s\n%s=%s\n' "$CODE_VAR" "$VERSION_CODE" "$NAME_VAR" "$VERSION_NAME" >> .env
+          php artisan config:cache
+          SCRIPT
+          )
+          sshpass -e ssh -p "$DEPLOY_PORT" -o StrictHostKeyChecking=yes -o ConnectTimeout=30 \
+            "$DEPLOY_USER@$DEPLOY_HOST" "$remote_script"
+
+      - name: Vérifier que le fichier est bien servi
+        env:
+          REMOTE_FILENAME: ${{ steps.cible.outputs.filename }}
+        run: |
+          url="https://pouletafc.com/download-app/$REMOTE_FILENAME"
+          [ "${{ inputs.app }}" = "agent" ] && url="https://pouletafc.com/agent.apk"
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$url")
+          echo "HTTP $code sur $url"
+          [ "$code" = "200" ] || { echo "::error::Le fichier n'est pas servi (HTTP $code)" >&2; exit 1; }
